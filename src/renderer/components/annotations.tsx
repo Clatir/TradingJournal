@@ -238,6 +238,11 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
     if (e.button !== 0) return
     // Keep focus where it is (the text input appears right away) and avoid text selection while dragging.
     e.preventDefault()
+    // preventDefault also keeps an open text field from blurring: a click elsewhere finishes it first.
+    if (textAt) {
+      finishText()
+      return
+    }
     const p = point(e)
     if (tool === 'select') {
       setSelected(null)
@@ -260,8 +265,12 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
     if (Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1) > 0.005) commit([...annotations, draft])
     setDraft(null)
   }
+  // Enter and the blur that follows may both finish the same text: commit it once.
+  const finishedText = useRef<object | null>(null)
   const finishText = () => {
-    if (textAt && (text.trim() || textAt.hline)) {
+    if (!textAt || finishedText.current === textAt) return
+    finishedText.current = textAt
+    if (text.trim() || textAt.hline) {
       commit([...annotations, { id: newId(), type: textAt.hline ? 'hline' : 'text', x1: textAt.x, y1: textAt.y, x2: 0, y2: 0, text: text.trim(), color }])
     }
     setTextAt(null)

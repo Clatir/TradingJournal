@@ -89,14 +89,16 @@ export function dayPlanToMarkdown(d: DayPlan, journal: JournalFile, trades: read
   if (im.length) out.push(`**Intermarket:** ${im.map((x) => `${x.instrument} ${x.relation ? REL[x.relation] : ''}${x.read.trim() ? ` (${x.read.trim()})` : ''}`.trim()).join(' · ')}`)
   if (d.news.length)
     out.push(`**Newsy high-impact:** ${[...d.news].sort((a, b) => (a.time < b.time ? -1 : 1)).map((n) => `${formatClock(n.time, 'NY')} NY ${n.currency} ${n.title}`.trim()).join(' · ')}`)
-  if (d.review.vsPlan || d.review.whatHappened.trim()) {
+  if (d.review.vsPlan || d.review.whatHappened.trim() || d.review.notes.trim()) {
     out.push('', '### Po sesji', '')
     if (d.review.vsPlan) out.push(`**Wobec planu:** ${VS[d.review.vsPlan]}`)
     if (d.review.whatHappened.trim()) out.push(d.review.whatHappened.trim())
     if (d.review.notes.trim()) out.push(`**Wnioski:** ${d.review.notes.trim()}`)
   }
   const ctx = metricsContext(journal.settings)
-  const dayTrades = trades.filter((t) => tradeMetrics(t, ctx).tradingDate === d.date)
+  const dayTrades = trades
+    .filter((t) => tradeMetrics(t, ctx).tradingDate === d.date)
+    .sort((a, b) => Date.parse(a.entryTime) - Date.parse(b.entryTime))
   if (dayTrades.length) {
     out.push('', '### Transakcje', '')
     for (const t of dayTrades) {

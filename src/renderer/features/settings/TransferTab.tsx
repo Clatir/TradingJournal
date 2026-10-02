@@ -149,10 +149,12 @@ export function TransferTab() {
                     disabled={busy}
                     onClick={() =>
                       run(async () => {
-                        await flushSaves()
+                        if (!(await flushSaves())) throw new Error('Nie udało się zapisać bieżących zmian – spróbuj ponownie za chwilę.')
                         const res = await api.openImportAsNew(report.token)
-                        if (await openResult(res)) toast('Otwarto zaimportowany dziennik jako folder danych.', 'success')
-                        setReport(null)
+                        if (await openResult(res)) {
+                          toast('Otwarto zaimportowany dziennik jako folder danych.', 'success')
+                          setReport(null)
+                        } else if (!res.ok && res.reason !== 'cancelled') toast(res.message, 'error', 7000)
                       })
                     }
                   >

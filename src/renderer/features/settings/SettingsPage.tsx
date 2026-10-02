@@ -80,13 +80,13 @@ function FolderTab() {
     void api.getConfig().then((c) => setRecent(c.recentDirs))
   }, [status?.dataDir])
   const switchTo = async (fn: () => ReturnType<typeof api.pickDataDir>) => {
-    await flushSaves()
-    const ok = await openResult(await fn())
-    if (ok) toast('Otwarto folder danych.', 'success')
-    else {
-      const msg = useJournal.getState().setupMessage
-      if (msg) toast(msg, 'error', 6000)
+    if (!(await flushSaves())) {
+      toast('Nie udało się zapisać bieżących zmian – folder nie został zmieniony. Spróbuj ponownie za chwilę.', 'error', 7000)
+      return
     }
+    const res = await fn()
+    if (await openResult(res)) toast('Otwarto folder danych.', 'success')
+    else if (!res.ok && res.reason !== 'cancelled') toast(res.message, 'error', 6000)
   }
   return (
     <>
@@ -105,7 +105,7 @@ function FolderTab() {
             <button className="btn" onClick={() => switchTo(() => api.pickDataDir('create'))}>
               <IconPlus size={13} /> Nowy dziennik w innym folderze…
             </button>
-            <button className="btn" onClick={() => api.rescan().then(() => toast('Przeskanowano folder.', 'success'))}>
+            <button className="btn" onClick={() => api.rescan().then(() => toast('Przeskanowano folder.', 'success'), (e) => toast(errorMessage(e), 'error'))}>
               <IconSync size={13} /> Przeskanuj
             </button>
           </div>
@@ -221,14 +221,7 @@ function PairsTab({ journal }: { journal: JournalFile }) {
           </span>
           <NumberField value={p.pipSize} onChange={(v) => v && v > 0 && setPair(p.symbol, { pipSize: v })} decimals={undefined} />
           <NumberField value={p.priceDecimals} onChange={(v) => v != null && v >= 0 && v <= 8 && setPair(p.symbol, { priceDecimals: Math.round(v) })} decimals={0} />
-          <TextField
-            mono
-            value={p.quoteCurrency}
-            onChange={(v) => {
-              const q = v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)
-              if (q.length === 3) setPair(p.symbol, { quoteCurrency: q })
-            }}
-          />
+          <CurrencyInput value={p.quoteCurrency} onChange={(quoteCurrency) => setPair(p.symbol, { quoteCurrency })} />
           <TextField mono value={p.tvSymbol} onChange={(v) => setPair(p.symbol, { tvSymbol: v.trim() })} />
           <button className="btn h-[22px]" onClick={() => setPair(p.symbol, { archived: !p.archived })}>
             {p.archived ? 'Przywróć' : 'Ukryj'}
@@ -244,6 +237,30 @@ function PairsTab({ journal }: { journal: JournalFile }) {
         <span className="text-[11px] text-muted">Pary z JPY dostają pips 0.01. Ukryte pary znikają z wyboru, historia zostaje.</span>
       </div>
     </Panel>
+  )
+}
+
+/**
+ * Three-letter currency code. Edited as a draft and applied on blur/Enter: applying every keystroke
+ * would reject the intermediate one- and two-letter states and snap the field back.
+ */
+function CurrencyInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const valid = (t: string) => /^[A-Z]{3}$/.test(t)
+  return (
+    <input
+      className={cx('input num', className)}
+      value={draft ?? value}
+      spellCheck={false}
+      aria-invalid={draft != null && !valid(draft)}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.currentTarget.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3))}
+      onBlur={() => {
+        if (draft != null && valid(draft) && draft !== value) onChange(draft)
+        setDraft(null)
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
   )
 }
 
@@ -646,14 +663,10 @@ function DisplayTab({ settings }: { settings: Settings }) {
       <Panel title="Ryzyko">
         <div className="grid grid-cols-2 gap-x-6 gap-y-2">
           <Field label="Waluta konta">
-            <TextField
-              mono
+            <CurrencyInput
               className="w-[80px]"
               value={settings.risk.accountCurrency}
-              onChange={(v) => {
-                const c = v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)
-                if (c.length === 3) setSettings((s) => ({ ...s, risk: { ...s.risk, accountCurrency: c } }))
-              }}
+              onChange={(accountCurrency) => setSettings((s) => ({ ...s, risk: { ...s.risk, accountCurrency } }))}
             />
           </Field>
           <Field label="Domyślne ryzyko %">

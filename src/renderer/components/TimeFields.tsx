@@ -166,7 +166,7 @@ export function ExitClockField({
           if (!c) return false
           const refDate = zoned(referenceIso, 'NY').toISODate() ?? ''
           let res = fromLocal(refDate, c, 'NY')
-          if (res && res.iso < referenceIso) {
+          if (res && Date.parse(res.iso) < Date.parse(referenceIso)) {
             const next = DateTime.fromISO(refDate).plus({ days: 1 }).toISODate() ?? refDate
             res = fromLocal(next, c, 'NY')
           }

@@ -189,7 +189,12 @@ function ClockCell({ value, onChange, testId }: { value: string | null; onChange
       aria-invalid={draft != null && draft.trim() !== '' && !parseClockInput(draft)}
       onChange={(e) => setDraft(e.currentTarget.value)}
       onBlur={() => {
-        if (draft != null) onChange(draft.trim() ? parseClockInput(draft) : null)
+        if (draft != null) {
+          const text = draft.trim()
+          const clock = text ? parseClockInput(text) : null
+          // Invalid input (e.g. 25:00) reverts instead of erasing the stored time.
+          if ((!text || clock) && clock !== value) onChange(clock)
+        }
         setDraft(null)
       }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}

@@ -65,7 +65,11 @@ function useGlobalHotkeys(): void {
         navigate({ page: 'settings' })
       } else if (k === 's') {
         e.preventDefault()
-        void flushSaves().then(() => toast('Zapisano. (Zapis jest automatyczny – Ctrl+S nie jest potrzebne.)', 'success', 2200))
+        void flushSaves().then((saved) =>
+          saved
+            ? toast('Zapisano. (Zapis jest automatyczny – Ctrl+S nie jest potrzebne.)', 'success', 2200)
+            : toast(`Nie udało się zapisać: ${useJournal.getState().save.error ?? 'błąd zapisu'}. Aplikacja ponowi zapis automatycznie.`, 'error', 6000)
+        )
       } else if (e.key === '$' || (e.shiftKey && e.code === 'Digit4')) {
         e.preventDefault()
         toggleMoney()

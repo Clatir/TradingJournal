@@ -54,7 +54,10 @@ async function populate(): Promise<void> {
 /** Switch to the separate demo folder (generated on first use). Real data is never touched. */
 export async function enterSample(regenerate = false): Promise<void> {
   try {
-    await flushSaves()
+    if (!(await flushSaves())) {
+      toast('Nie udało się zapisać bieżących zmian – tryb demo nie został włączony.', 'error', 7000)
+      return
+    }
     if (regenerate) await api.resetSample()
     const res = await api.openSample()
     if (!res.ok) {
@@ -76,14 +79,21 @@ export async function enterSample(regenerate = false): Promise<void> {
 }
 
 export async function exitSample(): Promise<void> {
-  await flushSaves()
-  const res = await api.exitSample()
-  if (!res) {
-    useJournal.setState({ phase: 'setup', setupMessage: 'Wybierz folder ze swoim dziennikiem.', setupDir: null })
-    return
-  }
-  if (await openResult(res)) {
-    toast('Wrócono do Twojego dziennika.', 'success')
-    navigate({ page: 'journal' })
+  try {
+    await flushSaves()
+    const res = await api.exitSample()
+    if (!res) {
+      useJournal.setState({ phase: 'setup', setupMessage: 'Wybierz folder ze swoim dziennikiem.', setupDir: null })
+      return
+    }
+    if (await openResult(res)) {
+      toast('Wrócono do Twojego dziennika.', 'success')
+      navigate({ page: 'journal' })
+    } else if (!res.ok) {
+      // e.g. the real folder is on a pendrive that is not plugged in: stay in demo mode and say why.
+      toast(res.message, 'error', 8000)
+    }
+  } catch (e) {
+    toast(errorMessage(e), 'error', 6000)
   }
 }

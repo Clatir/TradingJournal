@@ -21,6 +21,11 @@ import { writeFileAtomic } from './datastore/atomic'
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
 if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DATA)
 
+// One instance per machine (the lock is tied to userData): a second window would autosave over the
+// first one in the same data folder. Starting the app again just brings the open window to front.
+const isPrimaryInstance = app.requestSingleInstanceLock()
+if (!isPrimaryInstance) app.quit()
+
 const machineName = process.env.ICTJ_MACHINE_NAME || hostname() || 'KOMPUTER'
 const config = new ConfigStore(app.getPath('userData'))
 const sampleDir = () => join(app.getPath('userData'), 'sample-journal')
@@ -60,11 +65,15 @@ async function closeStore(): Promise<void> {
 async function heartbeat(): Promise<void> {
   const s = store
   if (!s) return
-  if (!s.status().readOnly) await writePresence(s.root, machineName, app.getVersion()).catch(() => undefined)
-  const others = await readOtherMachines(s.root, machineName)
-  if (JSON.stringify(others) !== JSON.stringify(s.otherMachines)) {
-    s.otherMachines = others
-    send(await s.refresh([]))
+  try {
+    if (!s.status().readOnly) await writePresence(s.root, machineName, app.getVersion()).catch(() => undefined)
+    const others = await readOtherMachines(s.root, machineName)
+    if (JSON.stringify(others) !== JSON.stringify(s.otherMachines)) {
+      s.otherMachines = others
+      send(await s.refresh([]))
+    }
+  } catch (e) {
+    log('warn', 'heartbeat failed', e)
   }
 }
 
@@ -97,10 +106,11 @@ async function openFolder(dir: string, createIfEmpty: boolean): Promise<OpenFold
         message: 'W tym folderze nie ma dziennika (journal.json). Można utworzyć w nim podfolder „ICT Trade Journal”.'
       }
     }
-    await closeStore()
     const isSample = target === sampleDir()
     const next = new DataStore(target, { machineName, trash, backupDir: isSample ? null : config.get().backupDirOverride, isSample })
+    // Open the new folder first: if it fails, the current one stays open and keeps saving.
     const snapshot = await next.open()
+    await closeStore()
     store = next
     next.otherMachines = await readOtherMachines(target, machineName)
     snapshot.status = next.status()
@@ -359,21 +369,42 @@ function createWindow(): void {
   })
 
   let allowClose = false
+  let closing = false
   win.on('close', (e) => {
     if (allowClose) return
     e.preventDefault()
+    if (closing) return
+    closing = true
     const b = win.getNormalBounds()
     void config.update({ window: { ...b, maximized: win.isMaximized() } })
-    const finish = () => {
-      if (allowClose) return
+    const finish = (saved: boolean) => {
+      clearTimeout(timeout)
+      ipcMain.removeListener('journal:flushed', onFlushed)
+      if (allowClose || win.isDestroyed()) return
+      if (!saved) {
+        // The renderer keeps unsaved changes and retries; closing now would lose them.
+        const choice = dialog.showMessageBoxSync(win, {
+          type: 'warning',
+          title: 'Niezapisane zmiany',
+          message: 'Nie udało się zapisać ostatnich zmian.',
+          detail:
+            'Folder danych może być niedostępny albo plik jest zablokowany (OneDrive, antywirus). Wybierz „Anuluj”, żeby aplikacja spróbowała ponownie, albo zamknij i utrać te zmiany.',
+          buttons: ['Anuluj', 'Zamknij mimo to'],
+          defaultId: 0,
+          cancelId: 0
+        })
+        if (choice === 0) {
+          closing = false
+          return
+        }
+      }
       allowClose = true
       win.close()
     }
-    const timeout = setTimeout(finish, 4000)
-    ipcMain.once('journal:flushed', () => {
-      clearTimeout(timeout)
-      finish()
-    })
+    const onFlushed = (_e: Electron.IpcMainEvent, saved?: boolean) => finish(saved !== false)
+    // An unresponsive renderer must not keep the window open forever.
+    const timeout = setTimeout(() => finish(true), 4000)
+    ipcMain.on('journal:flushed', onFlushed)
     win.webContents.send('journal:flush')
   })
   win.on('focus', () => {
@@ -387,7 +418,15 @@ function createWindow(): void {
   else void win.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
+app.on('second-instance', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
+
 app.whenReady().then(async () => {
+  if (!isPrimaryInstance) return
   Menu.setApplicationMenu(null)
   initLog(app.getPath('userData'))
   log('info', `start v${app.getVersion()} on ${machineName}`)

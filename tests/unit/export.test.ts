@@ -67,6 +67,16 @@ describe('markdown', () => {
     expect(md).toContain('**Wobec planu:** zgodnie z planem')
     expect(md).toContain('- 03:30 NY EURUSD long – +2.00R')
   })
+
+  it('plan dnia: same wnioski po sesji też trafiają do markdownu, transakcje w kolejności czasu', () => {
+    const d = createDayPlan('2026-03-16', ['EURUSD'], [])
+    d.review = { whatHappened: '', vsPlan: null, notes: 'Jutro tylko NY.' }
+    const later = createTrade({ pair: 'EURUSD', direction: 'short', entryTime: '2026-03-16T14:05:00.000Z', status: 'missed' })
+    const md = dayPlanToMarkdown(d, journal, [later, trade])
+    expect(md).toContain('### Po sesji')
+    expect(md).toContain('**Wnioski:** Jutro tylko NY.')
+    expect(md.indexOf('03:30 NY EURUSD long')).toBeLessThan(md.indexOf('10:05 NY EURUSD short'))
+  })
 })
 
 describe('import OHLC z TradingView', () => {

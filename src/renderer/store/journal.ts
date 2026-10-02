@@ -35,12 +35,30 @@ interface JournalState {
 const SAVE_DELAY = 400
 /** Even while typing continuously, a change is written at most this long after it was made. */
 const SAVE_MAX_WAIT = 2000
+/** A failed save (file locked by OneDrive, pendrive briefly gone…) is retried with backoff. */
+const RETRY_FIRST = 2000
+const RETRY_MAX = 60_000
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 const versions = new Map<string, number>()
 const dirty = new Map<string, { collection: Collection | 'journal'; id: string }>()
 const inFlight = new Map<string, Promise<void>>()
 const firstDirtyAt = new Map<string, number>()
+const retryDelay = new Map<string, number>()
+/** Keys whose last save attempt failed, with the error message. */
+const failed = new Map<string, string>()
+
+const saveError = (): string | null => [...failed.values()].at(-1) ?? null
+
+function forget(key: string): void {
+  const t = timers.get(key)
+  if (t) clearTimeout(t)
+  timers.delete(key)
+  dirty.delete(key)
+  firstDirtyAt.delete(key)
+  retryDelay.delete(key)
+  failed.delete(key)
+}
 
 const keyOf = (collection: Collection | 'journal', id: string) => `${collection}:${id}`
 
@@ -79,6 +97,9 @@ export function applySnapshot(snapshot: Snapshot): void {
   for (const t of timers.values()) clearTimeout(t)
   timers.clear()
   dirty.clear()
+  firstDirtyAt.clear()
+  retryDelay.clear()
+  failed.clear()
   set({
     phase: 'ready',
     setupMessage: null,
@@ -126,7 +147,8 @@ async function runSave(key: string): Promise<void> {
   if (!target) return
   const version = versions.get(key) ?? 0
   if (target.collection === 'journal' ? !get().journal : !(get()[target.collection] as Record<string, unknown>)[target.id]) {
-    dirty.delete(key)
+    forget(key)
+    bumpPending(0, { error: saveError() })
     return
   }
   bumpPending(1)
@@ -147,7 +169,8 @@ async function runSave(key: string): Promise<void> {
         const latest = map[target.id]
         if ((versions.get(key) ?? 0) === version) {
           dirty.delete(key)
-          map[target.id] = entry
+          // Deleted while the save was in flight: do not bring it back.
+          if (latest) map[target.id] = entry
         } else if (latest) {
           // Newer local edits pending: keep them, but adopt the new path.
           map[target.id] = { ...latest, relPath: entry.relPath }
@@ -157,10 +180,40 @@ async function runSave(key: string): Promise<void> {
         return { [c]: map, drafts } as Partial<JournalState>
       })
     }
-    bumpPending(-1, { lastSavedAt: new Date().toISOString(), error: null })
+    retryDelay.delete(key)
+    failed.delete(key)
+    bumpPending(-1, { lastSavedAt: new Date().toISOString(), error: saveError() })
   } catch (e) {
-    bumpPending(-1, { error: errorMessage(e) })
+    // A record deleted meanwhile is no longer dirty: nothing to report or retry.
+    if (dirty.has(key)) failed.set(key, errorMessage(e))
+    bumpPending(-1, { error: saveError() })
+    scheduleRetry(key)
   }
+}
+
+/** Run the save of `key` after any save of it that is already in progress. */
+function enqueue(key: string): Promise<void> {
+  const prev = inFlight.get(key) ?? Promise.resolve()
+  const p = prev.then(() => runSave(key))
+  inFlight.set(key, p)
+  void p.finally(() => {
+    if (inFlight.get(key) === p) inFlight.delete(key)
+  })
+  return p
+}
+
+/** A save failed: keep the change and try again later (never drop it silently). */
+function scheduleRetry(key: string): void {
+  if (timers.has(key) || !dirty.has(key)) return
+  const delay = retryDelay.get(key) ?? RETRY_FIRST
+  retryDelay.set(key, Math.min(RETRY_MAX, delay * 2))
+  timers.set(
+    key,
+    setTimeout(() => {
+      timers.delete(key)
+      void enqueue(key)
+    }, delay)
+  )
 }
 
 function scheduleSave(collection: Collection | 'journal', id: string, delay = SAVE_DELAY): void {
@@ -178,20 +231,18 @@ function scheduleSave(collection: Collection | 'journal', id: string, delay = SA
     setTimeout(() => {
       timers.delete(key)
       firstDirtyAt.delete(key)
-      const prev = inFlight.get(key) ?? Promise.resolve()
-      const p = prev.then(() => runSave(key))
-      inFlight.set(key, p)
-      void p.finally(() => {
-        if (inFlight.get(key) === p) inFlight.delete(key)
-      })
+      void enqueue(key)
     }, wait)
   )
 }
 
+const folderReadOnly = () => !!get().status?.readOnly
+
 /** Update a record in memory immediately and save it to disk shortly after (autosave). */
 export function updateRecord<C extends Collection>(collection: C, id: string, updater: (r: RecordTypes[C]) => RecordTypes[C]): void {
   const current = (get()[collection] as EntryMap<C>)[id]
-  if (!current || current.readOnly) return
+  // Read-only folder (newer format, unavailable drive) or file: no edits that could never be saved.
+  if (!current || current.readOnly || folderReadOnly()) return
   const record = updater(current.record)
   set((s) => {
     // The first edit turns a draft into a real record (saved shortly), so leaving the page never discards it.
@@ -207,6 +258,7 @@ export function updateRecord<C extends Collection>(collection: C, id: string, up
 
 /** Add a record. Drafts live only in memory until the first edit. */
 export function addRecord<C extends Collection>(collection: C, record: RecordTypes[C], opts: { draft?: boolean } = {}): void {
+  if (folderReadOnly()) return
   set(
     (s) =>
       ({
@@ -231,10 +283,8 @@ export function discardDraft(collection: Collection, id: string): void {
 
 export async function deleteRecord(collection: Collection, id: string): Promise<void> {
   const key = keyOf(collection, id)
-  const t = timers.get(key)
-  if (t) clearTimeout(t)
-  timers.delete(key)
-  dirty.delete(key)
+  forget(key)
+  bumpPending(0, { error: saveError() })
   const wasDraft = !!get().drafts[id]
   set((s) => {
     const map = { ...(s[collection] as Record<string, unknown>) }
@@ -249,23 +299,25 @@ export async function deleteRecord(collection: Collection, id: string): Promise<
 
 export function updateJournal(updater: (j: JournalFile) => JournalFile): void {
   const j = get().journal
-  if (!j) return
+  if (!j || folderReadOnly()) return
   set({ journal: updater(j) })
   scheduleSave('journal', 'journal')
 }
 
-/** Write every pending change now (window close, folder switch). */
-export async function flushSaves(): Promise<void> {
-  const keys = [...timers.keys()]
-  for (const key of keys) {
+/**
+ * Write every pending change now (window close, folder switch, Ctrl+S, "retry"), including changes
+ * whose earlier save failed. Resolves to true when nothing is left unsaved.
+ */
+export async function flushSaves(): Promise<boolean> {
+  for (const key of new Set([...timers.keys(), ...dirty.keys()])) {
     const t = timers.get(key)
     if (t) clearTimeout(t)
     timers.delete(key)
     firstDirtyAt.delete(key)
-    const prev = inFlight.get(key) ?? Promise.resolve()
-    inFlight.set(key, prev.then(() => runSave(key)))
+    void enqueue(key)
   }
   await Promise.all([...inFlight.values()])
+  return !hasUnsaved()
 }
 
 export function hasUnsaved(): boolean {

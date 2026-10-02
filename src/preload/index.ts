@@ -42,7 +42,10 @@ const api: JournalApi = {
   },
   onFlushRequest: (cb) => {
     const listener = () => {
-      cb().finally(() => ipcRenderer.send('journal:flushed'))
+      cb().then(
+        (saved) => ipcRenderer.send('journal:flushed', saved),
+        () => ipcRenderer.send('journal:flushed', false)
+      )
     }
     ipcRenderer.on('journal:flush', listener)
     return () => ipcRenderer.removeListener('journal:flush', listener)

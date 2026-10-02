@@ -202,8 +202,8 @@ export interface JournalApi {
   pickTextFile(filter: { name: string; extensions: string[] }): Promise<{ name: string; text: string } | null>
   showPath(absPath: string): Promise<void>
   onChange(cb: (change: ChangeSet) => void): () => void
-  /** Main asks the renderer to flush pending saves before the window closes. */
-  onFlushRequest(cb: () => Promise<void>): () => void
+  /** Main asks the renderer to flush pending saves before the window closes (false = something stayed unsaved). */
+  onFlushRequest(cb: () => Promise<boolean>): () => void
 }
 
 export const FILE_URL_SCHEME = 'journal-file'

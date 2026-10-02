@@ -16,8 +16,12 @@ type TypeFilter = 'all' | 'live' | 'backtest'
 
 /** Create a library example from a trade (shares the screenshot files, no copies). */
 export function addTradeToLibrary(t: Trade): string | null {
-  const { journal } = useJournal.getState()
+  const { journal, status } = useJournal.getState()
   if (!journal) return null
+  if (status?.readOnly) {
+    toast(status.readOnlyReason ?? 'Folder danych jest tylko do odczytu.', 'error')
+    return null
+  }
   const m = metricsFor(t, journal.settings)
   const now = new Date().toISOString()
   const item = libraryItemSchema.parse({
@@ -250,9 +254,16 @@ function LibraryDetail({ item, readOnly }: { item: LibraryItem; readOnly: boolea
                   placeholder="RRRR-MM-DD"
                   onChange={(e) => setDateDraft(e.currentTarget.value)}
                   onBlur={() => {
-                    if (dateDraft != null) set('date', dateDraft.trim() ? parseDateInput(dateDraft) : null)
+                    if (dateDraft != null) {
+                      const text = dateDraft.trim()
+                      const date = text ? parseDateInput(text) : null
+                      // A typo must not erase the stored date: invalid input just reverts.
+                      if (text && !date) toast('Nieprawidłowa data – zostawiono poprzednią.', 'error')
+                      else if (date !== item.date) set('date', date)
+                    }
                     setDateDraft(null)
                   }}
+                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                 />
                 <select className="input" value={item.killzoneId ?? ''} onChange={(e) => set('killzoneId', e.currentTarget.value || null)} aria-label="Sesja">
                   <option value="">—</option>

@@ -42,14 +42,15 @@ export async function writeFileAtomic(target: string, data: string | Uint8Array)
   const tmp = tempPathFor(target)
   const handle = await fs.open(tmp, 'w')
   try {
-    await handle.writeFile(data)
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
-  try {
+    try {
+      await handle.writeFile(data)
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
     await withRetry(() => fs.rename(tmp, target))
   } catch (e) {
+    // e.g. disk full or the target locked for too long: never leave a half-written temp file behind.
     await fs.rm(tmp, { force: true }).catch(() => undefined)
     throw e
   }

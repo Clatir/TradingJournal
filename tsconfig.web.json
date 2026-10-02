@@ -6,5 +6,5 @@
     "jsx": "react-jsx",
     "types": []
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*", "src/preload/api.ts"]
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/preload/api.ts", "tests/unit/journal-store.test.ts"]
 }

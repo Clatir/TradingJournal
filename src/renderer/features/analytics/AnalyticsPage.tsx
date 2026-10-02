@@ -290,7 +290,11 @@ function DateBox({ value, placeholder, onChange }: { value: string | null; place
       placeholder={placeholder}
       onChange={(e) => setDraft(e.currentTarget.value)}
       onBlur={() => {
-        if (draft != null) onChange(draft.trim() ? parseDateInput(draft) : null)
+        if (draft != null) {
+          const text = draft.trim()
+          const date = text ? parseDateInput(text) : null
+          if (!text || date) onChange(date)
+        }
         setDraft(null)
       }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}

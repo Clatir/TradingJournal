@@ -15,5 +15,6 @@
     "src/renderer/lib/format.ts",
     "tests/**/*",
     "scripts/**/*"
-  ]
+  ],
+  "exclude": ["tests/unit/journal-store.test.ts"]
 }

@@ -227,7 +227,7 @@ export function TradeEditor({ id }: { id: string }) {
                 >
                   <option value="">auto</option>
                   {settings.killzones
-                    .filter((k) => !k.archived)
+                    .filter((k) => !k.archived || k.id === t.killzoneOverride)
                     .map((k) => (
                       <option key={k.id} value={k.id}>
                         {k.name} ({k.start}–{k.end})
@@ -369,7 +369,11 @@ export function TradeEditor({ id }: { id: string }) {
           <Section
             title="Ryzyko"
             actions={
-              <button className="btn h-[20px] px-1.5 text-[11px]" onClick={() => navigate({ page: 'calculator', tradeId: id })} title="Kalkulator pozycji dla tej transakcji" data-testid="open-calc">
+              <button className="btn h-[20px] px-1.5 text-[11px]" onClick={() => {
+                  // Leaving the editor discards an untouched draft; this trade is wanted, so save it first.
+                  if (isDraft) up((r) => ({ ...r }))
+                  navigate({ page: 'calculator', tradeId: id })
+                }} title="Kalkulator pozycji dla tej transakcji" data-testid="open-calc">
                 Przelicz loty
               </button>
             }

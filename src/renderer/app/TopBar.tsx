@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatClock, primaryKillzone } from '@shared/calc/time'
+import type { Killzone } from '@shared/schema'
 import { useJournal } from '../store/journal'
 import { useDailyLimits } from '../store/derived'
 import { fmtR } from '../lib/format'
@@ -7,6 +8,8 @@ import { navigate, setPalette } from '../store/ui'
 import { IconSearch } from '../components/icons'
 import { Kbd, cx } from '../components/ui'
 import { SaveIndicator } from './SaveIndicator'
+
+const NO_KILLZONES: readonly Killzone[] = []
 
 function useNow(ms = 1000): Date {
   const [now, setNow] = useState(() => new Date())
@@ -19,7 +22,7 @@ function useNow(ms = 1000): Date {
 
 export function TopBar() {
   const now = useNow()
-  const killzones = useJournal((s) => s.journal?.settings.killzones ?? [])
+  const killzones = useJournal((s) => s.journal?.settings.killzones ?? NO_KILLZONES)
   const status = useJournal((s) => s.status)
   const iso = now.toISOString()
   const kz = primaryKillzone(iso, killzones)

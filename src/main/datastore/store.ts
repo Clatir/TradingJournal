@@ -347,6 +347,24 @@ export class DataStore {
       : null
   }
 
+  /**
+   * journal.json changed on disk while the folder is open. A broken file (e.g. half-synced) must not
+   * take the folder down: the last good settings stay in memory and the file shows up as a problem.
+   * Returns true when new settings were loaded.
+   */
+  private refreshJournalState(): boolean {
+    const state = this.files.get(JOURNAL_FILE)
+    if (state?.status === 'record' && state.record) {
+      this.applyJournalState()
+      return true
+    }
+    if (state?.problemKind === 'too-new') {
+      this.folderReadOnlyReason =
+        'journal.json zapisała nowsza wersja aplikacji (nowszy format danych). Zaktualizuj aplikację - do tego czasu dane są tylko do odczytu.'
+    }
+    return false
+  }
+
   // ---------------------------------------------------------------- migrations
 
   private async migrateIfNeeded(): Promise<void> {
@@ -589,8 +607,7 @@ export class DataStore {
           else this.files.delete(rel)
         }
       }
-      const journalChanged = this.files.get(JOURNAL_FILE)?.hash !== journalBefore
-      if (journalChanged) this.applyJournalState()
+      const journalChanged = this.files.get(JOURNAL_FILE)?.hash !== journalBefore && this.refreshJournalState()
       if (!this.folderReadOnlyReason) {
         const migrated = [...this.files.values()].filter((s) => s.status === 'record' && s.migrated && !s.readOnly)
         if (migrated.length) {
@@ -615,6 +632,25 @@ export class DataStore {
     )
     if (candidates.length === 0) return null
     return candidates.sort((a, b) => ((a.record as AnyRecord).updatedAt < (b.record as AnyRecord).updatedAt ? 1 : -1))[0] ?? null
+  }
+
+  /**
+   * A corrupt / invalid file sits where a record is about to be written (e.g. a half-synced day plan):
+   * move it aside as a conflict copy instead of overwriting it. A file in a newer format is never replaced.
+   */
+  private async setAsideProblem(state: FileState): Promise<void> {
+    if (state.problemKind === 'too-new') {
+      throw new ReadOnlyError(`Plik ${state.relPath} zapisała nowsza wersja aplikacji – zaktualizuj aplikację, żeby go zmienić.`)
+    }
+    const copyRel = state.relPath.replace(/\.json$/i, `-uszkodzona-${stamp(this.opts.now())}.json`)
+    try {
+      await withRetry(() => fs.rename(this.abs(state.relPath), this.abs(copyRel)))
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    }
+    this.files.delete(state.relPath)
+    const copy = await this.loadFile(copyRel)
+    if (copy) this.files.set(copyRel, copy)
   }
 
   /** If the file on disk changed behind our back, keep that version as a conflict copy before overwriting. */
@@ -648,6 +684,7 @@ export class DataStore {
       if (occupant?.status === 'record' && (occupant.record as AnyRecord).id !== record.id) {
         throw new Error(`Plik ${rel} należy do innego wpisu (np. plan dla tej daty już istnieje).`)
       }
+      if (occupant?.status === 'problem') await this.setAsideProblem(occupant)
       if (existing) await this.preserveExternalChange(existing)
       const text = serializeRecord(collection, record, this.ctxFor(collection, record))
       const state = await this.writeState(rel, collection, record, text)
@@ -673,8 +710,12 @@ export class DataStore {
       for (const screen of screensOf(collection, state.record as AnyRecord)) {
         for (const p of [screen.path, screen.thumbPath]) {
           if (stillUsed.has(p)) continue
-          const abs = this.abs(p)
-          if (await pathExists(abs)) await this.opts.trash(abs)
+          try {
+            const abs = this.abs(p)
+            if (await pathExists(abs)) await this.opts.trash(abs)
+          } catch {
+            // A hand-edited path or a locked file: the record is already gone, the file stays as an orphan.
+          }
         }
       }
       return this.diff(this.buildViews(), false)
@@ -692,9 +733,14 @@ export class DataStore {
         const rel = recordRelPath(kind, parsed as unknown as Record<string, unknown>)
         const occupant = this.files.get(rel)
         if (occupant?.status === 'record' && (occupant.record as AnyRecord).id !== parsed.id) {
+          if (occupant.readOnly) continue
           // Same date/week plan with a different id: the imported one replaces it.
           await this.opts.trash(this.abs(rel))
           this.files.delete(rel)
+        }
+        if (occupant?.status === 'problem') {
+          if (occupant.problemKind === 'too-new') continue
+          await this.setAsideProblem(occupant)
         }
         await this.writeState(rel, kind, parsed, serializeRecord(kind, parsed, this.ctxFor(kind, parsed)))
         if (existing && existing.relPath !== rel) {
@@ -711,7 +757,8 @@ export class DataStore {
       this.assertWritable()
       const journal = SCHEMAS.journal.parse({ ...input, schemaVersion: SCHEMA_VERSION, updatedAt: this.opts.now() })
       const existing = this.files.get(JOURNAL_FILE)
-      if (existing) await this.preserveExternalChange(existing)
+      if (existing?.status === 'problem') await this.setAsideProblem(existing)
+      else if (existing) await this.preserveExternalChange(existing)
       await this.writeState(JOURNAL_FILE, 'journal', journal, serializeRecord('journal', journal))
       this.journal = journal
       this.commit(this.buildViews())

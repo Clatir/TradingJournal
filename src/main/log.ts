@@ -15,8 +15,17 @@ export function initLog(userDataDir: string): void {
   }
 }
 
+function describe(detail: unknown): string {
+  if (detail instanceof Error) return detail.stack ?? detail.message
+  try {
+    return JSON.stringify(detail)
+  } catch {
+    return String(detail)
+  }
+}
+
 export function log(level: 'info' | 'warn' | 'error', message: string, detail?: unknown): void {
-  const line = `${new Date().toISOString()} ${level.toUpperCase()} ${message}${detail ? ` ${detail instanceof Error ? detail.stack ?? detail.message : JSON.stringify(detail)}` : ''}\n`
+  const line = `${new Date().toISOString()} ${level.toUpperCase()} ${message}${detail ? ` ${describe(detail)}` : ''}\n`
   if (level !== 'info') process.stderr.write(line)
   if (!file) return
   try {

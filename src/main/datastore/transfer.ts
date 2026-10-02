@@ -1,5 +1,6 @@
 import { createWriteStream, promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import yauzl from 'yauzl'
 import type { ImportPolicy, ImportReport } from '@shared/api'
 import { COLLECTIONS, JOURNAL_FILE, classifyCanonical, isIgnoredPath, isScreenFile, sanitizeRelPath, type Collection } from '@shared/paths'
@@ -11,10 +12,27 @@ import type { DataStore } from './store'
 /** Extract a ZIP safely (no absolute paths, no "..", no symlinks). Returns the number of files written. */
 export function extractZip(zipPath: string, destDir: string): Promise<number> {
   return new Promise<number>((resolve, rejectRaw) => {
-    const reject = (e: unknown) =>
-      rejectRaw(/invalid relative path|absolute path/i.test(String((e as Error)?.message)) ? new Error('ZIP zawiera niedozwolone ścieżki (np. ../) – odrzucony.') : e)
+    let zipFile: yauzl.ZipFile | null = null
+    let done = false
+    const reject = (e: unknown) => {
+      if (done) return
+      done = true
+      try {
+        // yauzl auto-closes on its own errors; closing twice throws.
+        if (zipFile?.isOpen) zipFile.close()
+      } catch {
+        /* already closed */
+      }
+      const msg = String((e as Error)?.message)
+      rejectRaw(
+        /invalid relative path|absolute path/i.test(msg)
+          ? new Error('ZIP zawiera niedozwolone ścieżki (np. ../) – odrzucony.')
+          : new Error(`Uszkodzony plik ZIP: ${msg}`)
+      )
+    }
     yauzl.open(zipPath, { lazyEntries: true }, (err, zip) => {
       if (err || !zip) return reject(err ?? new Error('Nie można otworzyć ZIP'))
+      zipFile = zip
       let count = 0
       zip.on('error', reject)
       zip.on('end', () => resolve(count))
@@ -27,15 +45,15 @@ export function extractZip(zipPath: string, destDir: string): Promise<number> {
         const target = join(destDir, ...rel.split('/'))
         zip.openReadStream(entry, (e, stream) => {
           if (e || !stream) return reject(e ?? new Error('Błąd odczytu ZIP'))
+          // Damaged data (bad deflate stream, size mismatch) is reported on the entry stream; pipeline
+          // propagates it and closes both ends. The early listener covers the time before piping.
+          stream.on('error', reject)
           fs.mkdir(dirname(target), { recursive: true })
+            .then(() => pipeline(stream, createWriteStream(target)))
             .then(() => {
-              const out = createWriteStream(target)
-              stream.pipe(out)
-              out.on('close', () => {
-                count++
-                zip.readEntry()
-              })
-              out.on('error', reject)
+              if (done) return
+              count++
+              zip.readEntry()
             })
             .catch(reject)
         })
@@ -124,6 +142,9 @@ export function mergeJournal(current: JournalFile, incoming: JournalFile): Journ
 }
 
 export async function applyImport(store: DataStore, inspected: Inspected, policy: ImportPolicy): Promise<{ imported: number; skipped: number; screensCopied: number }> {
+  // Checked up front: screenshots are copied before the records, and nothing may land in a read-only folder.
+  const status = store.status()
+  if (status.readOnly) throw new Error(status.readOnlyReason ?? 'Folder danych jest tylko do odczytu.')
   const collisions = new Map(inspected.report.collisions.map((c) => [`${c.kind}:${c.id}`, c]))
   const chosen = inspected.records.filter((r) => {
     const c = collisions.get(`${r.kind}:${r.record.id}`) ?? inspected.report.collisions.find((x) => x.relPath === r.relPath)

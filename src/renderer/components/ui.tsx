@@ -92,7 +92,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
       }}
       onBlur={() => setDraft(null)}
       onKeyDown={(e) => {
-        if (!step || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) {
+        if (readOnly || !step || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) {
           if (e.key === 'Enter') setDraft(null)
           return
         }

@@ -82,7 +82,8 @@ export function isLosslessWebp(bytes: Uint8Array): boolean {
     const id = tag(offset)
     if (id === 'VP8L') return true
     if (id === 'VP8 ') return false
-    const size = (bytes[offset + 4] ?? 0) | ((bytes[offset + 5] ?? 0) << 8) | ((bytes[offset + 6] ?? 0) << 16) | ((bytes[offset + 7] ?? 0) << 24)
+    // Unsigned: a size with the top bit set must not turn negative and loop forever.
+    const size = ((bytes[offset + 4] ?? 0) | ((bytes[offset + 5] ?? 0) << 8) | ((bytes[offset + 6] ?? 0) << 16) | ((bytes[offset + 7] ?? 0) << 24)) >>> 0
     offset += 8 + size + (size & 1)
   }
   return false

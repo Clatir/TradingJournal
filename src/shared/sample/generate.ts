@@ -154,7 +154,7 @@ export function generateSample(opts: { seed?: number; endDate: string; now?: str
     s.bias.D = { direction: dir, reason: up ? 'Zamknięcie nad PDH, discount FVG poniżej' : 'Zamknięcie pod PDL, premium OB powyżej' }
     s.bias.H4 = { direction: rnd() < 0.8 ? dir : 'neutral', reason: up ? 'MSS w górę, FVG H4 trzymane' : 'Seria niższych szczytów' }
     s.bias.H1 = { direction: rnd() < 0.7 ? dir : 'neutral', reason: '' }
-    s.drawOnLiquidity = up ? `PDH ${price + 0.0035} / EQH nad Azją` : `PDL ${price - 0.0035} / EQL pod Azją`
+    s.drawOnLiquidity = up ? `PDH ${round(price + 0.0035, 5)} / EQH nad Azją` : `PDL ${round(price - 0.0035, 5)} / EQL pod Azją`
     s.keyLevels = [
       { id: newId(), price: round(price + 0.0035, 5), label: 'PDH' },
       { id: newId(), price: round(price - 0.0035, 5), label: 'PDL' },

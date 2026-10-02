@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Command } from 'cmdk'
 import { formatClock } from '@shared/calc/time'
-import { api } from '../../lib/api'
+import { api, errorMessage } from '../../lib/api'
 import { fmtR } from '../../lib/format'
 import { dictName, useTradeRows } from '../../store/derived'
 import { updateJournal, useJournal } from '../../store/journal'
@@ -63,7 +63,7 @@ export function CommandPalette() {
       { id: 'kz', label: "Killzone'y", run: () => navigate({ page: 'settings', tab: 'killzones' }) },
       { id: 'sync', label: 'Synchronizacja i problemy', run: () => navigate({ page: 'sync' }) },
       { id: 'money', label: 'Przełącz kwoty / tylko R', keys: 'Ctrl $', run: toggleMoney },
-      { id: 'rescan', label: 'Przeskanuj folder danych', run: () => void api.rescan().then(() => toast('Przeskanowano folder.', 'success')) },
+      { id: 'rescan', label: 'Przeskanuj folder danych', run: () => void api.rescan().then(() => toast('Przeskanowano folder.', 'success'), (e) => toast(errorMessage(e), 'error')) },
       { id: 'explorer', label: 'Pokaż folder danych w Eksploratorze', run: () => void api.showInFolder(null) },
       { id: 'help', label: 'Skróty klawiszowe', keys: '?', run: () => window.dispatchEvent(new Event('ictj:shortcuts')) }
     ],

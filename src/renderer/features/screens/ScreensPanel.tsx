@@ -18,6 +18,8 @@ export const PHASES: Array<{ id: ScreenPhase; label: string; file: string; key: 
 
 type Updater = (update: (prev: ScreenRef[]) => ScreenRef[]) => void
 
+const NO_TIMEFRAMES: readonly string[] = []
+
 interface Props {
   screens: ScreenRef[]
   onChange: Updater
@@ -32,7 +34,7 @@ interface Props {
 
 export function ScreensPanel({ screens, onChange, date, withPhases = true, capturePaste = false, readOnly, labelPrefix }: Props) {
   const settings = useJournal((s) => s.journal?.settings.screens)
-  const timeframes = useJournal((s) => s.journal?.dictionaries.timeframes ?? [])
+  const timeframes = useJournal((s) => s.journal?.dictionaries.timeframes ?? NO_TIMEFRAMES)
   const [activePhase, setActivePhase] = useState<ScreenPhase>(() => (screens.some((s) => s.phase === 'after') ? 'after' : 'before'))
   const [busy, setBusy] = useState(0)
   const [selected, setSelectedState] = useState<string | null>(null)

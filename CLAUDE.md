@@ -44,8 +44,13 @@ Zmienne testowe: `ICTJ_USER_DATA` (izolowany userData), `ICTJ_DATA_DIR` (folder 
   (heartbeat `.presence/`), `config.ts` (ustawienia per komputer w userData), `log.ts` (userData/logs/main.log),
   protokół `journal-file://data/<ścieżka względna>` do obrazów.
 - `src/preload` – `window.journal` (contextBridge). Okno: contextIsolation, sandbox, CSP wstrzykiwane przy buildzie.
+  Jedna instancja aplikacji (`requestSingleInstanceLock`, blokada per userData) – drugie uruchomienie pokazuje okno.
+  Zmiana folderu: najpierw otwarcie nowego, dopiero po sukcesie zamknięcie bieżącego.
 - `src/renderer` – React; `store/journal.ts`: wszystkie rekordy w pamięci, autozapis (debounce 400 ms, max 2 s),
   nowe wpisy jako szkic do pierwszej zmiany; zmiany z dysku nie nadpisują niezapisanych lokalnych edycji.
+  Nieudany zapis zostaje w pamięci i jest ponawiany (2 s → … → 60 s); `flushSaves()` zapisuje wszystko, co niezapisane,
+  i zwraca `false`, gdy coś zostało – wtedy zamknięcie okna pyta, a zmiana folderu jest wstrzymana.
+  W folderze tylko do odczytu edycje nie są przyjmowane.
 
 ## Dane (folder wybierany przez użytkownika)
 ```
@@ -63,9 +68,12 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Transakcja zapisuje informacyjny blok `computed` (pipsy, R, killzone…) – ignorowany przy odczycie.
 - Słowniki: pozycje z ULID, rekordy odwołują się po `id`, usuwanie = archiwizacja.
 - Zapis atomowy: `.nazwa.tmp-xxxx` → fsync → rename (retry na EPERM/EBUSY). Pliki `.tmp-` i ścieżki z kropką są ignorowane.
-- Uszkodzony / niepoprawny JSON: pomijany, lista problemów, nigdy nienadpisywany.
+- Uszkodzony / niepoprawny JSON: pomijany, lista problemów, nigdy nienadpisywany. Gdy zapis trafia w ścieżkę takiego pliku,
+  plik jest odsuwany jako `nazwa-uszkodzona-<czas>.json` (kopia konfliktu); plik w nowszym formacie blokuje zapis.
+  Uszkodzony `journal.json` w trakcie pracy: zostają ostatnie dobre ustawienia, plik na liście problemów.
 - Konflikty chmury: kopie `nazwa-KOMPUTER.json`, `nazwa (1).json`, Dropbox „conflicted copy”/„kopia powodująca konflikt”,
-  Syncthing `.sync-conflict-`, duplikaty `id`, `-zewnetrzna-<czas>` (plik zmienił się w tle tuż przed zapisem).
+  Syncthing `.sync-conflict-`, duplikaty `id`, `-zewnetrzna-<czas>` (plik zmienił się w tle tuż przed zapisem),
+  `-uszkodzona-<czas>` (uszkodzony plik odsunięty przy zapisie).
   Rozstrzygnięcie: zachowana wersja zapisana jako kanoniczna, druga do Kosza (`shell.trashItem`, fallback: usunięcie).
 - `schemaVersion`: aplikacja = `SCHEMA_VERSION` w `src/shared/schema/common.ts`. Starszy folder → pełny ZIP
   `backups/pre-migration/` i migracja; nowszy folder → tylko odczyt (blokada w main). Pojedynczy starszy plik →
