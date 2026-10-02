@@ -11,6 +11,7 @@ import { navigate } from '../../store/ui'
 import { IconBack, IconClose, IconNext, IconPlus } from '../../components/icons'
 import { Badge, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
+import { copyDayMarkdown } from '../export/markdownActions'
 
 export function todayNy(): string {
   return tradingDateNy(new Date().toISOString())
@@ -117,6 +118,11 @@ export function DayPlanPage({ date }: { date: string }) {
         {isDraft && previousPlan && (
           <button className="btn h-[22px]" onClick={copyFromPrevious} title="Pary, bias W/D, DOL i poziomy z poprzedniego planu">
             Kopiuj z {previousPlan.date}
+          </button>
+        )}
+        {plan && !isDraft && (
+          <button className="btn h-[22px]" onClick={(e) => void copyDayMarkdown(date, e.shiftKey)} title="Kopiuj markdown (Ctrl+Shift+M); Shift+klik – zapisz .md">
+            MD
           </button>
         )}
         <DayStrip date={date} />

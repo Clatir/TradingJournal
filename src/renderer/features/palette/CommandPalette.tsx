@@ -10,6 +10,8 @@ import { Kbd } from '../../components/ui'
 import { newTrade } from '../trade/actions'
 import { todayNy } from '../day/DayPlanPage'
 import { enterSample, exitSample } from '../sample/sample'
+import { currentWeek } from '../week/WeekPage'
+import { copyMarkdownForRoute, exportCsv } from '../export/markdownActions'
 
 export function toggleMoney(): void {
   let on = false
@@ -42,7 +44,13 @@ export function CommandPalette() {
       { id: 'journal', label: 'Dziennik transakcji', keys: 'Ctrl 1', run: () => navigate({ page: 'journal' }) },
       { id: 'day', label: 'Plan dnia – dziś', keys: 'Ctrl D', run: () => navigate({ page: 'day', date: todayNy() }) },
       { id: 'analytics', label: 'Analityka', keys: 'Ctrl 3', run: () => navigate({ page: 'analytics' }) },
+      { id: 'library', label: 'Biblioteka setupów', keys: 'Ctrl 4', run: () => navigate({ page: 'library' }) },
+      { id: 'week', label: 'Przegląd tygodnia', keys: 'Ctrl 5', run: () => navigate({ page: 'week', week: currentWeek() }) },
       { id: 'calc', label: 'Kalkulator pozycji i limity dzienne', keys: 'Ctrl 6', run: () => navigate({ page: 'calculator' }) },
+      { id: 'md', label: 'Kopiuj markdown bieżącej transakcji / planu dnia', keys: 'Ctrl Shift M', run: () => void copyMarkdownForRoute() },
+      { id: 'csv', label: 'Eksport CSV wszystkich transakcji', run: () => void exportCsv() },
+      { id: 'zip', label: 'Eksport ZIP całego folderu', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
+      { id: 'import', label: 'Import / kopie zapasowe', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
       {
         id: 'sample',
         label: 'Dane przykładowe (demo) – włącz / wyłącz',

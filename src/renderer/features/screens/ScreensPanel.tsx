@@ -7,6 +7,7 @@ import { fmtBytes } from '../../lib/format'
 import { flushSaves, useJournal } from '../../store/journal'
 import { openLightbox, toast } from '../../store/ui'
 import { IconImage, IconPaste, IconTrash } from '../../components/icons'
+import { AnnotationLayer, Annotator } from '../../components/annotations'
 import { cx } from '../../components/ui'
 
 export const PHASES: Array<{ id: ScreenPhase; label: string; file: string; key: string }> = [
@@ -42,6 +43,7 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
   }, [])
   const [info, setInfo] = useState<Record<string, string>>({})
   const [dropPhase, setDropPhase] = useState<ScreenPhase | 'any' | null>(null)
+  const [annotating, setAnnotating] = useState<string | null>(null)
   const settingsRef = useRef(settings)
   settingsRef.current = settings
 
@@ -166,8 +168,10 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
         onClick={() => openLightbox(ordered, ordered.indexOf(s))}
         title="Otwórz (pełna rozdzielczość)"
       >
-        <img src={fileUrl(s.thumbPath)} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover object-top" />
+        <img src={fileUrl(s.thumbPath)} alt="" loading="lazy" draggable={false} className="h-full w-full object-fill" />
+        <AnnotationLayer annotations={s.annotations} width={s.width} height={s.height} />
         {s.timeframe && <span className="num absolute top-1 left-1 bg-black/75 px-1 text-[10.5px] text-fg-strong">{s.timeframe}</span>}
+        {s.annotations.length > 0 && <span className="num absolute top-1 right-1 bg-black/75 px-1 text-[10px] text-accent">✎{s.annotations.length}</span>}
       </button>
       {!readOnly && (
         <div className="flex flex-col gap-1 p-1">
@@ -212,6 +216,18 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
                 ))}
               </select>
             )}
+            <button
+              type="button"
+              className="btn btn-ghost h-[22px] px-1 text-[11px] text-muted hover:text-accent"
+              title="Adnotacje: strzałki, strefy, poziomy, tekst"
+              onClick={(e) => {
+                e.stopPropagation()
+                setAnnotating(s.id)
+              }}
+              data-testid="annotate"
+            >
+              ✎
+            </button>
             <button type="button" className="btn btn-ghost h-[22px] px-1 text-muted hover:text-down" title="Usuń screen" onClick={() => remove(s)}>
               <IconTrash size={13} />
             </button>
@@ -253,8 +269,17 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
     )
   }
 
+  const annotated = annotating ? screens.find((x) => x.id === annotating) : null
+
   return (
     <div className="flex flex-col gap-1.5" {...dropProps(withPhases ? activePhase : null)}>
+      {annotated && (
+        <Annotator
+          screen={annotated}
+          onChange={(annotations) => onChange((prev) => prev.map((x) => (x.id === annotated.id ? { ...x, annotations } : x)))}
+          onClose={() => setAnnotating(null)}
+        />
+      )}
       {withPhases
         ? PHASES.map((p) => zone(p.id, p.label, screens.filter((s) => s.phase === p.id)))
         : zone(null, null, screens)}

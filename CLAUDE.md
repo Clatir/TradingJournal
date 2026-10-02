@@ -93,6 +93,18 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   rysowane canvasem (`features/sample/drawChart.ts`). Folder `userData/sample-journal` – osobny od prawdziwych danych;
   `config.lastRealDir` pamięta prawdziwy folder. Status `isSample` → baner DEMO.
 
+## Biblioteka, tydzień, eksport, kopie
+- Adnotacje: wektorowo w `ScreenRef.annotations` (współrzędne 0–1), rysowane SVG nad obrazem (`components/annotations.tsx`);
+  „Kopiuj z adnotacjami” spłaszcza przez canvas do schowka (IPC `copyImage`). Plik WebP nigdy nie jest modyfikowany.
+- Biblioteka może współdzielić pliki screenów z transakcją; usunięcie wpisu kasuje tylko screeny bez innych odwołań.
+- Przegląd tygodnia: tydzień ISO, dni pon–pt wg daty NY; import CSV z TradingView („Export chart data”, czas UNIX lub ISO,
+  separator `,` lub `;`) → `src/shared/calc/ohlc.ts`.
+- Eksport: CSV (`src/shared/export/csv.ts`), markdown (`export/markdown.ts`, Ctrl+Shift+M), ZIP folderu bez `backups/`.
+- Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
+  potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
+- Kopie przy starcie (`main/datastore/backup.ts`): `backups/daily/RRRR-MM-DD_json.zip` (14), `backups/weekly/RRRR-Wnn_full.zip`
+  gdy najnowsza ≥ 7 dni (4), ręczne `backups/manual/` (5), przed migracją `backups/pre-migration/`. Demo nie ma kopii.
+
 ## Konwencje kodu
 - Tekst UI po polsku, terminy ICT po angielsku; komentarze w kodzie po angielsku.
 - Liczby: `.num` (JetBrains Mono, cyfry tabelaryczne). Zieleń/czerwień (`text-up`/`text-down`) tylko dla wyniku.
@@ -109,5 +121,5 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 1. ✅ Folder danych, transakcja, lista, screeny z kompresją, konflikty, build exe + CI.
 2. ✅ Plan dnia + walidator + kalkulator pozycji + limity dzienne.
 3. ✅ Analityka + dane przykładowe.
-4. Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
+4. ✅ Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
 5. Szlif wizualny, lightbox porównawczy, finalny build.

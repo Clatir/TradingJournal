@@ -23,6 +23,17 @@ const api: JournalApi = {
   openSample: () => invoke('openSample'),
   resetSample: () => invoke('resetSample'),
   exitSample: () => invoke('exitSample'),
+  saveTextFile: (name, content, filter) => invoke('saveTextFile', name, content, filter),
+  exportZip: () => invoke('exportZip'),
+  copyText: (text) => invoke('copyText', text),
+  copyImage: (png) => invoke('copyImage', png),
+  inspectImport: (kind) => invoke('inspectImport', kind),
+  applyImport: (token, policy) => invoke('applyImport', token, policy),
+  openImportAsNew: (token) => invoke('openImportAsNew', token),
+  listBackups: () => invoke('listBackups'),
+  backupNow: () => invoke('backupNow'),
+  pickTextFile: (filter) => invoke('pickTextFile', filter),
+  showPath: (abs) => invoke('showPath', abs),
   onChange: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, change: ChangeSet) => cb(change)
     ipcRenderer.on('journal:change', listener)

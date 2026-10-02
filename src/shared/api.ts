@@ -106,6 +106,35 @@ export interface ScreensStats {
   orphans: OrphanScreen[]
 }
 
+export type ImportPolicy = 'newer' | 'skip' | 'overwrite'
+
+export interface ImportReport {
+  token: string
+  source: string
+  kind: 'zip' | 'folder'
+  hasJournal: boolean
+  valid: Record<Collection, number>
+  invalid: Array<{ relPath: string; error: string }>
+  collisions: Array<{
+    kind: Collection
+    id: string
+    relPath: string
+    incomingUpdatedAt: string
+    currentUpdatedAt: string
+    newer: 'incoming' | 'current' | 'same'
+  }>
+  screens: number
+  tooNew: boolean
+}
+
+export interface BackupInfo {
+  name: string
+  path: string
+  kind: 'daily' | 'weekly' | 'manual' | 'pre-migration'
+  bytes: number
+  mtimeMs: number
+}
+
 export interface MachineConfig {
   dataDir: string | null
   /** Last real (non-sample) data folder – used when leaving demo mode. */
@@ -154,6 +183,22 @@ export interface JournalApi {
   resetSample(): Promise<void>
   /** Leave demo mode: reopen the last real data folder (null = none known). */
   exitSample(): Promise<OpenFolderResult | null>
+  /** Save dialog + write a text file (CSV, markdown). Returns the path or null when cancelled. */
+  saveTextFile(defaultName: string, content: string, filter: { name: string; extensions: string[] }): Promise<string | null>
+  /** ZIP of the whole data folder (without backups). */
+  exportZip(): Promise<string | null>
+  copyText(text: string): Promise<void>
+  copyImage(png: Uint8Array): Promise<void>
+  /** Pick a folder or a ZIP and validate it without touching current data. */
+  inspectImport(kind: 'zip' | 'folder'): Promise<ImportReport | null>
+  applyImport(token: string, policy: ImportPolicy): Promise<{ imported: number; skipped: number; screensCopied: number }>
+  /** Use the imported folder/ZIP as the data folder (ZIP is extracted to a chosen folder). */
+  openImportAsNew(token: string): Promise<OpenFolderResult>
+  listBackups(): Promise<{ dir: string; files: BackupInfo[] }>
+  backupNow(): Promise<string>
+  /** Pick a CSV file (TradingView export) and return its text. */
+  pickTextFile(filter: { name: string; extensions: string[] }): Promise<{ name: string; text: string } | null>
+  showPath(absPath: string): Promise<void>
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes. */
   onFlushRequest(cb: () => Promise<void>): () => void

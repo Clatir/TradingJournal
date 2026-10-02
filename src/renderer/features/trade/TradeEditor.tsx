@@ -12,6 +12,8 @@ import { IconBack, IconExternal, IconFolder, IconPlus, IconTrash, IconClose } fr
 import { Badge, Chips, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
+import { addTradeToLibrary } from '../library/LibraryPage'
+import { copyTradeMarkdown } from '../export/markdownActions'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -154,6 +156,14 @@ export function TradeEditor({ id }: { id: string }) {
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button className="btn" onClick={(e) => void copyTradeMarkdown(id, e.shiftKey)} title="Kopiuj markdown (Ctrl+Shift+M); Shift+klik – zapisz plik .md" data-testid="copy-md">
+            MD
+          </button>
+          {!isDraft && (
+            <button className="btn" onClick={() => addTradeToLibrary(t)} title="Dodaj jako przykład do biblioteki setupów" data-testid="to-library">
+              Do biblioteki
+            </button>
+          )}
           {t.tradingViewUrl && (
             <button className="btn" onClick={() => api.openExternal(t.tradingViewUrl).catch((e) => toast(errorMessage(e), 'error'))}>
               <IconExternal size={13} /> TradingView

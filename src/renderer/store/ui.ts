@@ -6,11 +6,13 @@ export type Route =
   | { page: 'trade'; id: string }
   | { page: 'day'; date: string }
   | { page: 'analytics' }
+  | { page: 'library'; id?: string }
+  | { page: 'week'; week: string }
   | { page: 'calculator'; tradeId?: string }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 
-export type SettingsTab = 'folder' | 'pairs' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display'
+export type SettingsTab = 'folder' | 'pairs' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer'
 
 export interface Toast {
   id: number

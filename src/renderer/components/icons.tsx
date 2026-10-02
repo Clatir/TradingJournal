@@ -121,3 +121,15 @@ export const IconChart = base(
     <path d="M10.6 4h2.4v2.4" />
   </>
 )
+export const IconBook = base(
+  <>
+    <path d="M2.5 3.2c2-.8 3.8-.6 5.5.6 1.7-1.2 3.5-1.4 5.5-.6v9.6c-2-.8-3.8-.6-5.5.6-1.7-1.2-3.5-1.4-5.5-.6z" />
+    <path d="M8 3.8v9.6" />
+  </>
+)
+export const IconWeek = base(
+  <>
+    <rect x="2" y="3" width="12" height="10.5" rx="1" />
+    <path d="M2 6.2h12M4.6 9h1.4M7.3 9h1.4M10 9h1.4M4.6 11.2h1.4M7.3 11.2h1.4M10 11.2h1.4" />
+  </>
+)

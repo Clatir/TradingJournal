@@ -9,11 +9,14 @@ import { SyncPage } from '../features/sync/SyncPage'
 import { DayPlanPage, todayNy } from '../features/day/DayPlanPage'
 import { CalculatorPage } from '../features/calculator/CalculatorPage'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
+import { LibraryPage } from '../features/library/LibraryPage'
+import { WeekPage, currentWeek } from '../features/week/WeekPage'
+import { copyMarkdownForRoute } from '../features/export/markdownActions'
 import { CommandPalette, toggleMoney } from '../features/palette/CommandPalette'
 import { newTrade } from '../features/trade/actions'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconCalc, IconCalendar, IconChart, IconGear, IconList, IconPlus, IconSync } from '../components/icons'
+import { IconBook, IconCalc, IconCalendar, IconChart, IconGear, IconList, IconPlus, IconSync, IconWeek } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -42,6 +45,15 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '3') {
         e.preventDefault()
         navigate({ page: 'analytics' })
+      } else if (e.key === '4') {
+        e.preventDefault()
+        navigate({ page: 'library' })
+      } else if (e.key === '5') {
+        e.preventDefault()
+        navigate({ page: 'week', week: currentWeek() })
+      } else if (k === 'm' && e.shiftKey) {
+        e.preventDefault()
+        void copyMarkdownForRoute()
       } else if (e.key === '6') {
         e.preventDefault()
         navigate({ page: 'calculator' })
@@ -86,6 +98,10 @@ function Page({ route }: { route: Route }) {
       return <DayPlanPage key={route.date} date={route.date} />
     case 'analytics':
       return <AnalyticsPage />
+    case 'library':
+      return <LibraryPage id={route.id} />
+    case 'week':
+      return <WeekPage key={route.week} week={route.week} />
     case 'calculator':
       return <CalculatorPage key={route.tradeId ?? 'calc'} tradeId={route.tradeId} />
     case 'settings':
@@ -122,6 +138,12 @@ export function App() {
           <NavButton active={route.page === 'analytics'} onClick={() => navigate({ page: 'analytics' })} label="Analityka" keys="Ctrl+3" testId="nav-analytics">
             <IconChart size={17} />
           </NavButton>
+          <NavButton active={route.page === 'library'} onClick={() => navigate({ page: 'library' })} label="Biblioteka" keys="Ctrl+4" testId="nav-library">
+            <IconBook size={17} />
+          </NavButton>
+          <NavButton active={route.page === 'week'} onClick={() => navigate({ page: 'week', week: currentWeek() })} label="Tydzień" keys="Ctrl+5" testId="nav-week">
+            <IconWeek size={17} />
+          </NavButton>
           <NavButton active={route.page === 'calculator'} onClick={() => navigate({ page: 'calculator' })} label="Kalkulator" keys="Ctrl+6" testId="nav-calc">
             <IconCalc size={17} />
           </NavButton>
@@ -136,7 +158,10 @@ export function App() {
             <IconGear size={17} />
           </NavButton>
         </nav>
-        <main className="min-w-0 flex-1 animate-fade-in" key={route.page === 'trade' ? `trade-${route.id}` : route.page === 'day' ? `day-${route.date}` : route.page}>
+        <main
+          className="min-w-0 flex-1 animate-fade-in"
+          key={route.page === 'trade' ? `trade-${route.id}` : route.page === 'day' ? `day-${route.date}` : route.page === 'week' ? `week-${route.week}` : route.page}
+        >
           <ErrorBoundary onReset={() => navigate({ page: 'journal' })}>
             <Page route={route} />
           </ErrorBoundary>

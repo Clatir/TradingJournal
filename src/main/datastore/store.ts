@@ -661,14 +661,42 @@ export class DataStore {
       const state = this.currentState(collection, id)
       if (!state) return null
       if (state.readOnly) throw new ReadOnlyError('Ten wpis jest tylko do odczytu.')
+      await this.opts.trash(this.abs(state.relPath))
+      this.files.delete(state.relPath)
+      // Screens shared with another record (e.g. a library example) stay.
+      const stillUsed = this.referencedScreens()
       for (const screen of screensOf(collection, state.record as AnyRecord)) {
         for (const p of [screen.path, screen.thumbPath]) {
+          if (stillUsed.has(p)) continue
           const abs = this.abs(p)
           if (await pathExists(abs)) await this.opts.trash(abs)
         }
       }
-      await this.opts.trash(this.abs(state.relPath))
-      this.files.delete(state.relPath)
+      return this.diff(this.buildViews(), false)
+    })
+  }
+
+  /** Write imported records as-is (keeping their updatedAt), moving files whose canonical path changed. */
+  importRecords(items: Array<{ kind: Collection; record: AnyRecord }>): Promise<ChangeSet | null> {
+    return this.mutex.run(async () => {
+      this.assertWritable()
+      for (const { kind, record } of items) {
+        const parsed = SCHEMAS[kind].parse({ ...record, schemaVersion: SCHEMA_VERSION }) as AnyRecord
+        const existing = this.currentState(kind, parsed.id)
+        if (existing?.readOnly) continue
+        const rel = recordRelPath(kind, parsed as unknown as Record<string, unknown>)
+        const occupant = this.files.get(rel)
+        if (occupant?.status === 'record' && (occupant.record as AnyRecord).id !== parsed.id) {
+          // Same date/week plan with a different id: the imported one replaces it.
+          await this.opts.trash(this.abs(rel))
+          this.files.delete(rel)
+        }
+        await this.writeState(rel, kind, parsed, serializeRecord(kind, parsed, this.ctxFor(kind, parsed)))
+        if (existing && existing.relPath !== rel) {
+          await removeFile(this.abs(existing.relPath))
+          this.files.delete(existing.relPath)
+        }
+      }
       return this.diff(this.buildViews(), false)
     })
   }
