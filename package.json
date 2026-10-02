@@ -11,10 +11,12 @@
     "node": ">=22.12"
   },
   "scripts": {
+    "preinstall": "node scripts/check-node.mjs",
     "predev": "node scripts/check-node.mjs",
     "dev": "electron-vite dev",
     "prebuild": "node scripts/check-node.mjs",
     "build": "electron-vite build",
+    "prestart": "node scripts/check-node.mjs",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "pretest": "node scripts/check-node.mjs",

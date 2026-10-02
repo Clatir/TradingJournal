@@ -16,9 +16,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22.11 is the last 22.x without require() of ES modules by default - it guards against
-        # configs being loaded as CommonJS (ERR_REQUIRE_ESM on older local installs).
-        node: ['22.11.0', '22', '24']
+        # 22.12.0 = exact minimum (first 22.x with require() of ES modules by default),
+        # 24 = current LTS, 26 = next LTS. Catches dependencies that silently raise the minimum.
+        node: ['22.12.0', '24', '26']
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -28,6 +28,22 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+
+  node-gate:
+    name: Blokada zbyt starego Node (22.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.11.0'
+      # Without require(esm) the toolchain fails with a cryptic ERR_REQUIRE_ESM; npm ci must
+      # stop with the Polish instructions from scripts/check-node.mjs instead.
+      - name: npm ci stops with instructions
+        run: |
+          if npm ci > npm-ci.log 2>&1; then cat npm-ci.log; echo "npm ci should fail on Node 22.11"; exit 1; fi
+          grep -q "jest za stary" npm-ci.log
 
   windows:
     name: Build exe + smoke test (Windows)

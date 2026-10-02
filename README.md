@@ -42,9 +42,11 @@ npm test
 npm run dist:win
 ```
 
-**Błąd `ERR_REQUIRE_ESM` … `std-env` przy `npm test`** – występował w starszej wersji repozytorium na Node starszym niż 22.12.
-Rozwiązanie: `git pull` i `npm ci` (konfiguracje są teraz modułami ES `.mts`), a najlepiej też aktualizacja Node do 24 LTS.
-Na zbyt starym Node `npm test` i `npm run build` wypisują ostrzeżenie z instrukcją.
+**Błąd `ERR_REQUIRE_ESM`** (np. `std-env` przy `npm test`, `@noble/hashes` przy `npm run dist:win`) albo
+**„Electron failed to install correctly”** oznacza zbyt stary Node – narzędzia wymagają **22.12 lub nowszego**. Zainstaluj
+Node 24 LTS (nvm-windows: `nvm install 24`, `nvm use 24`), otwórz nowe okno terminala, sprawdź `node -v`, potem `npm ci`
+i `npm run dist:win`. Na zbyt starym Node już `npm ci` (a także `npm test`, `npm run dev`, `npm run dist:win`) zatrzymuje się
+z tą instrukcją. Ostrzeżenia `npm warn deprecated …` przy `npm ci` pochodzą z zależności narzędzi i są nieszkodliwe.
 
 Tryb deweloperski: `npm ci` i `npm run dev`. Testy: `npm test` (jednostkowe i na plikach), `npm run build` + `npx playwright test` (E2E).
 

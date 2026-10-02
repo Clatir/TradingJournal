@@ -10,12 +10,14 @@ używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, termin
 - **Żadnych natywnych modułów Node.** Wszystkie biblioteki są w `devDependencies` i bundlowane do `out/`,
   więc `app.asar` nie zawiera `node_modules`.
 - Testy: Vitest (`tests/unit`, `tests/fs`), Playwright `_electron` (`tests/e2e`, lokalnie pod `xvfb-run`).
-- Build: electron-builder → `portable` + `nsis` (x64). CI: `.github/workflows/ci.yml` (Linux testy na Node 22.11/22/24,
-  Windows build + smoke na Node 24).
+- Build: electron-builder → `portable` + `nsis` (x64). CI: `.github/workflows/ci.yml` (Linux testy + build na Node
+  22.12.0/24/26, blokada na 22.11, Windows build + smoke na Node 24).
 - Node do budowania: ≥ 22.12 (Vite 7 / Vitest 5), zalecany 24 LTS. `package.json` nie ma `"type": "module"` (preload
   w sandboksie musi być CJS), dlatego konfiguracje mają rozszerzenie **`.mts`** (`electron.vite.config.mts`,
   `vitest.config.mts`) – jako `.ts` byłyby ładowane jako CJS i na Node bez require(esm) padały z `ERR_REQUIRE_ESM`
-  (std-env). `scripts/check-node.mjs` (pre-skrypty dev/build/test) tylko ostrzega o zbyt starym Node.
+  (std-env). Bez require(esm) i tak nie działają electron-builder 26 (ESM-only `@noble/hashes` 2) ani instalator
+  binarki Electrona (`electron/install.js` → ESM-only `@electron/get`, uruchamiany leniwie przy dev/E2E), więc
+  `scripts/check-node.mjs` (preinstall, predev, prebuild, prestart, pretest) przerywa z instrukcją po polsku.
 
 ## Komendy
 ```
