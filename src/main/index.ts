@@ -17,6 +17,7 @@ if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DA
 
 const machineName = process.env.ICTJ_MACHINE_NAME || hostname() || 'KOMPUTER'
 const config = new ConfigStore(app.getPath('userData'))
+const sampleDir = () => join(app.getPath('userData'), 'sample-journal')
 
 let mainWindow: BrowserWindow | null = null
 let store: DataStore | null = null
@@ -87,7 +88,8 @@ async function openFolder(dir: string, createIfEmpty: boolean): Promise<OpenFold
       }
     }
     await closeStore()
-    const next = new DataStore(target, { machineName, trash, backupDir: config.get().backupDirOverride })
+    const isSample = target === sampleDir()
+    const next = new DataStore(target, { machineName, trash, backupDir: isSample ? null : config.get().backupDirOverride, isSample })
     const snapshot = await next.open()
     store = next
     next.otherMachines = await readOtherMachines(target, machineName)
@@ -104,7 +106,7 @@ async function openFolder(dir: string, createIfEmpty: boolean): Promise<OpenFold
     watcher.start()
     void heartbeat()
     presenceTimer = setInterval(() => void heartbeat(), 60_000)
-    await config.rememberDir(target)
+    await config.rememberDir(target, isSample)
     log('info', `opened ${target}: ${snapshot.trades.length} trades, ${snapshot.problems.length} problems, ${snapshot.conflicts.length} conflicts, ${snapshot.loadMs} ms`)
     return { ok: true, snapshot }
   } catch (e) {
@@ -135,7 +137,7 @@ function registerIpc(): void {
     machineName,
     platform: process.platform,
     userDataDir: app.getPath('userData'),
-    sampleDir: join(app.getPath('userData'), 'sample-journal'),
+    sampleDir: sampleDir(),
     isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR
   }))
   handle('journal:getConfig', () => config.get())
@@ -187,6 +189,16 @@ function registerIpc(): void {
   })
   handle('journal:rescan', async () => {
     if (store) send(await store.refresh())
+  })
+  handle('journal:openSample', () => openFolder(sampleDir(), true))
+  handle('journal:resetSample', async () => {
+    const dir = sampleDir()
+    if (store?.root === dir) await closeStore()
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+  handle('journal:exitSample', async () => {
+    const real = config.get().lastRealDir
+    return real ? openFolder(real, false) : null
   })
 }
 

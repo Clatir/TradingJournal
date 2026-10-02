@@ -20,6 +20,9 @@ const api: JournalApi = {
   showInFolder: (rel) => invoke('showInFolder', rel),
   openExternal: (url) => invoke('openExternal', url),
   rescan: () => invoke('rescan'),
+  openSample: () => invoke('openSample'),
+  resetSample: () => invoke('resetSample'),
+  exitSample: () => invoke('exitSample'),
   onChange: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, change: ChangeSet) => cb(change)
     ipcRenderer.on('journal:change', listener)

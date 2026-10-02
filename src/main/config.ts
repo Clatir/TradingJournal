@@ -6,6 +6,7 @@ import { writeFileAtomic } from './datastore/atomic'
 /** Per-machine settings (never synced): stored in %APPDATA%/ICT Trade Journal/config.json. */
 const DEFAULTS: MachineConfig = {
   dataDir: null,
+  lastRealDir: null,
   recentDirs: [],
   sampleMode: false,
   backupDirOverride: null,
@@ -41,8 +42,12 @@ export class ConfigStore {
     return this.config
   }
 
-  async rememberDir(dir: string): Promise<void> {
+  async rememberDir(dir: string, isSample = false): Promise<void> {
+    if (isSample) {
+      await this.update({ dataDir: dir })
+      return
+    }
     const recentDirs = [dir, ...this.config.recentDirs.filter((d) => d !== dir)].slice(0, 8)
-    await this.update({ dataDir: dir, recentDirs })
+    await this.update({ dataDir: dir, lastRealDir: dir, recentDirs })
   }
 }

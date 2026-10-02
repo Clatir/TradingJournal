@@ -114,3 +114,10 @@ export const IconCalc = base(
     <path d="M5.2 4.3h5.6v2.2H5.2zM5.5 9h.5M8 9h.5M10.5 9h.5M5.5 11.5h.5M8 11.5h.5M10.5 11.5h.5" />
   </>
 )
+export const IconChart = base(
+  <>
+    <path d="M2 13.5h12" />
+    <path d="m3 10.5 3-3.2 2.4 2 4.6-5.3" />
+    <path d="M10.6 4h2.4v2.4" />
+  </>
+)

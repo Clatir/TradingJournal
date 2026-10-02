@@ -8,11 +8,12 @@ import { SettingsPage } from '../features/settings/SettingsPage'
 import { SyncPage } from '../features/sync/SyncPage'
 import { DayPlanPage, todayNy } from '../features/day/DayPlanPage'
 import { CalculatorPage } from '../features/calculator/CalculatorPage'
+import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { CommandPalette, toggleMoney } from '../features/palette/CommandPalette'
 import { newTrade } from '../features/trade/actions'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconCalc, IconCalendar, IconGear, IconList, IconPlus, IconSync } from '../components/icons'
+import { IconCalc, IconCalendar, IconChart, IconGear, IconList, IconPlus, IconSync } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -38,6 +39,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '2' || k === 'd') {
         e.preventDefault()
         navigate({ page: 'day', date: todayNy() })
+      } else if (e.key === '3') {
+        e.preventDefault()
+        navigate({ page: 'analytics' })
       } else if (e.key === '6') {
         e.preventDefault()
         navigate({ page: 'calculator' })
@@ -80,6 +84,8 @@ function Page({ route }: { route: Route }) {
       return <TradeEditor key={route.id} id={route.id} />
     case 'day':
       return <DayPlanPage key={route.date} date={route.date} />
+    case 'analytics':
+      return <AnalyticsPage />
     case 'calculator':
       return <CalculatorPage key={route.tradeId ?? 'calc'} tradeId={route.tradeId} />
     case 'settings':
@@ -112,6 +118,9 @@ export function App() {
           </NavButton>
           <NavButton active={route.page === 'day'} onClick={() => navigate({ page: 'day', date: todayNy() })} label="Plan dnia" keys="Ctrl+D" testId="nav-day">
             <IconCalendar size={17} />
+          </NavButton>
+          <NavButton active={route.page === 'analytics'} onClick={() => navigate({ page: 'analytics' })} label="Analityka" keys="Ctrl+3" testId="nav-analytics">
+            <IconChart size={17} />
           </NavButton>
           <NavButton active={route.page === 'calculator'} onClick={() => navigate({ page: 'calculator' })} label="Kalkulator" keys="Ctrl+6" testId="nav-calc">
             <IconCalc size={17} />

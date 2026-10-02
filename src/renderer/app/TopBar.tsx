@@ -31,9 +31,15 @@ export function TopBar() {
       <span className="text-[12px] font-semibold tracking-wide text-fg-strong">
         ICT<span className="text-accent">·</span>JOURNAL
       </span>
-      <span className="max-w-[420px] truncate text-[11px] text-dim" title={status?.dataDir}>
-        {status?.dataDir}
-      </span>
+      {status?.isSample ? (
+        <span className="border border-accent bg-accent-soft px-1.5 text-[11px] font-semibold tracking-wider text-accent" data-testid="demo-badge" title="Dane przykładowe – Twoje dane są nietknięte">
+          DEMO · dane przykładowe
+        </span>
+      ) : (
+        <span className="max-w-[420px] truncate text-[11px] text-dim" title={status?.dataDir}>
+          {status?.dataDir}
+        </span>
+      )}
       <div className="ml-auto flex items-center gap-4">
         <SaveIndicator />
         {limits && (

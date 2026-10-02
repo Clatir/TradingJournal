@@ -5,6 +5,7 @@ export type Route =
   | { page: 'journal' }
   | { page: 'trade'; id: string }
   | { page: 'day'; date: string }
+  | { page: 'analytics' }
   | { page: 'calculator'; tradeId?: string }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }

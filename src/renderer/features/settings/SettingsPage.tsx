@@ -6,6 +6,7 @@ import { api, errorMessage } from '../../lib/api'
 import { fmtBytes, parseClockInput } from '../../lib/format'
 import { flushSaves, openResult, updateJournal, useJournal } from '../../store/journal'
 import { navigate, toast, useUi, type SettingsTab } from '../../store/ui'
+import { enterSample, exitSample } from '../sample/sample'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
 import { Field, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 
@@ -134,6 +135,31 @@ function FolderTab() {
               {info?.userDataDir}
             </span>
           </Field>
+        </div>
+      </Panel>
+      <Panel title="Dane przykładowe (demo)">
+        <div className="flex flex-col gap-2">
+          <p className="text-[12px] text-fg">
+            30 wygenerowanych transakcji z ~6 tygodni z planami dnia, przeglądami tygodnia, biblioteką i screenami – żeby od razu zobaczyć
+            analitykę. Trzymane w osobnym folderze na tym komputerze ({useJournal.getState().appInfo?.sampleDir}); Twoje dane nie są
+            zmieniane.
+          </p>
+          <div className="flex gap-2">
+            {status?.isSample ? (
+              <>
+                <button className="btn btn-accent" onClick={() => void exitSample()} data-testid="exit-sample">
+                  Wróć do moich danych
+                </button>
+                <button className="btn" onClick={() => void enterSample(true)}>
+                  Wygeneruj od nowa
+                </button>
+              </>
+            ) : (
+              <button className="btn" onClick={() => void enterSample()} data-testid="enter-sample">
+                Włącz dane przykładowe
+              </button>
+            )}
+          </div>
         </div>
       </Panel>
       {recent.length > 1 && (

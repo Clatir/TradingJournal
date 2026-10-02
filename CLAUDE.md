@@ -84,6 +84,15 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   od jakości (podpróbkowanie 4:2:0 rozmywa kolorowe etykiety osi). Dlatego domyślnie **tryb auto**: koduj oba,
   zostaw bezstratny gdy ≤ 1,3× stratnego (q90). Tryby do wyboru: auto / stratny / bezstratny.
 
+## Analityka i dane przykładowe
+- `src/shared/calc/analytics.ts`: populacja statystyk = zamknięte z wynikiem (missed osobno). Sesja = pierwsza pasująca
+  killzone rodzaju „killzone”, inaczej SB, inaczej „poza KZ”. Koszt tagu = Σ R z tagiem − n × średnie R transakcji bez tagów.
+- Equity: lightweight-charts BaselineSeries (zielone nad 0, czerwone pod 0) + histogram drawdown w drugim panelu.
+  Słupki/heatmapy: własne SVG (`components/charts`).
+- Dane przykładowe: `src/shared/sample/generate.ts` (deterministyczne, ziarno 1234, 30 wpisów, 3 missed), screeny
+  rysowane canvasem (`features/sample/drawChart.ts`). Folder `userData/sample-journal` – osobny od prawdziwych danych;
+  `config.lastRealDir` pamięta prawdziwy folder. Status `isSample` → baner DEMO.
+
 ## Konwencje kodu
 - Tekst UI po polsku, terminy ICT po angielsku; komentarze w kodzie po angielsku.
 - Liczby: `.num` (JetBrains Mono, cyfry tabelaryczne). Zieleń/czerwień (`text-up`/`text-down`) tylko dla wyniku.
@@ -99,6 +108,6 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 ## Etapy
 1. ✅ Folder danych, transakcja, lista, screeny z kompresją, konflikty, build exe + CI.
 2. ✅ Plan dnia + walidator + kalkulator pozycji + limity dzienne.
-3. Analityka + dane przykładowe.
+3. ✅ Analityka + dane przykładowe.
 4. Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
 5. Szlif wizualny, lightbox porównawczy, finalny build.

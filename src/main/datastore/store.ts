@@ -72,6 +72,7 @@ export interface DataStoreOptions {
   now?: () => string
   /** Per-machine override of the backups folder (absolute). */
   backupDir?: string | null
+  isSample?: boolean
 }
 
 export type FolderKind = 'journal' | 'empty' | 'other' | 'missing'
@@ -116,7 +117,7 @@ export class DataStore {
   }
   private prevMeta = ''
   private readonly mutex = new Mutex()
-  private readonly opts: Required<Omit<DataStoreOptions, 'backupDir'>> & { backupDir: string | null }
+  private readonly opts: Required<Omit<DataStoreOptions, 'backupDir' | 'isSample'>> & { backupDir: string | null; isSample: boolean }
   journal!: JournalFile
   private folderReadOnlyReason: string | null = null
   private folderSchemaVersion = SCHEMA_VERSION
@@ -131,7 +132,8 @@ export class DataStore {
       machineName: opts.machineName,
       trash: opts.trash ?? ((p) => fs.rm(p, { force: true })),
       now: opts.now ?? (() => new Date().toISOString()),
-      backupDir: opts.backupDir ?? null
+      backupDir: opts.backupDir ?? null,
+      isSample: opts.isSample ?? false
     }
   }
 
@@ -194,7 +196,8 @@ export class DataStore {
       appSchemaVersion: SCHEMA_VERSION,
       otherMachines: this.otherMachines,
       migratedFrom: this.migratedFrom,
-      backupPath: this.backupPath
+      backupPath: this.backupPath,
+      isSample: this.opts.isSample
     }
   }
 

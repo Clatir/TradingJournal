@@ -48,6 +48,8 @@ export interface FolderStatus {
   otherMachines: Array<{ machine: string; lastSeen: string }>
   migratedFrom: number | null
   backupPath: string | null
+  /** Demo folder with sample data (kept apart from real data). */
+  isSample: boolean
 }
 
 export interface Snapshot {
@@ -106,6 +108,8 @@ export interface ScreensStats {
 
 export interface MachineConfig {
   dataDir: string | null
+  /** Last real (non-sample) data folder – used when leaving demo mode. */
+  lastRealDir: string | null
   recentDirs: string[]
   sampleMode: boolean
   backupDirOverride: string | null
@@ -144,6 +148,12 @@ export interface JournalApi {
   showInFolder(relPath: string | null): Promise<void>
   openExternal(url: string): Promise<void>
   rescan(): Promise<void>
+  /** Open (creating if needed) the separate demo folder in userData. */
+  openSample(): Promise<OpenFolderResult>
+  /** Delete the demo folder (only the demo folder). */
+  resetSample(): Promise<void>
+  /** Leave demo mode: reopen the last real data folder (null = none known). */
+  exitSample(): Promise<OpenFolderResult | null>
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes. */
   onFlushRequest(cb: () => Promise<void>): () => void
