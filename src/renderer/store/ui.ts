@@ -57,7 +57,7 @@ export function goBack(): void {
 let toastSeq = 0
 export function toast(text: string, kind: Toast['kind'] = 'info', ms = 3200): void {
   const id = ++toastSeq
-  useUi.setState((s) => ({ toasts: [...s.toasts.slice(-4), { id, kind, text }] }))
+  useUi.setState((s) => ({ toasts: [...s.toasts.filter((t) => t.text !== text).slice(-2), { id, kind, text }] }))
   setTimeout(() => useUi.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), ms)
 }
 

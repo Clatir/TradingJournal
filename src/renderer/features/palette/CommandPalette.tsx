@@ -64,7 +64,8 @@ export function CommandPalette() {
       { id: 'sync', label: 'Synchronizacja i problemy', run: () => navigate({ page: 'sync' }) },
       { id: 'money', label: 'Przełącz kwoty / tylko R', keys: 'Ctrl $', run: toggleMoney },
       { id: 'rescan', label: 'Przeskanuj folder danych', run: () => void api.rescan().then(() => toast('Przeskanowano folder.', 'success')) },
-      { id: 'explorer', label: 'Pokaż folder danych w Eksploratorze', run: () => void api.showInFolder(null) }
+      { id: 'explorer', label: 'Pokaż folder danych w Eksploratorze', run: () => void api.showInFolder(null) },
+      { id: 'help', label: 'Skróty klawiszowe', keys: '?', run: () => window.dispatchEvent(new Event('ictj:shortcuts')) }
     ],
     []
   )

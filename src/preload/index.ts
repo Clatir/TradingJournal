@@ -32,6 +32,7 @@ const api: JournalApi = {
   openImportAsNew: (token) => invoke('openImportAsNew', token),
   listBackups: () => invoke('listBackups'),
   backupNow: () => invoke('backupNow'),
+  setBackupDir: (mode) => invoke('setBackupDir', mode),
   pickTextFile: (filter) => invoke('pickTextFile', filter),
   showPath: (abs) => invoke('showPath', abs),
   onChange: (cb) => {

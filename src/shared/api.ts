@@ -196,6 +196,8 @@ export interface JournalApi {
   openImportAsNew(token: string): Promise<OpenFolderResult>
   listBackups(): Promise<{ dir: string; files: BackupInfo[] }>
   backupNow(): Promise<string>
+  /** Change the backups folder on this machine: 'pick' shows a dialog, 'default' = backups/ in the data folder. */
+  setBackupDir(mode: 'pick' | 'default'): Promise<string | null>
   /** Pick a CSV file (TradingView export) and return its text. */
   pickTextFile(filter: { name: string; extensions: string[] }): Promise<{ name: string; text: string } | null>
   showPath(absPath: string): Promise<void>

@@ -76,9 +76,13 @@ test('pierwsze uruchomienie, transakcja ze screenem ze schowka, synchronizacja z
     expect(tradeJson.screens[0].path).toMatch(/^screens\/2026\/03\/.+_przed\.webp$/)
     expect(tradeJson.computed.resultR).toBe(2)
 
+    // The thumbnail is really served by the journal-file:// protocol (not a broken image).
+    await expect.poll(async () => page.locator('[data-testid="screen-card"] img').first().evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth)).toBe(480)
+
     // Lightbox shows the full image.
     await page.locator('[data-testid="screen-card"] img').first().click()
     await expect(page.getByTestId('lightbox')).toBeVisible()
+    await expect.poll(async () => page.getByTestId('lightbox').locator('img').first().evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth)).toBe(1920)
     await page.screenshot({ path: shots('03-lightbox') })
     await page.keyboard.press('Escape')
 

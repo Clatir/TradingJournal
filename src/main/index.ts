@@ -274,6 +274,18 @@ function registerIpc(): void {
     const s = requireStore()
     return manualBackup(s.root, s.backupsDir)
   })
+  handle('journal:setBackupDir', async (mode: 'pick' | 'default') => {
+    const s = requireStore()
+    let dir: string | null = null
+    if (mode === 'pick') {
+      const res = await dialog.showOpenDialog(mainWindow!, { title: 'Folder na kopie zapasowe (na tym komputerze)', properties: ['openDirectory', 'createDirectory', 'promptToCreate'] })
+      if (res.canceled || !res.filePaths[0]) return s.backupsDir
+      dir = res.filePaths[0]
+    }
+    await config.update({ backupDirOverride: dir })
+    s.setBackupDir(dir)
+    return s.backupsDir
+  })
   handle('journal:pickTextFile', async (filter: { name: string; extensions: string[] }) => {
     const res = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile'], filters: [filter] })
     const file = res.filePaths[0]

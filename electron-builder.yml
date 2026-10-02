@@ -1,6 +1,7 @@
 appId: app.ictjournal.desktop
 productName: ICT Trade Journal
 executableName: ICT Trade Journal
+copyright: Copyright © 2026 ICT Trade Journal
 directories:
   output: release
   buildResources: resources

@@ -351,20 +351,18 @@ export function TradeEditor({ id }: { id: string }) {
             </Section>
           )}
 
-          <Section title="MAE / MFE">
+          <Section title="MAE / MFE (pips)">
             <div className="grid grid-cols-2 gap-x-3">
-              <Field label="MAE (pips)">
-                <div className="flex items-center gap-2">
-                  <NumberField value={t.maePips} onChange={(v) => setField('maePips', v)} decimals={1} step={0.1} />
-                  <span className="num w-[52px] text-right text-muted">{m.maeR != null ? `${m.maeR.toFixed(2)}R` : ''}</span>
-                </div>
-              </Field>
-              <Field label="MFE (pips)">
-                <div className="flex items-center gap-2">
-                  <NumberField value={t.mfePips} onChange={(v) => setField('mfePips', v)} decimals={1} step={0.1} />
-                  <span className="num w-[52px] text-right text-muted">{m.mfeR != null ? `${m.mfeR.toFixed(2)}R` : ''}</span>
-                </div>
-              </Field>
+              <label className="flex items-center gap-2">
+                <span className="w-[34px] text-[11.5px] text-muted">MAE</span>
+                <NumberField className="w-[86px]" value={t.maePips} onChange={(v) => setField('maePips', v)} decimals={1} step={0.1} aria-label="MAE w pipsach" />
+                <span className="num text-muted">{m.maeR != null ? `${m.maeR.toFixed(2)}R` : ''}</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <span className="w-[34px] text-[11.5px] text-muted">MFE</span>
+                <NumberField className="w-[86px]" value={t.mfePips} onChange={(v) => setField('mfePips', v)} decimals={1} step={0.1} aria-label="MFE w pipsach" />
+                <span className="num text-muted">{m.mfeR != null ? `${m.mfeR.toFixed(2)}R` : ''}</span>
+              </label>
             </div>
           </Section>
 

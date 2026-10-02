@@ -21,6 +21,9 @@ import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
 import { ErrorBoundary } from './ErrorBoundary'
+import { ShortcutsHelp } from './ShortcutsHelp'
+import { flushSaves } from '../store/journal'
+import { toast } from '../store/ui'
 
 function useGlobalHotkeys(): void {
   useEffect(() => {
@@ -60,6 +63,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === ',') {
         e.preventDefault()
         navigate({ page: 'settings' })
+      } else if (k === 's') {
+        e.preventDefault()
+        void flushSaves().then(() => toast('Zapisano. (Zapis jest automatyczny – Ctrl+S nie jest potrzebne.)', 'success', 2200))
       } else if (e.key === '$' || (e.shiftKey && e.code === 'Digit4')) {
         e.preventDefault()
         toggleMoney()
@@ -151,6 +157,14 @@ export function App() {
             <IconPlus size={17} />
           </NavButton>
           <div className="flex-1" />
+          <button
+            className="mx-auto mb-1 flex h-[22px] w-[22px] items-center justify-center border border-line-strong text-[11px] text-muted hover:text-fg-strong"
+            title="Skróty klawiszowe (?)"
+            onClick={() => window.dispatchEvent(new Event('ictj:shortcuts'))}
+            data-testid="nav-help"
+          >
+            ?
+          </button>
           <NavButton active={route.page === 'sync'} onClick={() => navigate({ page: 'sync' })} label="Synchr." badge={issues} testId="nav-sync">
             <IconSync size={17} />
           </NavButton>
@@ -168,6 +182,7 @@ export function App() {
         </main>
       </div>
       <CommandPalette />
+      <ShortcutsHelp />
       <Lightbox />
       <Toasts />
     </div>

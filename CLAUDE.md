@@ -122,4 +122,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 2. ✅ Plan dnia + walidator + kalkulator pozycji + limity dzienne.
 3. ✅ Analityka + dane przykładowe.
 4. ✅ Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
-5. Szlif wizualny, lightbox porównawczy, finalny build.
+5. ✅ Szlif wizualny, lightbox porównawczy, ściąga skrótów (`?`/F1), Ctrl+S, folder kopii per komputer, finalny build 1.0.0.
+
+## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
+Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms
+(`useDeferredValue`), analityka ≈ 0,4–0,5 s. Wczytanie plików na NTFS w CI: ≈ 1,2 s.

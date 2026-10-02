@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { fileUrl } from '@shared/api'
 import { summarize } from '@shared/calc/stats'
@@ -29,8 +29,9 @@ export function JournalPage() {
   const searchRef = useRef<HTMLInputElement>(null)
   const be = journal?.settings.stats.breakevenThresholdR ?? 0.1
 
+  const deferredQuery = useDeferredValue(query)
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = deferredQuery.trim().toLowerCase()
     return rows.filter((r) => {
       if (pair && r.trade.pair !== pair) return false
       if (status !== 'all' && r.trade.status !== status) return false
@@ -48,7 +49,7 @@ export function JournalPage() {
         .toLowerCase()
       return q.split(/\s+/).every((part) => hay.includes(part))
     })
-  }, [rows, query, pair, status, journal])
+  }, [rows, deferredQuery, pair, status, journal])
 
   const summary = useMemo(
     () => summarize(filtered.filter((r) => r.m.countsInStats).map((r) => ({ r: r.m.resultR as number, time: r.m.exitTime ?? r.trade.entryTime })), be),

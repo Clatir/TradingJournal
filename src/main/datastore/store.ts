@@ -163,6 +163,11 @@ export class DataStore {
     return this.opts.backupDir ?? join(this.root, BACKUPS_DIR)
   }
 
+  /** Per-machine backup location (null = backups/ inside the data folder). */
+  setBackupDir(dir: string | null): void {
+    this.opts.backupDir = dir
+  }
+
   abs(rel: string): string {
     const clean = sanitizeRelPath(rel)
     if (!clean) throw new Error(`Niedozwolona ścieżka: ${rel}`)

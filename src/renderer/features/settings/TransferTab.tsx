@@ -209,6 +209,31 @@ export function TransferTab() {
             <span className="num text-right text-dim">{new Date(b.mtimeMs).toLocaleString('pl-PL')}</span>
           </div>
         ))}
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            className="btn h-[22px]"
+            onClick={() =>
+              run(async () => {
+                await api.setBackupDir('pick')
+                await loadBackups()
+              })
+            }
+          >
+            Zmień folder kopii…
+          </button>
+          <button
+            className="btn h-[22px]"
+            onClick={() =>
+              run(async () => {
+                await api.setBackupDir('default')
+                await loadBackups()
+              })
+            }
+          >
+            Domyślny (backups/ w folderze danych)
+          </button>
+          <span className="text-[11px] text-dim">ustawienie tego komputera – np. dysk lokalny zamiast OneDrive</span>
+        </div>
         <p className="mt-2 text-[11.5px] text-muted">Przywracanie: rozpakuj wybrany ZIP do pustego folderu i wskaż go w zakładce „Folder danych” albo zaimportuj go powyżej.</p>
       </Panel>
     </>
