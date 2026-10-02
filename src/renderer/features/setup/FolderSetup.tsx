@@ -35,9 +35,16 @@ export function FolderSetup() {
               {message}
               {dir && <div className="num mt-1 truncate text-[11px] text-muted">{dir}</div>}
               {dir && (
-                <button className="btn btn-accent mt-2" disabled={busy} onClick={() => run(() => api.openDataDir(dir, true))}>
-                  <IconPlus size={13} /> Utwórz dziennik tutaj
-                </button>
+                <div className="mt-2 flex gap-2">
+                  {/niedostępny/.test(message) && (
+                    <button className="btn btn-accent" disabled={busy} onClick={() => run(() => api.openDataDir(dir, false))} data-testid="retry-folder">
+                      Spróbuj ponownie
+                    </button>
+                  )}
+                  <button className={/niedostępny/.test(message) ? 'btn' : 'btn btn-accent'} disabled={busy} onClick={() => run(() => api.openDataDir(dir, true))}>
+                    <IconPlus size={13} /> Utwórz dziennik tutaj
+                  </button>
+                </div>
               )}
             </div>
           )}

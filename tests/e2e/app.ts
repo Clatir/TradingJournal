@@ -16,7 +16,7 @@ export interface Launched {
  * Launch the built app (out/) or a packaged executable (ICTJ_E2E_EXECUTABLE, used on Windows CI)
  * with an isolated user-data folder and a preselected data folder.
  */
-export async function launch(opts: { dataDir?: string; userData?: string; machine?: string } = {}): Promise<Launched> {
+export async function launch(opts: { dataDir?: string; userData?: string; machine?: string; usePreset?: boolean } = {}): Promise<Launched> {
   const base = mkdtempSync(join(tmpdir(), 'ictj-e2e-'))
   const dataDir = opts.dataDir ?? join(base, 'Dziennik')
   const userData = opts.userData ?? join(base, 'userData')
@@ -28,6 +28,7 @@ export async function launch(opts: { dataDir?: string; userData?: string; machin
     ELECTRON_DISABLE_SECURITY_WARNINGS: 'true'
   } as Record<string, string>
   delete env.ELECTRON_RENDERER_URL
+  if (opts.usePreset === false) delete env.ICTJ_DATA_DIR
   const executable = process.env.ICTJ_E2E_EXECUTABLE
   const app = executable
     ? await electron.launch({ executablePath: executable, env, args: process.platform === 'win32' ? [] : ['--no-sandbox'] })

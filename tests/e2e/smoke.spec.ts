@@ -144,3 +144,20 @@ test('dane przeniesione do innego folderu otwierają się ze screenami', async (
     await second.app.close()
   }
 })
+
+test('zapamiętany folder niedostępny (pendrive) → „Spróbuj ponownie” po podłączeniu', async () => {
+  const first = await launch()
+  await expect(first.page.getByTestId('journal-table')).toBeVisible()
+  await first.app.close()
+  const away = `${first.dataDir}-odlaczony`
+  await fs.rename(first.dataDir, away)
+  const second = await launch({ userData: first.userData, usePreset: false })
+  try {
+    await expect(second.page.getByTestId('setup-message')).toContainText('niedostępny')
+    await fs.rename(away, first.dataDir)
+    await second.page.getByTestId('retry-folder').click()
+    await expect(second.page.getByTestId('journal-table')).toBeVisible()
+  } finally {
+    await second.app.close()
+  }
+})

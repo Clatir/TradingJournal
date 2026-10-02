@@ -82,7 +82,10 @@ async function openFolder(dir: string, createIfEmpty: boolean): Promise<OpenFold
           ok: false,
           reason: 'not-journal',
           dir,
-          message: kind === 'empty' ? 'Folder jest pusty - można w nim utworzyć nowy dziennik.' : 'Folder nie istnieje.'
+          message:
+            kind === 'empty'
+              ? 'Folder jest pusty - można w nim utworzyć nowy dziennik.'
+              : 'Zapamiętany folder danych jest niedostępny (np. odłączony pendrive lub dysk sieciowy). Podłącz go i spróbuj ponownie albo wskaż inny folder.'
         }
       }
       await DataStore.initialize(target)
