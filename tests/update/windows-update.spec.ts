@@ -163,14 +163,14 @@ test('portable: pobranie w tle, podmiana exe po zamknięciu i start nowej wersji
 
     step = 'podmiana exe przez pomocnika'
     await expect.poll(() => sha256(exe).catch(() => ''), { timeout: 180_000, intervals: [1000] }).toBe(nextHash)
-    expect(existsSync(`${exe}.update`)).toBe(false)
-    expect(existsSync(`${exe}.old`)).toBe(false)
 
     step = 'start nowej wersji'
     await expect.poll(() => readText(mainLog), { timeout: 120_000, intervals: [1000] }).toContain(`updated ${CURRENT} -> ${NEXT}`)
     const helperLog = await readText(join(userData, 'logs', 'update.log'))
     expect(helperLog).toContain('swapped')
     expect(helperLog).toContain('restarted')
+    expect(existsSync(`${exe}.update`)).toBe(false)
+    expect(existsSync(`${exe}.old`)).toBe(false)
     await dump('portable: OK', userData, [dir])
   } catch (e) {
     console.log(`Nieudany etap: ${step}; zapytania do serwera: ${hits.join(', ')}`)

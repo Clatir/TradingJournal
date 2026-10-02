@@ -152,10 +152,16 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Weryfikacja: SHA-256 z `SHA256SUMS.txt` i/lub `digest` z API (muszą się zgadzać); bez sumy – odmowa.
   Adresy tylko https (poza `ICTJ_UPDATE_URL`).
 - Instalacja przy zamknięciu (`will-quit`, po zapisaniu danych); „Uruchom ponownie teraz” = `requestRestart()` + zwykłe zamknięcie okna.
-- Portable: launcher NSIS trzyma swój exe otwarty, więc podmianę robi odłączony PowerShell (`-EncodedCommand`):
+- Portable: launcher NSIS trzyma swój exe otwarty, więc podmianę robi pomocnik PowerShell (`-EncodedCommand`).
+  Pomocnik:
   1. czeka na PID aplikacji i launchera,
   2. przenosi exe → `.old` i `.update` → exe (przy błędzie przywraca stary, 120 prób co 0,5 s),
-  3. opcjonalnie `Start-Process`, log w `logs/update.log`.
+  3. opcjonalnie robi `Start-Process`, log w `logs/update.log`.
+
+  Uruchamianie jest dwustopniowe: krótki potomny PowerShell (ukryta konsola, `spawnSync`) startuje pomocnika przez
+  `Start-Process -WindowStyle Hidden`. Dwie rzeczy sprawdzone w CI:
+  - PowerShell uruchomiony jako proces odłączony (`detached`, bez konsoli) w ogóle nie wykonuje skryptu;
+  - zwykły proces potomny ginie razem z aplikacją (obiekt zadania libuv). „Wnuk” do tego zadania nie należy.
 - Zainstalowana: `Setup.exe --updated /S [--force-run]` (odłączony), instaluje w folderze z rejestru.
 - Tryb „ręczny” (dev, nie-Windows, `win-unpacked`): tylko informacja i link do wydania.
 - Start: `lastRunVersion` < bieżąca → baner „Zaktualizowano” (opis z `pending`). Sprzątanie `.old`, `.update`, `.part`,

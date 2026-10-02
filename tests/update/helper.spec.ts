@@ -32,10 +32,9 @@ test('pomocnik podmiany: czeka na proces, podmienia plik, zapisuje log', async (
   } finally {
     console.log(`helper log after ${Date.now() - started} ms:\n${await readText(logFile)}\nfiles: ${(await fs.readdir(dir)).join(', ')}`)
   }
-  const waited = Date.now() - started
-  const log = await readText(logFile)
-  expect(waited).toBeGreaterThan(2500)
-  expect(log).toContain('swapped')
-  expect(log).toContain('no restart requested')
+  expect(Date.now() - started).toBeGreaterThan(2500) // waited for the "app" to exit
+  // The file appears a moment before the helper removes the backup and finishes its log.
+  await expect.poll(() => readText(logFile), { timeout: 10_000 }).toContain('no restart requested')
+  expect(await readText(logFile)).toContain('swapped')
   await expect.poll(() => fs.readdir(dir), { timeout: 10_000 }).toEqual([PORTABLE])
 })
