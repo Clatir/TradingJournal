@@ -1,0 +1,40 @@
+appId: app.ictjournal.desktop
+productName: ICT Trade Journal
+executableName: ICT Trade Journal
+directories:
+  output: release
+  buildResources: resources
+# Everything is bundled by electron-vite into out/ (all libraries are devDependencies),
+# so the package contains no node_modules and no native modules.
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+electronLanguages:
+  - pl
+  - en-US
+win:
+  icon: resources/icon.png
+  target:
+    - target: portable
+      arch: [x64]
+    - target: nsis
+      arch: [x64]
+portable:
+  artifactName: ICT-Trade-Journal-${version}-portable.${ext}
+nsis:
+  artifactName: ICT-Trade-Journal-Setup-${version}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ICT Trade Journal
+  deleteAppDataOnUninstall: false
+linux:
+  target: [dir]
+  icon: resources/icon.png
