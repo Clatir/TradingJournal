@@ -71,7 +71,7 @@ jobs:
           node-version-file: .node-version
       # Fast signal first: the portable swap helper started like the app starts it (no build needed).
       - name: Update helper test (PowerShell swap)
-        run: npx playwright test -c playwright.update.config.ts tests/update/helper.spec.ts tests/update/helper-launch.spec.ts
+        run: npx playwright test -c playwright.update.config.ts tests/update/helper.spec.ts
       - name: Smoke test of the packaged app
         run: npx playwright test
         env:

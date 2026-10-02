@@ -3,13 +3,14 @@
  *
  * Portable: the portable exe is an NSIS launcher that unpacks the app to a temp folder and keeps its own
  * file open (FILE_SHARE_READ, no rename/delete) until the app exits. So the swap is done by a small
- * detached PowerShell helper that waits for the app and the launcher to exit, moves the new exe in place
- * (keeping the old one until the move succeeded) and optionally starts it again.
+ * PowerShell helper (started so that it outlives the app) that waits for the app and the launcher to
+ * exit, moves the new exe in place (keeping the old one until the move succeeded) and optionally starts
+ * it again.
  *
  * Installer: the NSIS installer runs silently (/S --updated) into the existing installation folder; it
  * waits for the app to exit by itself. --force-run starts the new version afterwards.
  */
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -79,19 +80,25 @@ function powershellExe(): string {
   return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 }
 
-/** Start the swap helper; it outlives the app. */
+/**
+ * Start the swap helper; it outlives the app. Windows PowerShell started as a detached process (no
+ * console) does not run at all, and a normal child process is killed together with the app (libuv job
+ * object). So a short-lived child PowerShell with a hidden console starts the helper via Start-Process:
+ * the helper gets its own hidden console and, as a grandchild, is not part of the app's job.
+ * Synchronous on purpose – the app quits right after this (~1 s).
+ */
 export function startPortableSwap(p: PortableSwapParams): void {
-  // A detached console process gets no console window at all; -EncodedCommand is not a script file,
-  // so the execution policy does not apply.
-  // Own working folder: the inherited one is the launcher's temp unpack folder, which the launcher
-  // deletes when the app exits.
-  const child = spawn(powershellExe(), ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(portableSwapScript(p))], {
+  const ps = powershellExe()
+  const helperArgs = ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(portableSwapScript(p))]
+  const starter = `Start-Process -FilePath ${psLiteral(ps)} -WindowStyle Hidden -WorkingDirectory ${psLiteral(tmpdir())} -ArgumentList ${helperArgs.map(psLiteral).join(',')}`
+  const r = spawnSync(ps, ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(starter)], {
     cwd: tmpdir(),
-    detached: true,
     stdio: 'ignore',
-    windowsHide: true
+    windowsHide: true,
+    timeout: 30_000
   })
-  child.unref()
+  if (r.error) throw r.error
+  if (r.status !== 0) throw new Error(`update helper did not start (exit code ${r.status})`)
 }
 
 export function installerArgs(restart: boolean): string[] {

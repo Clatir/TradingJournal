@@ -1,6 +1,7 @@
 /**
- * The portable swap helper on its own, started exactly like the app starts it (detached PowerShell
- * without a console): waits for a process, replaces the file, writes its log. No app build needed.
+ * The portable swap helper on its own, started exactly like the app starts it (a short-lived PowerShell
+ * that launches the helper with Start-Process): waits for a process, replaces the file, writes its log.
+ * No app build needed. (A PowerShell started directly as a detached process never runs – checked on CI.)
  */
 import { spawn } from 'node:child_process'
 import { mkdtempSync, promises as fs } from 'node:fs'
