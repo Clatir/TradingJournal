@@ -2,6 +2,7 @@
 import type { Collection, FileKind } from './paths'
 import type { RecordTypes } from './records'
 import type { JournalFile } from './schema'
+import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
 
 export interface RecordEntry<T> {
   record: T
@@ -143,6 +144,12 @@ export interface MachineConfig {
   sampleMode: boolean
   backupDirOverride: string | null
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean } | null
+  updates: {
+    prefs: UpdatePrefs
+    pending: PendingUpdate | null
+    /** Version that ran last on this machine (to say "updated to …" once). */
+    lastRunVersion: string | null
+  }
 }
 
 export interface AppInfo {
@@ -201,6 +208,15 @@ export interface JournalApi {
   /** Pick a CSV file (TradingView export) and return its text. */
   pickTextFile(filter: { name: string; extensions: string[] }): Promise<{ name: string; text: string } | null>
   showPath(absPath: string): Promise<void>
+  /** Updates from GitHub Releases. */
+  updateState(): Promise<UpdateState>
+  checkForUpdates(): Promise<UpdateState>
+  downloadUpdate(): Promise<UpdateState>
+  /** Quit, install the downloaded update and start the new version (call after flushing saves). */
+  installUpdateNow(): Promise<void>
+  setUpdatePrefs(prefs: Partial<UpdatePrefs>): Promise<UpdateState>
+  dismissUpdateNotice(): Promise<UpdateState>
+  onUpdateState(cb: (state: UpdateState) => void): () => void
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes (false = something stayed unsaved). */
   onFlushRequest(cb: () => Promise<boolean>): () => void

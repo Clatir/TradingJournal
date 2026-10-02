@@ -2,32 +2,23 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DateTime } from 'luxon'
 import { createDayPlan } from '@shared/defaults'
 import { newId } from '@shared/ids'
-import { formatClock, fromLocal, tradingDateNy } from '@shared/calc/time'
+import { formatClock, fromLocal, shiftTradingDay, tradingDateNy } from '@shared/calc/time'
 import { BIAS_TIMEFRAMES, type BiasDirection, type DayPair, type DayPlan, type NewsItem, type ScreenRef } from '@shared/schema'
 import { fmtR, parseClockInput, parseDateInput, tone, toneClass } from '../../lib/format'
 import { useDayPlan, useTradeRows } from '../../store/derived'
 import { addRecord, discardDraft, updateRecord, useJournal } from '../../store/journal'
-import { navigate } from '../../store/ui'
-import { IconBack, IconClose, IconNext, IconPlus } from '../../components/icons'
+import { navigate, toast } from '../../store/ui'
+import { IconBack, IconClose, IconCopy, IconNext, IconPlus } from '../../components/icons'
 import { Badge, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { copyDayMarkdown } from '../export/markdownActions'
+import { copyDayPlanToDate } from '../duplicate'
 
 export function todayNy(): string {
   return tradingDateNy(new Date().toISOString())
 }
 
-/** Move by trading days (Mon–Fri). */
-export function shiftTradingDay(date: string, delta: number): string {
-  let d = DateTime.fromISO(date, { zone: 'utc' })
-  const step = delta > 0 ? 1 : -1
-  let left = Math.abs(delta)
-  while (left > 0) {
-    d = d.plus({ days: step })
-    if (d.weekday <= 5) left--
-  }
-  return d.toISODate() ?? date
-}
+export { shiftTradingDay }
 
 const BIAS_OPTIONS: Array<{ value: BiasDirection; label: string }> = [
   { value: 'bullish', label: 'Bullish' },
@@ -125,6 +116,7 @@ export function DayPlanPage({ date }: { date: string }) {
             MD
           </button>
         )}
+        {plan && !isDraft && !readOnly && <CopyPlanTo date={date} />}
         <DayStrip date={date} />
       </div>
 
@@ -432,6 +424,60 @@ function NewsRow({ item, date, onChange, onRemove }: { item: NewsItem; date: str
         <IconClose size={12} />
       </button>
     </div>
+  )
+}
+
+/** Copy the analysis of this plan to another trading day (default: the next one). */
+function CopyPlanTo({ date }: { date: string }) {
+  const [open, setOpen] = useState(false)
+  const [target, setTarget] = useState(() => shiftTradingDay(date, 1))
+  const submit = () => {
+    const d = parseDateInput(target, Number(date.slice(0, 4)))
+    if (!d) {
+      toast('Nieprawidłowa data – wpisz np. 2026-10-05 albo 05.10.', 'error')
+      return
+    }
+    if (copyDayPlanToDate(date, d)) setOpen(false)
+  }
+  if (!open)
+    return (
+      <button
+        className="btn h-[22px]"
+        onClick={() => {
+          setTarget(shiftTradingDay(date, 1))
+          setOpen(true)
+        }}
+        title="Kopiuje pary (bias, DOL, poziomy, scenariusze), intermarket i notatki. Newsy, podsumowanie sesji i screeny zostają przy tym dniu. Ctrl+Shift+D – na następny dzień handlowy."
+        data-testid="copy-plan"
+      >
+        <IconCopy size={12} /> Kopiuj na…
+      </button>
+    )
+  return (
+    <span className="flex items-center gap-1">
+      <input
+        className="input num h-[22px] w-[104px] text-center"
+        value={target}
+        autoFocus
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setTarget(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit()
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            setOpen(false)
+          }
+        }}
+        aria-label="Data docelowa planu"
+        data-testid="copy-plan-date"
+      />
+      <button className="btn btn-accent h-[22px]" onClick={submit} data-testid="copy-plan-confirm">
+        Kopiuj
+      </button>
+      <button className="btn btn-ghost h-[22px] px-1" onClick={() => setOpen(false)} aria-label="Anuluj">
+        <IconClose size={11} />
+      </button>
+    </span>
   )
 }
 

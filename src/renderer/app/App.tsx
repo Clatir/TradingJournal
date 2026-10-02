@@ -14,6 +14,7 @@ import { WeekPage, currentWeek } from '../features/week/WeekPage'
 import { copyMarkdownForRoute } from '../features/export/markdownActions'
 import { CommandPalette, toggleMoney } from '../features/palette/CommandPalette'
 import { newTrade } from '../features/trade/actions'
+import { duplicateCurrent } from '../features/duplicate'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
 import { IconBook, IconCalc, IconCalendar, IconChart, IconGear, IconList, IconPlus, IconSync, IconWeek } from '../components/icons'
@@ -23,6 +24,7 @@ import { Banners } from './Banners'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ShortcutsHelp } from './ShortcutsHelp'
 import { flushSaves } from '../store/journal'
+import { initUpdates } from '../store/update'
 import { toast } from '../store/ui'
 
 function useGlobalHotkeys(): void {
@@ -39,6 +41,10 @@ function useGlobalHotkeys(): void {
         e.preventDefault()
         setPalette(false)
         newTrade(e.shiftKey ? 'missed' : 'trade')
+      } else if (k === 'd' && e.shiftKey) {
+        e.preventDefault()
+        setPalette(false)
+        duplicateCurrent()
       } else if (e.key === '1') {
         e.preventDefault()
         navigate({ page: 'journal' })
@@ -128,6 +134,7 @@ export function App() {
   useGlobalHotkeys()
   useEffect(() => {
     void boot()
+    initUpdates()
   }, [])
 
   if (phase === 'boot') return <div className="flex h-full items-center justify-center text-muted">Wczytywanie…</div>

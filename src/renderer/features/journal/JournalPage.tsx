@@ -8,9 +8,10 @@ import { fmtPercent, fmtPips, fmtR, fmtRatio, tone, toneClass, WEEKDAY_PL, fmtPr
 import { dictName, useTradeRows, type TradeRow } from '../../store/derived'
 import { useJournal } from '../../store/journal'
 import { navigate, openLightbox, useUi } from '../../store/ui'
-import { IconImage, IconPlus, IconSearch } from '../../components/icons'
+import { IconCopy, IconImage, IconPlus, IconSearch } from '../../components/icons'
 import { Badge, Kbd, Segmented, cx } from '../../components/ui'
 import { newTrade } from '../trade/actions'
+import { duplicateTradeEntry } from '../duplicate'
 
 const COLS = 'grid-cols-[82px_28px_40px_40px_60px_40px_minmax(64px,0.7fr)_minmax(84px,1.2fr)_50px_40px_38px_50px_58px_44px_minmax(60px,1fr)_24px]'
 const STATUS_LABEL: Record<TradeStatus, string> = { closed: 'zamkn.', open: 'otwarta', missed: 'missed' }
@@ -263,6 +264,7 @@ function SumItem({ label, value, cls }: { label: string; value: string; cls?: st
 
 function Preview({ row, be }: { row: TradeRow; be: number }) {
   const journal = useJournal((s) => s.journal)
+  const readOnly = useJournal((s) => s.status?.readOnly ?? false) || row.readOnly
   const { trade: t, m } = row
   const pairCfg = journal?.settings.pairs.find((p) => p.symbol === t.pair)
   const dec = pairCfg?.priceDecimals ?? 5
@@ -313,10 +315,15 @@ function Preview({ row, be }: { row: TradeRow; be: number }) {
           </div>
         )}
       </div>
-      <div className="border-t border-line p-2">
-        <button className="btn w-full justify-center" onClick={() => navigate({ page: 'trade', id: t.id })} data-testid="open-trade">
+      <div className="flex gap-2 border-t border-line p-2">
+        <button className="btn flex-1 justify-center" onClick={() => navigate({ page: 'trade', id: t.id })} data-testid="open-trade">
           Otwórz <Kbd>Enter</Kbd>
         </button>
+        {!readOnly && (
+          <button className="btn" onClick={() => duplicateTradeEntry(t.id)} title="Utwórz kopię tej transakcji (Ctrl+Shift+D)" data-testid="duplicate-selected">
+            <IconCopy size={13} /> Duplikuj
+          </button>
+        )}
       </div>
     </div>
   )

@@ -9,6 +9,7 @@
     "electron.vite.config.mts",
     "vitest.config.mts",
     "playwright.config.ts",
+    "playwright.update.config.ts",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",

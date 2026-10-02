@@ -6,11 +6,12 @@ import { metricsFor } from '../../store/derived'
 import { addRecord, deleteRecord, discardDraft, updateRecord, useJournal } from '../../store/journal'
 import { navigate, openLightbox, toast } from '../../store/ui'
 import { AnnotationLayer } from '../../components/annotations'
-import { IconClose, IconPlus, IconTrash } from '../../components/icons'
+import { IconClose, IconCopy, IconPlus, IconTrash } from '../../components/icons'
 import { Badge, Chips, Field, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { errorMessage } from '../../lib/api'
 import { parseDateInput } from '../../lib/format'
 import { ScreensPanel } from '../screens/ScreensPanel'
+import { duplicateLibraryEntry } from '../duplicate'
 
 type TypeFilter = 'all' | 'live' | 'backtest'
 
@@ -186,6 +187,11 @@ function LibraryDetail({ item, readOnly }: { item: LibraryItem; readOnly: boolea
     <aside className="flex w-[480px] shrink-0 flex-col border-l border-line bg-panel" data-testid="library-detail">
       <div className="flex h-[36px] shrink-0 items-center gap-2 border-b border-line px-2">
         <span className="label flex-1">Przykład setupu</span>
+        {!readOnly && (
+          <button className="btn h-[22px]" onClick={() => duplicateLibraryEntry(item.id)} title="Utwórz kopię przykładu (Ctrl+Shift+D)" data-testid="duplicate-library">
+            <IconCopy size={12} /> Duplikuj
+          </button>
+        )}
         {!readOnly &&
           (confirm ? (
             <button

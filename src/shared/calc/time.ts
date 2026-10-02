@@ -105,6 +105,18 @@ export function isoWeekOf(date: string): string {
   return `${d.weekYear}-W${String(d.weekNumber).padStart(2, '0')}`
 }
 
+/** Move a calendar date by trading days (Mon–Fri). */
+export function shiftTradingDay(date: string, delta: number): string {
+  let d = DateTime.fromISO(date, { zone: 'utc' })
+  const step = delta > 0 ? 1 : -1
+  let left = Math.abs(delta)
+  while (left > 0) {
+    d = d.plus({ days: step })
+    if (d.weekday <= 5) left--
+  }
+  return d.toISODate() ?? date
+}
+
 /** NY weekday 1 (Mon) .. 7 (Sun) of an instant. */
 export function weekdayNy(iso: string): number {
   return zoned(iso, 'NY').weekday

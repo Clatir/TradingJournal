@@ -8,6 +8,7 @@ import { flushSaves, openResult, updateJournal, useJournal } from '../../store/j
 import { navigate, toast, useUi, type SettingsTab } from '../../store/ui'
 import { enterSample, exitSample } from '../sample/sample'
 import { TransferTab } from './TransferTab'
+import { UpdatesTab } from './UpdatesTab'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
 import { Field, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 
@@ -19,7 +20,8 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'dictionaries', label: 'Słowniki' },
   { id: 'screens', label: 'Screeny' },
   { id: 'display', label: 'Wyświetlanie i ryzyko' },
-  { id: 'transfer', label: 'Eksport, import, kopie' }
+  { id: 'transfer', label: 'Eksport, import, kopie' },
+  { id: 'updates', label: 'Aktualizacje' }
 ]
 
 export function SettingsPage() {
@@ -55,6 +57,7 @@ export function SettingsPage() {
           {tab === 'screens' && <ScreensTab settings={journal.settings} />}
           {tab === 'display' && <DisplayTab settings={journal.settings} />}
           {tab === 'transfer' && <TransferTab />}
+          {tab === 'updates' && <UpdatesTab />}
         </div>
       </div>
     </div>

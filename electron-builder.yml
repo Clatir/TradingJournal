@@ -25,10 +25,12 @@ win:
       arch: [x64]
     - target: nsis
       arch: [x64]
+# Stable file names: the GitHub release always has the same two files (the app updates itself from
+# them, see src/shared/update.ts) and releases/latest/download/<name> links never change.
 portable:
-  artifactName: ICT-Trade-Journal-${version}-portable.${ext}
+  artifactName: ICT-Trade-Journal-portable.${ext}
 nsis:
-  artifactName: ICT-Trade-Journal-Setup-${version}.${ext}
+  artifactName: ICT-Trade-Journal-Setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

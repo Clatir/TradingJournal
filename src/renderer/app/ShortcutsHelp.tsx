@@ -9,6 +9,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl K', 'paleta komend i wyszukiwanie transakcji'],
       ['Ctrl N', 'nowa transakcja'],
       ['Ctrl Shift N', 'nowy missed trade'],
+      ['Ctrl Shift D', 'duplikuj wpis (plan dnia → następny dzień)'],
       ['Ctrl S', 'zapisz teraz (zapis i tak jest automatyczny)'],
       ['Ctrl $', 'pokaż / ukryj kwoty'],
       ['Ctrl Shift M', 'markdown transakcji / planu dnia do schowka'],

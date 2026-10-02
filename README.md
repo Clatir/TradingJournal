@@ -3,6 +3,54 @@
 Osobisty dziennik day tradera forex w metodologii ICT – aplikacja desktopowa dla Windows, działa w pełni offline.
 Dane to zwykły folder z plikami JSON i WebP (może leżeć w OneDrive albo na pendrive).
 
+## Pobranie gotowej aplikacji
+
+Gotowe pliki są w [Releases](https://github.com/Clatir/TradingJournal/releases/latest):
+
+| Plik | Opis |
+| --- | --- |
+| [`ICT-Trade-Journal-portable.exe`](https://github.com/Clatir/TradingJournal/releases/latest/download/ICT-Trade-Journal-portable.exe) | jeden plik, bez instalacji – można trzymać np. na pendrive |
+| [`ICT-Trade-Journal-Setup.exe`](https://github.com/Clatir/TradingJournal/releases/latest/download/ICT-Trade-Journal-Setup.exe) | instalator (wybór folderu, skróty w menu Start i na pulpicie) |
+
+Pliki nie są podpisane cyfrowo, więc przy pierwszym uruchomieniu SmartScreen pokaże ostrzeżenie:
+**Więcej informacji → Uruchom mimo to**. Wersja portable przy każdym starcie rozpakowuje się do folderu tymczasowego,
+dlatego startuje kilka sekund dłużej.
+
+## Aktualizacje
+
+Od wersji 1.1.0 aplikacja aktualizuje się sama z GitHub Releases:
+
+1. Przy starcie (po ~15 s) i co 6 godzin sprawdza, czy jest nowsze wydanie (`api.github.com`, bez wysyłania jakichkolwiek danych).
+2. Nową wersję pobiera w tle i sprawdza sumą SHA-256 opublikowaną w wydaniu. Plik z inną sumą jest odrzucany.
+3. Instaluje ją **przy zamknięciu aplikacji**, bez klikania w instalator. Pasek u góry ma też przycisk **Uruchom ponownie teraz**.
+   - **Portable:** nowy plik `.exe` zastępuje stary w tym samym miejscu, więc skróty dalej działają. Podmianę robi mały skrypt
+     PowerShell po zamknięciu aplikacji (log: `%APPDATA%\ICT Trade Journal\logs\update.log`). Folder z plikiem `.exe` musi być
+     zapisywalny. Na pendrive każdy komputer pobiera i podmienia ten sam plik.
+   - **Zainstalowana:** instalator działa w tle (`/S`) w dotychczasowym folderze. Ustawienia, folder danych i kopie zostają.
+4. Po aktualizacji pojawia się „Zaktualizowano do wersji …” z opisem zmian.
+
+Dane dziennika nie są przy tym ruszane. Gdy nowa wersja zmienia format, sama migruje folder po kopii zapasowej.
+
+**Ustawienia → Aktualizacje:**
+- „Sprawdź teraz”;
+- opis zmian;
+- przełączniki: automatyczne sprawdzanie, pobieranie w tle.
+
+Bez internetu aplikacja działa normalnie i sprawdzi ponownie później.
+
+Wersja 1.0.0 nie miała aktualizacji: raz pobierz 1.1.0 ręcznie (link wyżej) i zastąp nią starą, dalej pójdzie samo.
+Kopia zbudowana lokalnie z folderu `release\win-unpacked` tylko informuje o nowej wersji (nie wie, jak się podmienić).
+
+### Wydanie nowej wersji
+
+1. Podbij `"version"` w `package.json` (np. `1.1.0` → `1.2.0`, poprawki: `1.1.1`).
+2. Dopisz w `CHANGELOG.md` sekcję `## 1.2.0` – to opis wydania, który aplikacja pokaże w „Co nowego”.
+3. Commit i push na domyślną gałąź.
+
+CI buduje oba pliki `.exe`, testuje je na Windows – także aktualizację do kolejnej wersji, portable i zainstalowanej. Potem
+publikuje wydanie `v1.2.0` z `ICT-Trade-Journal-portable.exe`, `ICT-Trade-Journal-Setup.exe` i `SHA256SUMS.txt`.
+Push bez zmiany wersji niczego nie publikuje. Wersja z myślnikiem (`1.2.0-beta.1`) to pre-release, którego aplikacja nie pobiera.
+
 ## Zbudowanie pliku .exe na Windows
 
 Wymagany jest tylko [Git](https://git-scm.com/). **Wersja Node.js zainstalowana na komputerze nie ma znaczenia** (może być
@@ -22,18 +70,9 @@ Skrypt kolejno: pobiera Node.js (tylko za pierwszym razem), `npm ci`, `npm test`
 dwuklikiem w Eksploratorze. `.\build-windows.cmd -SkipTests` pomija testy. Masz już sklonowane repozytorium? `git pull`
 i ponownie `.\build-windows.cmd`.
 
-Wynik w folderze `release\`:
-
-| Plik | Opis |
-| --- | --- |
-| `ICT-Trade-Journal-<wersja>-portable.exe` | jeden plik, bez instalacji – można trzymać np. na pendrive |
-| `ICT-Trade-Journal-Setup-<wersja>.exe` | instalator (wybór folderu, skróty w menu Start i na pulpicie) |
-
-- Pliki nie są podpisane cyfrowo, więc przy pierwszym uruchomieniu SmartScreen pokaże ostrzeżenie:
-  **Więcej informacji → Uruchom mimo to**.
-- Wersja portable przy każdym starcie rozpakowuje się do folderu tymczasowego, dlatego startuje kilka sekund dłużej.
-- Gotowe pliki .exe buduje też GitHub Actions przy każdym pushu (zakładka **Actions** → ostatni przebieg → **Artifacts**,
-  tam też zrzuty ekranu z testów na Windows).
+Wynik w folderze `release\`: `ICT-Trade-Journal-portable.exe` i `ICT-Trade-Journal-Setup.exe` (jak w wydaniach).
+Gotowe pliki .exe buduje też GitHub Actions przy każdym pushu (zakładka **Actions** → ostatni przebieg → **Artifacts**, tam też
+zrzuty ekranu z testów na Windows).
 
 **Bez skryptu** (własny Node.js **22.12 lub nowszy**, zalecany 24 LTS – sprawdź `node -v`):
 
@@ -96,3 +135,11 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 **Etap 5 – szlif i build**
 1. `?` – ściąga skrótów. W podglądzie screena „Porównaj” (lub C) – przed/po obok siebie ze wspólnym zoomem.
 2. Zbuduj `npm run dist:win`, uruchom wersję portable z pendrive'a i instalator; wskaż ten sam folder danych na dwóch komputerach.
+
+**Wersja 1.1 – duplikowanie i aktualizacje**
+1. W transakcji „Duplikuj” (albo `Ctrl+Shift+D`, albo przycisk w podglądzie dziennika) – kopia otwiera się od razu do edycji.
+   Tak samo przykład w bibliotece.
+2. W planie dnia „Kopiuj na…” – bias, poziomy i scenariusze na wybrany dzień (domyślnie następny dzień handlowy).
+   `Ctrl+Shift+D` w planie kopiuje na następny dzień.
+3. Ustawienia → Aktualizacje: wersja, tryb (portable / zainstalowana), „Sprawdź teraz”. Po wydaniu kolejnej wersji pojawi się
+   pasek „Wersja … jest pobrana” → **Uruchom ponownie teraz**.

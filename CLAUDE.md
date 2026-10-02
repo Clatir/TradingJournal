@@ -10,8 +10,12 @@ używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, termin
 - **Żadnych natywnych modułów Node.** Wszystkie biblioteki są w `devDependencies` i bundlowane do `out/`,
   więc `app.asar` nie zawiera `node_modules`.
 - Testy: Vitest (`tests/unit`, `tests/fs`), Playwright `_electron` (`tests/e2e`, lokalnie pod `xvfb-run`).
-- Build: electron-builder → `portable` + `nsis` (x64). CI: `.github/workflows/ci.yml` (Linux testy + build na Node
-  22.12.0/24/26, blokada na 22.11, Windows build + smoke na Node 24).
+- Build: electron-builder → `portable` + `nsis` (x64), stałe nazwy `ICT-Trade-Journal-portable.exe` i
+  `ICT-Trade-Journal-Setup.exe`.
+- CI: `.github/workflows/ci.yml`:
+  - Linux: testy i build na Node 22.12.0/24/26, blokada na 22.11, sekcja wersji w CHANGELOG.
+  - Windows: build, smoke i test aktualizacji do wersji +1 na Node 24.
+  - Wydanie na GitHubie dla każdej nowej wersji na domyślnej gałęzi (patrz „Aktualizacje”).
 - Node do budowania: ≥ 22.12 (Vite 7 / Vitest 5), zalecany 24 LTS; przypięta wersja w `.node-version` (używa jej
   `build-windows.cmd` → `scripts/build-win.ps1` i CI na Windows, gdzie systemowy Node celowo jest stary: 20.12).
   `.cmd`/`.ps1` mają CRLF (`.gitattributes`), `.ps1` w UTF-8 z BOM (Windows PowerShell 5.1).
@@ -36,8 +40,15 @@ build-windows.cmd    # Windows bez wymagań co do Node: pobiera Node z .node-ver
 node scripts/calibrate-webp.mjs [plik.png]   # kalibracja jakości WebP (CHROMIUM_PATH=... jeśli trzeba)
 ```
 E2E przeciw spakowanej aplikacji: `ICTJ_E2E_EXECUTABLE=<ścieżka exe> npx playwright test`.
-Zmienne testowe: `ICTJ_USER_DATA` (izolowany userData), `ICTJ_DATA_DIR` (folder danych bez okna wyboru),
-`ICTJ_MACHINE_NAME`.
+Zmienne testowe:
+- `ICTJ_USER_DATA`: izolowany userData;
+- `ICTJ_DATA_DIR`: folder danych bez okna wyboru;
+- `ICTJ_MACHINE_NAME`;
+- `ICTJ_UPDATE_URL`: lokalny serwer zamiast api.github.com, dopuszcza http i sprawdzanie także w kopii „ręcznej”;
+- `ICTJ_UPDATE_CHECK_DELAY_MS`: opóźnienie pierwszego sprawdzenia, domyślnie 15 s.
+
+Test aktualizacji na Windows: `playwright.update.config.ts` (`tests/update`) z `ICTJ_UPDATE_FROM`/`ICTJ_UPDATE_TO`
+(foldery z exe obu wersji) i `ICTJ_UPDATE_TO_VERSION`.
 
 ## Architektura
 - `src/shared` – czyste TS używane przez main i renderer: `schema/` (zod = źródło typów), `calc/` (pipsy, R,
@@ -125,6 +136,34 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Kopie przy starcie (`main/datastore/backup.ts`): `backups/daily/RRRR-MM-DD_json.zip` (14), `backups/weekly/RRRR-Wnn_full.zip`
   gdy najnowsza ≥ 7 dni (4), ręczne `backups/manual/` (5), przed migracją `backups/pre-migration/`. Demo nie ma kopii.
 
+## Duplikowanie
+- `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
+- Transakcja / przykład z biblioteki: nowe `id` i czasy, screeny współdzielone (te same pliki).
+- Plan dnia → inna data (domyślnie następny dzień handlowy, `shiftTradingDay`): pary (nowe id poziomów, bez screenów),
+  intermarket i notatki; bez newsów, podsumowania i screenów. Istniejący plan w dniu docelowym nie jest nadpisywany.
+
+## Aktualizacje (GitHub Releases)
+- Części czyste: `src/shared/update.ts` (wersje semver, odpowiedź API, wybór pliku, SHA256SUMS, tryb instalacji).
+- Proces main: `src/main/update/` (`updater.ts` stan/sprawdzanie/pobieranie, `download.ts`, `apply.ts`).
+- Renderer: `store/update.ts`, `features/settings/UpdatesTab.tsx`, banery w `app/Banners.tsx`.
+- Ustawienia per komputer: `config.json` → `updates {prefs, pending, lastRunVersion}`.
+- Sprawdzanie `GET /repos/Clatir/TradingJournal/releases/latest` przez `net.fetch`: 15 s po starcie, potem co 6 h; 404 = brak wydań.
+- Pobieranie w tle do `<exe portable>.update` albo `userData/updates/<Setup>.exe`, przez `.part`.
+- Weryfikacja: SHA-256 z `SHA256SUMS.txt` i/lub `digest` z API (muszą się zgadzać); bez sumy – odmowa.
+  Adresy tylko https (poza `ICTJ_UPDATE_URL`).
+- Instalacja przy zamknięciu (`will-quit`, po zapisaniu danych); „Uruchom ponownie teraz” = `requestRestart()` + zwykłe zamknięcie okna.
+- Portable: launcher NSIS trzyma swój exe otwarty, więc podmianę robi odłączony PowerShell (`-EncodedCommand`):
+  1. czeka na PID aplikacji i launchera,
+  2. przenosi exe → `.old` i `.update` → exe (przy błędzie przywraca stary, 120 prób co 0,5 s),
+  3. opcjonalnie `Start-Process`, log w `logs/update.log`.
+- Zainstalowana: `Setup.exe --updated /S [--force-run]` (odłączony), instaluje w folderze z rejestru.
+- Tryb „ręczny” (dev, nie-Windows, `win-unpacked`): tylko informacja i link do wydania.
+- Start: `lastRunVersion` < bieżąca → baner „Zaktualizowano” (opis z `pending`). Sprzątanie `.old`, `.update`, `.part`,
+  `userData/updates`. Oczekująca aktualizacja innej kopii (portable vs zainstalowana) zostaje nietknięta.
+- Wydanie: podbij `version` w package.json + sekcja `## X.Y.Z` w `CHANGELOG.md` (`scripts/release-notes.mjs`) → push.
+  - CI (job `release`) publikuje `vX.Y.Z` z oboma exe i `SHA256SUMS.txt`, raz na wersję.
+  - Wersja z `-` = pre-release (nie trafia do `releases/latest`).
+
 ## Konwencje kodu
 - Tekst UI po polsku, terminy ICT po angielsku; komentarze w kodzie po angielsku.
 - Liczby: `.num` (JetBrains Mono, cyfry tabelaryczne). Zieleń/czerwień (`text-up`/`text-down`) tylko dla wyniku.
@@ -143,6 +182,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 3. ✅ Analityka + dane przykładowe.
 4. ✅ Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
 5. ✅ Szlif wizualny, lightbox porównawczy, ściąga skrótów (`?`/F1), Ctrl+S, folder kopii per komputer, finalny build 1.0.0.
+6. ✅ 1.1.0: duplikowanie wpisów, aktualizacje z GitHub Releases (portable bez instalatora), wydania z CI.
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

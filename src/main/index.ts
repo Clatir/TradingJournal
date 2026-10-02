@@ -1,6 +1,6 @@
-import { promises as fs } from 'node:fs'
+import { existsSync, promises as fs } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
@@ -17,6 +17,9 @@ import { listBackups, manualBackup, runBackups } from './datastore/backup'
 import { applyImport, extractZip, inspectFolder, type Inspected } from './datastore/transfer'
 import { zipFolder } from './datastore/zip'
 import { writeFileAtomic } from './datastore/atomic'
+import { GITHUB_API, detectInstallMode, type UpdatePrefs } from '@shared/update'
+import { Updater } from './update/updater'
+import { startPortableSwap, startSilentInstaller } from './update/apply'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
 if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DATA)
@@ -34,7 +37,53 @@ let mainWindow: BrowserWindow | null = null
 let store: DataStore | null = null
 let watcher: FolderWatcher | null = null
 let presenceTimer: NodeJS.Timeout | null = null
+let updater: Updater | null = null
 const imports = new Map<string, Inspected>()
+/** First automatic update check after start (test runs shorten it). */
+const updateCheckDelayMs = (): number => Number(process.env.ICTJ_UPDATE_CHECK_DELAY_MS) || 15_000
+
+function requireUpdater(): Updater {
+  if (!updater) throw new Error('Moduł aktualizacji nie jest gotowy.')
+  return updater
+}
+
+function createUpdater(): Updater {
+  const portableFile = process.env.PORTABLE_EXECUTABLE_FILE || null
+  const uninstaller = join(dirname(process.execPath), `Uninstall ${app.getName()}.exe`)
+  const { mode, note } = detectInstallMode({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    portableFile: portableFile ?? undefined,
+    uninstallerExists: existsSync(uninstaller)
+  })
+  // Test hook: a local release server instead of api.github.com (also allows plain http).
+  const override = process.env.ICTJ_UPDATE_URL?.replace(/\/+$/, '') || null
+  const savePrefs = (prefs: UpdatePrefs) => config.updateUpdates({ prefs }).then(() => undefined)
+  return new Updater({
+    currentVersion: app.getVersion(),
+    mode,
+    modeNote: note,
+    portableFile,
+    userDataDir: app.getPath('userData'),
+    fetch: (url, init) => net.fetch(url, init),
+    apiBase: override ?? GITHUB_API,
+    allowInsecure: !!override,
+    prefs: () => config.get().updates.prefs,
+    savePrefs,
+    pending: () => config.get().updates.pending,
+    savePending: (pending) => config.updateUpdates({ pending }).then(() => undefined),
+    lastRunVersion: () => config.get().updates.lastRunVersion,
+    saveLastRunVersion: (lastRunVersion) => config.updateUpdates({ lastRunVersion }).then(() => undefined),
+    applyPortable: startPortableSwap,
+    applyInstaller: startSilentInstaller,
+    // The portable launcher (parent process) keeps its exe open until the app exits.
+    waitPids: [process.pid, process.ppid],
+    log,
+    onState: (state) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('journal:update', state)
+    }
+  })
+}
 
 protocol.registerSchemesAsPrivileged([
   { scheme: FILE_URL_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -310,6 +359,18 @@ function registerIpc(): void {
   handle('journal:showPath', async (abs: string) => {
     shell.showItemInFolder(abs)
   })
+  handle('journal:updateState', () => requireUpdater().getState())
+  handle('journal:checkForUpdates', () => requireUpdater().check(true))
+  handle('journal:downloadUpdate', () => requireUpdater().download())
+  handle('journal:installUpdateNow', async () => {
+    const u = requireUpdater()
+    if (!u.isReady) throw new Error('Aktualizacja nie jest jeszcze pobrana.')
+    u.requestRestart()
+    // The usual close path: flush in the renderer, close the folder, then will-quit applies the update.
+    mainWindow?.close()
+  })
+  handle('journal:setUpdatePrefs', (prefs: Partial<UpdatePrefs>) => requireUpdater().setPrefs(prefs, updateCheckDelayMs()))
+  handle('journal:dismissUpdateNotice', () => requireUpdater().dismissNotice())
   handle('journal:openSample', () => openFolder(sampleDir(), true))
   handle('journal:resetSample', async () => {
     const dir = sampleDir()
@@ -395,6 +456,7 @@ function createWindow(): void {
         })
         if (choice === 0) {
           closing = false
+          updater?.cancelRestart()
           return
         }
       }
@@ -410,6 +472,9 @@ function createWindow(): void {
   win.on('focus', () => {
     store?.refresh().then(send, () => undefined)
   })
+  // Shutdown / log-off (Windows): no installer or swap helper now, the update waits for the next close.
+  win.on('query-session-end', () => updater?.postponeInstall())
+  win.on('session-end', () => updater?.postponeInstall())
   win.on('closed', () => {
     mainWindow = null
   })
@@ -431,11 +496,23 @@ app.whenReady().then(async () => {
   initLog(app.getPath('userData'))
   log('info', `start v${app.getVersion()} on ${machineName}`)
   await config.load()
+  updater = createUpdater()
   registerFileProtocol()
   registerIpc()
   createWindow()
+  const u = updater
+  void u.init().then(
+    () => u.startAuto(updateCheckDelayMs()),
+    (e) => log('warn', 'update init failed', e)
+  )
 })
 
 app.on('window-all-closed', () => {
   void closeStore().finally(() => app.quit())
+})
+
+// Last step of quitting (data flushed, folder closed): a downloaded update is installed now; the
+// installer / swap helper finishes after this process has exited.
+app.on('will-quit', () => {
+  updater?.applyOnQuit()
 })

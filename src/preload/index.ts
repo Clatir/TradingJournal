@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ChangeSet, JournalApi } from '@shared/api'
+import type { UpdateState } from '@shared/update'
 
 const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(`journal:${channel}`, ...args)
 
@@ -35,6 +36,17 @@ const api: JournalApi = {
   setBackupDir: (mode) => invoke('setBackupDir', mode),
   pickTextFile: (filter) => invoke('pickTextFile', filter),
   showPath: (abs) => invoke('showPath', abs),
+  updateState: () => invoke('updateState'),
+  checkForUpdates: () => invoke('checkForUpdates'),
+  downloadUpdate: () => invoke('downloadUpdate'),
+  installUpdateNow: () => invoke('installUpdateNow'),
+  setUpdatePrefs: (prefs) => invoke('setUpdatePrefs', prefs),
+  dismissUpdateNotice: () => invoke('dismissUpdateNotice'),
+  onUpdateState: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, state: UpdateState) => cb(state)
+    ipcRenderer.on('journal:update', listener)
+    return () => ipcRenderer.removeListener('journal:update', listener)
+  },
   onChange: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, change: ChangeSet) => cb(change)
     ipcRenderer.on('journal:change', listener)

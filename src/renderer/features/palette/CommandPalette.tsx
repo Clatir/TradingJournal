@@ -8,10 +8,12 @@ import { updateJournal, useJournal } from '../../store/journal'
 import { navigate, setPalette, toast, useUi } from '../../store/ui'
 import { Kbd } from '../../components/ui'
 import { newTrade } from '../trade/actions'
+import { duplicateCurrent } from '../duplicate'
 import { todayNy } from '../day/DayPlanPage'
 import { enterSample, exitSample } from '../sample/sample'
 import { currentWeek } from '../week/WeekPage'
 import { copyMarkdownForRoute, exportCsv } from '../export/markdownActions'
+import { checkForUpdates } from '../../store/update'
 
 export function toggleMoney(): void {
   let on = false
@@ -41,6 +43,7 @@ export function CommandPalette() {
     () => [
       { id: 'new', label: 'Nowa transakcja', keys: 'Ctrl N', run: () => newTrade() },
       { id: 'missed', label: 'Nowy missed trade', keys: 'Ctrl Shift N', run: () => newTrade('missed') },
+      { id: 'duplicate', label: 'Duplikuj bieżący wpis (transakcja, przykład; plan → następny dzień)', keys: 'Ctrl Shift D', run: duplicateCurrent },
       { id: 'journal', label: 'Dziennik transakcji', keys: 'Ctrl 1', run: () => navigate({ page: 'journal' }) },
       { id: 'day', label: 'Plan dnia – dziś', keys: 'Ctrl D', run: () => navigate({ page: 'day', date: todayNy() }) },
       { id: 'analytics', label: 'Analityka', keys: 'Ctrl 3', run: () => navigate({ page: 'analytics' }) },
@@ -65,6 +68,14 @@ export function CommandPalette() {
       { id: 'money', label: 'Przełącz kwoty / tylko R', keys: 'Ctrl $', run: toggleMoney },
       { id: 'rescan', label: 'Przeskanuj folder danych', run: () => void api.rescan().then(() => toast('Przeskanowano folder.', 'success'), (e) => toast(errorMessage(e), 'error')) },
       { id: 'explorer', label: 'Pokaż folder danych w Eksploratorze', run: () => void api.showInFolder(null) },
+      {
+        id: 'updates',
+        label: 'Sprawdź aktualizacje (GitHub)',
+        run: () => {
+          navigate({ page: 'settings', tab: 'updates' })
+          void checkForUpdates()
+        }
+      },
       { id: 'help', label: 'Skróty klawiszowe', keys: '?', run: () => window.dispatchEvent(new Event('ictj:shortcuts')) }
     ],
     []

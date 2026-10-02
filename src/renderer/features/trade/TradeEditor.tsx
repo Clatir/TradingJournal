@@ -8,12 +8,13 @@ import { metricsFor, useDayPlan, validationFor } from '../../store/derived'
 import { deleteRecord, discardDraft, updateRecord, useJournal } from '../../store/journal'
 import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
-import { IconBack, IconExternal, IconFolder, IconPlus, IconTrash, IconClose } from '../../components/icons'
+import { IconBack, IconClose, IconCopy, IconExternal, IconFolder, IconPlus, IconTrash } from '../../components/icons'
 import { Badge, Chips, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
 import { addTradeToLibrary } from '../library/LibraryPage'
 import { copyTradeMarkdown } from '../export/markdownActions'
+import { duplicateTradeEntry } from '../duplicate'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -159,6 +160,11 @@ export function TradeEditor({ id }: { id: string }) {
           <button className="btn" onClick={(e) => void copyTradeMarkdown(id, e.shiftKey)} title="Kopiuj markdown (Ctrl+Shift+M); Shift+klik – zapisz plik .md" data-testid="copy-md">
             MD
           </button>
+          {!isDraft && !readOnly && (
+            <button className="btn" onClick={() => duplicateTradeEntry(id)} title="Utwórz kopię tej transakcji (Ctrl+Shift+D)" data-testid="duplicate-trade">
+              <IconCopy size={13} /> Duplikuj
+            </button>
+          )}
           {!isDraft && (
             <button className="btn" onClick={() => addTradeToLibrary(t)} title="Dodaj jako przykład do biblioteki setupów" data-testid="to-library">
               Do biblioteki
