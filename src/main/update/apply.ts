@@ -10,7 +10,8 @@
  * waits for the app to exit by itself. --force-run starts the new version afterwards.
  */
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 
 /** Single-quoted PowerShell literal (no expansion; a quote is escaped by doubling it). */
 export function psLiteral(text: string): string {
@@ -82,7 +83,10 @@ function powershellExe(): string {
 export function startPortableSwap(p: PortableSwapParams): void {
   // A detached console process gets no console window at all; -EncodedCommand is not a script file,
   // so the execution policy does not apply.
+  // Own working folder: the inherited one is the launcher's temp unpack folder, which the launcher
+  // deletes when the app exits.
   const child = spawn(powershellExe(), ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(portableSwapScript(p))], {
+    cwd: tmpdir(),
     detached: true,
     stdio: 'ignore',
     windowsHide: true
@@ -96,6 +100,7 @@ export function installerArgs(restart: boolean): string[] {
 
 /** Run the downloaded NSIS installer silently; it replaces the installed app once this process exits. */
 export function startSilentInstaller(setupPath: string, restart: boolean): void {
-  const child = spawn(setupPath, installerArgs(restart), { detached: true, stdio: 'ignore' })
+  // Not the installation folder as the working folder: the installer replaces it.
+  const child = spawn(setupPath, installerArgs(restart), { cwd: dirname(setupPath), detached: true, stdio: 'ignore' })
   child.unref()
 }

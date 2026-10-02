@@ -98,7 +98,8 @@ export async function downloadVerified(fetchFn: FetchLike, url: string, dest: st
     await closed
     const actual = hash.digest('hex')
     if (actual !== sha256.toLowerCase()) throw new Error('Pobrany plik ma inną sumę kontrolną niż wydanie na GitHubie – odrzucono go.')
-    await withRetry(() => fs.rename(part, dest))
+    // A fresh executable is often held for a moment by the antivirus scan: retry for ~15 s.
+    await withRetry(() => fs.rename(part, dest), 35)
   } catch (e) {
     clearTimeout(stall)
     if (!ctrl.signal.aborted) ctrl.abort() // stop the transfer (write error, bad response)
