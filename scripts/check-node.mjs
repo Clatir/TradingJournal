@@ -15,9 +15,12 @@ if (!requireEsm) {
       '',
       `BŁĄD: Node.js v${process.versions.node} jest za stary dla tego projektu (wymagany 22.12 lub nowszy, zalecany 24 LTS).`,
       'Na starszym Node testy, tryb deweloperski i budowanie pliku .exe kończą się błędem ERR_REQUIRE_ESM.',
-      'Aktualizacja: instalator LTS z https://nodejs.org/ albo w PowerShell: winget install OpenJS.NodeJS.LTS',
-      '(nvm-windows: nvm install 24, potem nvm use 24).',
-      'Potem zamknij i otwórz terminal na nowo, sprawdź `node -v` i uruchom ponownie `npm ci`.',
+      '',
+      'Najprościej (Windows): uruchom build-windows.cmd z folderu projektu – sam pobierze właściwą wersję',
+      'Node.js tylko dla tego projektu i zbuduje pliki .exe. Twojego Node.js nie trzeba zmieniać.',
+      '',
+      'Albo zaktualizuj Node.js: instalator LTS z https://nodejs.org/ lub w PowerShell: winget install OpenJS.NodeJS.LTS',
+      '(nvm-windows: nvm install 24, potem nvm use 24), zamknij i otwórz terminal, sprawdź `node -v`, uruchom `npm ci`.',
       ''
     ].join('\n')
   )

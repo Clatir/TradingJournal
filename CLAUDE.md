@@ -12,7 +12,9 @@ używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, termin
 - Testy: Vitest (`tests/unit`, `tests/fs`), Playwright `_electron` (`tests/e2e`, lokalnie pod `xvfb-run`).
 - Build: electron-builder → `portable` + `nsis` (x64). CI: `.github/workflows/ci.yml` (Linux testy + build na Node
   22.12.0/24/26, blokada na 22.11, Windows build + smoke na Node 24).
-- Node do budowania: ≥ 22.12 (Vite 7 / Vitest 5), zalecany 24 LTS. `package.json` nie ma `"type": "module"` (preload
+- Node do budowania: ≥ 22.12 (Vite 7 / Vitest 5), zalecany 24 LTS; przypięta wersja w `.node-version` (używa jej
+  `build-windows.cmd` → `scripts/build-win.ps1` i CI na Windows, gdzie systemowy Node celowo jest stary: 20.12).
+  `.cmd`/`.ps1` mają CRLF (`.gitattributes`), `.ps1` w UTF-8 z BOM (Windows PowerShell 5.1). `package.json` nie ma `"type": "module"` (preload
   w sandboksie musi być CJS), dlatego konfiguracje mają rozszerzenie **`.mts`** (`electron.vite.config.mts`,
   `vitest.config.mts`) – jako `.ts` byłyby ładowane jako CJS i na Node bez require(esm) padały z `ERR_REQUIRE_ESM`
   (std-env). Bez require(esm) i tak nie działają electron-builder 26 (ESM-only `@noble/hashes` 2) ani instalator
@@ -28,6 +30,7 @@ npm run typecheck
 npm run build        # out/
 npx playwright test  # E2E (po npm run build); Linux: xvfb-run -a npx playwright test
 npm run dist:win     # release/*.exe (na Windows natywnie; na Linuksie potrzebny wine64 + wine32 dla NSIS)
+build-windows.cmd    # Windows bez wymagań co do Node: pobiera Node z .node-version do .tools\ (SHA-256), npm ci/test/dist:win
 node scripts/calibrate-webp.mjs [plik.png]   # kalibracja jakości WebP (CHROMIUM_PATH=... jeśli trzeba)
 ```
 E2E przeciw spakowanej aplikacji: `ICTJ_E2E_EXECUTABLE=<ścieżka exe> npx playwright test`.

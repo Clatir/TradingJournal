@@ -9,3 +9,4 @@ playwright-report/
 .tmp/
 scripts/output/
 *.tsbuildinfo
+.tools/

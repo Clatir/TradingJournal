@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import electronPath from 'electron'
 import { launch } from './app'
 
 const shots = (name: string) => join('test-results', 'screens', `${name}.png`)
@@ -169,7 +168,8 @@ test('drugie uruchomienie nie otwiera drugiego okna na tym samym folderze', asyn
   try {
     await expect(first.page.getByTestId('journal-table')).toBeVisible()
     const packaged = process.env.ICTJ_E2E_EXECUTABLE
-    const exe = packaged ?? (electronPath as unknown as string)
+    // The electron package is only needed for the unpacked build (it may download its binary on first use).
+    const exe = packaged ?? ((await import('electron')).default as unknown as string)
     const args = packaged ? [] : [resolve('.'), ...(process.platform === 'win32' ? [] : ['--no-sandbox'])]
     const env = { ...process.env, ICTJ_USER_DATA: first.userData, ICTJ_DATA_DIR: first.dataDir } as Record<string, string>
     delete env.ELECTRON_RENDERER_URL

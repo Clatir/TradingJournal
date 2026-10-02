@@ -51,17 +51,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      # An outdated system Node.js (like on the user's PC): build-windows.cmd must not depend on it.
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: '20.12.0'
           cache: npm
-      - run: npm ci
-      # Unit + filesystem tests on real NTFS (atomic rename, recursive watcher, recycle-bin-free deletes).
-      - run: npm test
-      - name: Build portable + installer
-        run: npm run dist:win
+      # The one-click build users run: pinned Node.js from .node-version downloaded into .tools\,
+      # npm ci, unit + filesystem tests on real NTFS, portable + installer.
+      - name: build-windows.cmd
+        shell: cmd
+        run: build-windows.cmd
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
       - name: Smoke test of the packaged app
         run: npx playwright test
         env:

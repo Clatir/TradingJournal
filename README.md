@@ -5,19 +5,22 @@ Dane to zwykły folder z plikami JSON i WebP (może leżeć w OneDrive albo na p
 
 ## Zbudowanie pliku .exe na Windows
 
-Wymagania: [Node.js](https://nodejs.org/) **24 LTS** (minimum 22.12) i [Git](https://git-scm.com/). Visual Studio Build Tools
-**nie są potrzebne** (aplikacja nie używa natywnych modułów). Sprawdź wersję poleceniem `node -v`. Aktualizacja: instalator
-LTS z nodejs.org albo `winget install OpenJS.NodeJS.LTS`, potem nowe okno terminala.
+Wymagany jest tylko [Git](https://git-scm.com/). **Wersja Node.js zainstalowana na komputerze nie ma znaczenia** (może być
+stara albo żadna): skrypt `build-windows.cmd` pobiera jednorazowo Node.js w wersji z pliku `.node-version` (24 LTS) do folderu
+`.tools\` w projekcie – ze sprawdzeniem sumy SHA-256 z nodejs.org – i używa go wyłącznie do budowania. Ustawienia systemu,
+PATH ani Twój Node.js nie są zmieniane, uprawnienia administratora nie są potrzebne. Visual Studio Build Tools też nie
+(aplikacja nie używa natywnych modułów).
 
 ```powershell
-node -v
 git clone https://github.com/Clatir/TradingJournal.git
 cd TradingJournal
 git checkout claude/ict-trade-journal-app-9fp4r4
-npm ci
-npm test
-npm run dist:win
+.\build-windows.cmd
 ```
+
+Skrypt kolejno: pobiera Node.js (tylko za pierwszym razem), `npm ci`, `npm test`, `npm run dist:win`. Można go też uruchomić
+dwuklikiem w Eksploratorze. `.\build-windows.cmd -SkipTests` pomija testy. Masz już sklonowane repozytorium? `git pull`
+i ponownie `.\build-windows.cmd`.
 
 Wynik w folderze `release\`:
 
@@ -32,21 +35,19 @@ Wynik w folderze `release\`:
 - Gotowe pliki .exe buduje też GitHub Actions przy każdym pushu (zakładka **Actions** → ostatni przebieg → **Artifacts**,
   tam też zrzuty ekranu z testów na Windows).
 
-Masz już sklonowane repozytorium? Pobierz zmiany i zainstaluj zależności od nowa:
+**Bez skryptu** (własny Node.js **22.12 lub nowszy**, zalecany 24 LTS – sprawdź `node -v`):
 
 ```powershell
-cd TradingJournal
-git pull
 npm ci
 npm test
 npm run dist:win
 ```
 
-**Błąd `ERR_REQUIRE_ESM`** (np. `std-env` przy `npm test`, `@noble/hashes` przy `npm run dist:win`) albo
-**„Electron failed to install correctly”** oznacza zbyt stary Node – narzędzia wymagają **22.12 lub nowszego**. Zainstaluj
-Node 24 LTS (nvm-windows: `nvm install 24`, `nvm use 24`), otwórz nowe okno terminala, sprawdź `node -v`, potem `npm ci`
-i `npm run dist:win`. Na zbyt starym Node już `npm ci` (a także `npm test`, `npm run dev`, `npm run dist:win`) zatrzymuje się
-z tą instrukcją. Ostrzeżenia `npm warn deprecated …` przy `npm ci` pochodzą z zależności narzędzi i są nieszkodliwe.
+Na starszym Node.js `npm ci`, `npm test`, `npm run dev` i `npm run dist:win` zatrzymują się z instrukcją (zamiast błędów
+`ERR_REQUIRE_ESM` czy „Electron failed to install correctly”) – wtedy użyj `build-windows.cmd` albo zaktualizuj Node.js
+(`winget install OpenJS.NodeJS.LTS`, nvm-windows: `nvm install 24`, `nvm use 24`). Ostrzeżenia `npm warn deprecated …`
+przy `npm ci` to nie błędy: pochodzą z wewnętrznych zależności electron-buildera (instalator Squirrel, pobieranie Electrona
+przez proxy), których ta aplikacja nie używa.
 
 Tryb deweloperski: `npm ci` i `npm run dev`. Testy: `npm test` (jednostkowe i na plikach), `npm run build` + `npx playwright test` (E2E).
 
