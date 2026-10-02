@@ -14,7 +14,9 @@ używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, termin
   22.12.0/24/26, blokada na 22.11, Windows build + smoke na Node 24).
 - Node do budowania: ≥ 22.12 (Vite 7 / Vitest 5), zalecany 24 LTS; przypięta wersja w `.node-version` (używa jej
   `build-windows.cmd` → `scripts/build-win.ps1` i CI na Windows, gdzie systemowy Node celowo jest stary: 20.12).
-  `.cmd`/`.ps1` mają CRLF (`.gitattributes`), `.ps1` w UTF-8 z BOM (Windows PowerShell 5.1). `package.json` nie ma `"type": "module"` (preload
+  `.cmd`/`.ps1` mają CRLF (`.gitattributes`), `.ps1` w UTF-8 z BOM (Windows PowerShell 5.1).
+- `allowScripts` w package.json (npm 11): skrypty instalacyjne zatwierdzone jawnie – esbuild tak, electron-winstaller
+  (Squirrel, nieużywany) nie. Po aktualizacji zależności: `npm approve-scripts --allow-scripts-pending`. `package.json` nie ma `"type": "module"` (preload
   w sandboksie musi być CJS), dlatego konfiguracje mają rozszerzenie **`.mts`** (`electron.vite.config.mts`,
   `vitest.config.mts`) – jako `.ts` byłyby ładowane jako CJS i na Node bez require(esm) padały z `ERR_REQUIRE_ESM`
   (std-env). Bez require(esm) i tak nie działają electron-builder 26 (ESM-only `@noble/hashes` 2) ani instalator
