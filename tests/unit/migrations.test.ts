@@ -58,7 +58,7 @@ describe('migracje schematu', () => {
       entryTime: '2026-03-16T07:30:00.000Z',
       prices: { entry: 1.1, stopLoss: 1.099, takeProfit1: 1.102, takeProfit2: null }
     })
-    const text = serializeRecord('trades', t, j.settings)
+    const text = serializeRecord('trades', t, { settings: j.settings })
     const json = JSON.parse(text)
     expect(json.computed.riskPips).toBe(10)
     expect(json.computed.killzones).toEqual(['London', 'SB London'])

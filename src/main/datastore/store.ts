@@ -22,6 +22,7 @@ import {
   JOURNAL_FILE,
   SCREENS_DIR,
   classifyCanonical,
+  dayRelPath,
   detectConflictName,
   isIgnoredPath,
   isScreenFile,
@@ -35,6 +36,7 @@ import {
 } from '@shared/paths'
 import { SCHEMAS, parseRecordText, serializeRecord, type AnyRecord, type RecordTypes } from '@shared/records'
 import { SCHEMA_VERSION, type JournalFile, type ScreenRef } from '@shared/schema'
+import { tradingDateNy } from '@shared/calc/time'
 import { pathExists, removeFile, sha1, withRetry, writeFileAtomic } from './atomic'
 import { mapLimit, walkFiles } from './fsutil'
 import { zipFolder } from './zip'
@@ -366,8 +368,16 @@ export class DataStore {
     this.backupPath = dir
   }
 
+  /** Settings + day plan of the trade's date, for the informational `computed` block. */
+  private ctxFor(kind: FileKind, record: AnyRecord): { settings: JournalFile['settings']; dayPlan: RecordTypes['days'] | null } | undefined {
+    if (kind !== 'trades') return undefined
+    const date = tradingDateNy((record as RecordTypes['trades']).entryTime)
+    const day = this.files.get(dayRelPath(date))
+    return { settings: this.journal.settings, dayPlan: day?.status === 'record' ? (day.record as RecordTypes['days']) : null }
+  }
+
   private async rewrite(s: FileState): Promise<void> {
-    const text = serializeRecord(s.kind, s.record as AnyRecord, s.kind === 'trades' ? this.journal.settings : undefined)
+    const text = serializeRecord(s.kind, s.record as AnyRecord, this.ctxFor(s.kind, s.record as AnyRecord))
     await this.writeState(s.relPath, s.kind, s.record as AnyRecord, text)
   }
 
@@ -631,7 +641,7 @@ export class DataStore {
         throw new Error(`Plik ${rel} należy do innego wpisu (np. plan dla tej daty już istnieje).`)
       }
       if (existing) await this.preserveExternalChange(existing)
-      const text = serializeRecord(collection, record, this.journal.settings)
+      const text = serializeRecord(collection, record, this.ctxFor(collection, record))
       const state = await this.writeState(rel, collection, record, text)
       if (existing && existing.relPath !== rel) {
         await removeFile(this.abs(existing.relPath))
@@ -793,7 +803,7 @@ export class DataStore {
         const record = { ...(copyState.record as AnyRecord), updatedAt: this.opts.now() } as AnyRecord
         keptPath = recordRelPath(kind, record as unknown as Record<string, unknown>)
         keptId = record.id
-        await this.writeState(keptPath, kind, record, serializeRecord(kind, record, this.journal.settings))
+        await this.writeState(keptPath, kind, record, serializeRecord(kind, record, this.ctxFor(kind, record)))
       }
       for (const side of [conflict.canonical, conflict.copy]) {
         if (side.relPath === keptPath) continue

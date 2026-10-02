@@ -12,7 +12,7 @@ import { IconImage, IconPlus, IconSearch } from '../../components/icons'
 import { Badge, Kbd, Segmented, cx } from '../../components/ui'
 import { newTrade } from '../trade/actions'
 
-const COLS = 'grid-cols-[82px_28px_40px_40px_60px_40px_minmax(70px,0.7fr)_minmax(90px,1.2fr)_54px_42px_40px_52px_60px_minmax(70px,1fr)_26px]'
+const COLS = 'grid-cols-[82px_28px_40px_40px_60px_40px_minmax(64px,0.7fr)_minmax(84px,1.2fr)_50px_40px_38px_50px_58px_44px_minmax(60px,1fr)_24px]'
 const STATUS_LABEL: Record<TradeStatus, string> = { closed: 'zamkn.', open: 'otwarta', missed: 'missed' }
 
 type StatusFilter = 'all' | TradeStatus
@@ -158,6 +158,7 @@ export function JournalPage() {
           <span className="text-right">R:R</span>
           <span className="text-right">Pips</span>
           <span className="text-right">R</span>
+          <span className="text-right" title="Zgodność z zasadami">Zas.</span>
           <span>Błędy</span>
           <span />
         </div>
@@ -207,6 +208,12 @@ export function JournalPage() {
                     <span className="num text-right">{fmtRatio(m.rrTp1)}</span>
                     <span className={cx('num text-right', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.resultPips)])}>{fmtPips(m.resultPips)}</span>
                     <span className={cx('num text-right font-medium', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.resultR, be)])}>{fmtR(m.resultR)}</span>
+                    <span
+                      className={cx('num text-right text-[11px]', row.v.compliant === false ? 'text-accent' : 'text-muted')}
+                      title={row.v.broken.map((b) => `${b.label}: ${b.detail}`).join('\n') || 'zgodna z zasadami'}
+                    >
+                      {row.v.score == null ? '—' : `${Math.round(row.v.score * 100)}%`}
+                    </span>
                     <span className="truncate text-[11px] text-muted">
                       {t.psychology.mistakeTagIds.map((id) => dictName(journal, 'mistakeTags', id)).join(', ')}
                     </span>
@@ -284,6 +291,15 @@ function Preview({ row, be }: { row: TradeRow; be: number }) {
         {line('PD array', [dictName(journal, 'pdArrays', t.entryPdArrayId), dictName(journal, 'pdArrays', t.htfPdArrayId)].filter(Boolean).join(' · HTF ') || '—')}
         {line('Płynność', t.liquidityTakenIds.map((id) => dictName(journal, 'liquidityPools', id)).join(', ') || '—')}
         {line('Błędy', t.psychology.mistakeTagIds.map((id) => dictName(journal, 'mistakeTags', id)).join(', ') || '—')}
+        {line('Zgodność', <span className={cx('num', row.v.compliant === false ? 'text-accent' : '')}>{row.v.score == null ? '—' : `${Math.round(row.v.score * 100)}%`}</span>)}
+        {row.v.broken.map((b) => (
+          <div key={b.id} className="flex gap-1.5 py-[2px] text-[11.5px] text-accent">
+            <span>✕</span>
+            <span className="truncate" title={b.detail}>
+              {b.label}: <span className="num">{b.detail}</span>
+            </span>
+          </div>
+        ))}
         {t.notes && <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-fg">{t.notes}</p>}
         {t.screens.length > 0 && (
           <div className="mt-2 grid grid-cols-2 gap-1">

@@ -8,6 +8,7 @@ import { updateJournal, useJournal } from '../../store/journal'
 import { navigate, setPalette, toast, useUi } from '../../store/ui'
 import { Kbd } from '../../components/ui'
 import { newTrade } from '../trade/actions'
+import { todayNy } from '../day/DayPlanPage'
 
 export function toggleMoney(): void {
   let on = false
@@ -38,6 +39,9 @@ export function CommandPalette() {
       { id: 'new', label: 'Nowa transakcja', keys: 'Ctrl N', run: () => newTrade() },
       { id: 'missed', label: 'Nowy missed trade', keys: 'Ctrl Shift N', run: () => newTrade('missed') },
       { id: 'journal', label: 'Dziennik transakcji', keys: 'Ctrl 1', run: () => navigate({ page: 'journal' }) },
+      { id: 'day', label: 'Plan dnia – dziś', keys: 'Ctrl D', run: () => navigate({ page: 'day', date: todayNy() }) },
+      { id: 'calc', label: 'Kalkulator pozycji i limity dzienne', keys: 'Ctrl 6', run: () => navigate({ page: 'calculator' }) },
+      { id: 'rules', label: 'Zasady walidatora (progi)', run: () => navigate({ page: 'settings', tab: 'rules' }) },
       { id: 'settings', label: 'Ustawienia', keys: 'Ctrl ,', run: () => navigate({ page: 'settings' }) },
       { id: 'screens', label: 'Ustawienia screenów i osierocone pliki', run: () => navigate({ page: 'settings', tab: 'screens' }) },
       { id: 'dicts', label: 'Słowniki: modele, PD arrays, płynność, błędy', run: () => navigate({ page: 'settings', tab: 'dictionaries' }) },

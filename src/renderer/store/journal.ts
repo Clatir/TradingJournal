@@ -193,7 +193,15 @@ export function updateRecord<C extends Collection>(collection: C, id: string, up
   const current = (get()[collection] as EntryMap<C>)[id]
   if (!current || current.readOnly) return
   const record = updater(current.record)
-  set((s) => ({ [collection]: { ...(s[collection] as EntryMap<C>), [id]: { ...current, record } } }) as Partial<JournalState>)
+  set((s) => {
+    // The first edit turns a draft into a real record (saved shortly), so leaving the page never discards it.
+    let drafts = s.drafts
+    if (drafts[id]) {
+      drafts = { ...drafts }
+      delete drafts[id]
+    }
+    return { [collection]: { ...(s[collection] as EntryMap<C>), [id]: { ...current, record } }, drafts } as Partial<JournalState>
+  })
   scheduleSave(collection, id)
 }
 

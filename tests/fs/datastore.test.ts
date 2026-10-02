@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DataStore, ReadOnlyError } from '../../src/main/datastore/store'
 import { writeFileAtomic } from '../../src/main/datastore/atomic'
@@ -93,7 +93,7 @@ describe('uszkodzone pliki', () => {
     const snap = await new DataStore(store.root, { machineName: 'X' }).open()
     expect(snap.trades).toHaveLength(1)
     const kinds = Object.fromEntries(snap.problems.map((p) => [p.relPath.split('/').pop(), p.kind]))
-    expect(kinds[badPath.split('/').pop()!]).toBe('corrupt')
+    expect(kinds[basename(badPath)]).toBe('corrupt')
     expect(kinds['notatki.json']).toBe('unknown-file')
     // The broken file is never overwritten.
     expect(await fs.readFile(badPath, 'utf8')).toBe('{ "id": "zepsuty", "pair": ')

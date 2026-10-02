@@ -32,7 +32,8 @@ Zmienne testowe: `ICTJ_USER_DATA` (izolowany userData), `ICTJ_DATA_DIR` (folder 
   statystyki, czas/killzone, pozycja), `migrations/`, `paths.ts` (układ folderu, nazwy, wzorce konfliktów),
   `records.ts` (parse/serialize), `api.ts` (kontrakt IPC).
 - `src/main` – jedyny właściciel folderu danych: `datastore/store.ts` (skan, indeks plików, zapis atomowy,
-  migracje, konflikty, screeny), `watch.ts` (fs.watch rekursywny + skan kontrolny co 30 s), `presence.ts`
+  migracje, konflikty, screeny), `watch.ts` (Windows/macOS: natywny fs.watch rekursywny; Linux: watcher na każdy
+  katalog, bo emulacja rekursji w Node gubi zmiany po rename/nowym inode; + skan kontrolny co 30 s), `presence.ts`
   (heartbeat `.presence/`), `config.ts` (ustawienia per komputer w userData), `log.ts` (userData/logs/main.log),
   protokół `journal-file://data/<ścieżka względna>` do obrazów.
 - `src/preload` – `window.journal` (contextBridge). Okno: contextIsolation, sandbox, CSP wstrzykiwane przy buildzie.
@@ -88,11 +89,16 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Liczby: `.num` (JetBrains Mono, cyfry tabelaryczne). Zieleń/czerwień (`text-up`/`text-down`) tylko dla wyniku.
   Jeden akcent `#e8a33d`. Bez gradientów i cieni; panele z nagłówkiem, linie 1 px, animacje 120–160 ms.
 - Selektory zustand zwracają wartości prymitywne lub istniejące referencje (nowy obiekt w selektorze = pętla renderów).
-- Walidator nigdy nie blokuje zapisu – tylko flaguje.
+- Walidator (`src/shared/calc/validator.ts`) nigdy nie blokuje zapisu – tylko flaguje. Zasady: SL ≤ próg, R:R do TP1,
+  killzone, bias HTF (z sekcji pary w planie dnia, interwał w ustawieniach), SL poza płynnością (tak/nie/nie oceniono),
+  dzień z newsami (tylko informacja). Ocena = spełnione / ocenialne; „zgodna” = brak złamanych.
+- Szkic (nowy wpis) przestaje być szkicem przy pierwszej edycji – opuszczenie ekranu nigdy nie gubi zmian.
+- Limity dzienne liczone dla daty NY „dziś”: suma R zamkniętych i liczba transakcji (bez missed).
+- Kursy przeliczeniowe kalkulatora: `settings.risk.conversionRates` (1 waluta kwotowana = x waluty konta).
 
 ## Etapy
 1. ✅ Folder danych, transakcja, lista, screeny z kompresją, konflikty, build exe + CI.
-2. Plan dnia + walidator + kalkulator pozycji + limity dzienne.
+2. ✅ Plan dnia + walidator + kalkulator pozycji + limity dzienne.
 3. Analityka + dane przykładowe.
 4. Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
 5. Szlif wizualny, lightbox porównawczy, finalny build.

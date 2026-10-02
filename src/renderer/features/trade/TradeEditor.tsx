@@ -4,13 +4,14 @@ import { pipsBetween, directionSign, exitR } from '@shared/calc/trade'
 import type { DictionaryKey, ScreenRef, Trade, TradeExit } from '@shared/schema'
 import { api, errorMessage } from '../../lib/api'
 import { fmtMoney, fmtPips, fmtR, fmtRatio, tone, toneClass } from '../../lib/format'
-import { metricsFor } from '../../store/derived'
+import { metricsFor, useDayPlan, validationFor } from '../../store/derived'
 import { deleteRecord, discardDraft, updateRecord, useJournal } from '../../store/journal'
 import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
 import { IconBack, IconExternal, IconFolder, IconPlus, IconTrash, IconClose } from '../../components/icons'
 import { Badge, Chips, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
+import { ValidatorPanel } from './ValidatorPanel'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -21,6 +22,9 @@ export function TradeEditor({ id }: { id: string }) {
   const isDraft = useJournal((s) => !!s.drafts[id])
   const [activeExit, setActiveExit] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const settingsForDay = journal?.settings
+  const dayEntry = useDayPlan(entry && settingsForDay ? metricsFor(entry.record, settingsForDay).tradingDate : null)
 
   // An untouched new trade is never written to disk.
   useEffect(() => () => discardDraft('trades', id), [id])
@@ -68,6 +72,7 @@ export function TradeEditor({ id }: { id: string }) {
   const currency = settings.risk.accountCurrency
   const showMoney = settings.display.showMoney
   const be = settings.stats.breakevenThresholdR
+  const v = validationFor(t, m, settings, dayEntry?.record ?? null)
 
   const up = (fn: (t: Trade) => Trade) => updateRecord('trades', id, fn)
   const setField = <K extends keyof Trade>(k: K, v: Trade[K]) => up((r) => ({ ...r, [k]: v }))
@@ -353,7 +358,14 @@ export function TradeEditor({ id }: { id: string }) {
             </div>
           </Section>
 
-          <Section title="Ryzyko">
+          <Section
+            title="Ryzyko"
+            actions={
+              <button className="btn h-[20px] px-1.5 text-[11px]" onClick={() => navigate({ page: 'calculator', tradeId: id })} title="Kalkulator pozycji dla tej transakcji" data-testid="open-calc">
+                Przelicz loty
+              </button>
+            }
+          >
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <Field label="Ryzyko %">
                 <NumberField value={t.riskPercent} onChange={(v) => setField('riskPercent', v)} decimals={2} step={0.05} />
@@ -479,6 +491,9 @@ export function TradeEditor({ id }: { id: string }) {
 
         {/* ------------------------------------------------ column 3 */}
         <div className="flex min-h-0 flex-col overflow-y-auto">
+          <Section title="Walidator zasad">
+            <ValidatorPanel v={v} date={m.tradingDate} hasPlan={!!dayEntry} />
+          </Section>
           <Section title={`Screeny (${t.screens.length})`}>
             <ScreensPanel screens={t.screens} onChange={setScreens} date={m.tradingDate} capturePaste={!readOnly} readOnly={readOnly} />
           </Section>

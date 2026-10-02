@@ -101,3 +101,16 @@ export const IconPaste = base(
     <path d="M6 3V2h4v1M5.5 7h5M5.5 9.5h5M5.5 12h3" />
   </>
 )
+export const IconCalendar = base(
+  <>
+    <rect x="2" y="3" width="12" height="11" rx="1" />
+    <path d="M2 6.5h12M5.5 1.8v2.4M10.5 1.8v2.4" />
+    <path d="M5 9h1M7.5 9h1M10 9h1M5 11.5h1M7.5 11.5h1" />
+  </>
+)
+export const IconCalc = base(
+  <>
+    <rect x="3" y="1.8" width="10" height="12.4" rx="1" />
+    <path d="M5.2 4.3h5.6v2.2H5.2zM5.5 9h.5M8 9h.5M10.5 9h.5M5.5 11.5h.5M8 11.5h.5M10.5 11.5h.5" />
+  </>
+)

@@ -6,11 +6,13 @@ import { JournalPage } from '../features/journal/JournalPage'
 import { TradeEditor } from '../features/trade/TradeEditor'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { SyncPage } from '../features/sync/SyncPage'
+import { DayPlanPage, todayNy } from '../features/day/DayPlanPage'
+import { CalculatorPage } from '../features/calculator/CalculatorPage'
 import { CommandPalette, toggleMoney } from '../features/palette/CommandPalette'
 import { newTrade } from '../features/trade/actions'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconGear, IconList, IconPlus, IconSync } from '../components/icons'
+import { IconCalc, IconCalendar, IconGear, IconList, IconPlus, IconSync } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -33,6 +35,12 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '1') {
         e.preventDefault()
         navigate({ page: 'journal' })
+      } else if (e.key === '2' || k === 'd') {
+        e.preventDefault()
+        navigate({ page: 'day', date: todayNy() })
+      } else if (e.key === '6') {
+        e.preventDefault()
+        navigate({ page: 'calculator' })
       } else if (e.key === ',') {
         e.preventDefault()
         navigate({ page: 'settings' })
@@ -70,6 +78,10 @@ function Page({ route }: { route: Route }) {
       return <JournalPage />
     case 'trade':
       return <TradeEditor key={route.id} id={route.id} />
+    case 'day':
+      return <DayPlanPage key={route.date} date={route.date} />
+    case 'calculator':
+      return <CalculatorPage key={route.tradeId ?? 'calc'} tradeId={route.tradeId} />
     case 'settings':
       return <SettingsPage />
     case 'sync':
@@ -98,6 +110,12 @@ export function App() {
           <NavButton active={route.page === 'journal' || route.page === 'trade'} onClick={() => navigate({ page: 'journal' })} label="Dziennik" keys="Ctrl+1" testId="nav-journal">
             <IconList size={17} />
           </NavButton>
+          <NavButton active={route.page === 'day'} onClick={() => navigate({ page: 'day', date: todayNy() })} label="Plan dnia" keys="Ctrl+D" testId="nav-day">
+            <IconCalendar size={17} />
+          </NavButton>
+          <NavButton active={route.page === 'calculator'} onClick={() => navigate({ page: 'calculator' })} label="Kalkulator" keys="Ctrl+6" testId="nav-calc">
+            <IconCalc size={17} />
+          </NavButton>
           <NavButton active={false} onClick={() => newTrade()} label="Nowa" keys="Ctrl+N" testId="nav-new">
             <IconPlus size={17} />
           </NavButton>
@@ -109,7 +127,7 @@ export function App() {
             <IconGear size={17} />
           </NavButton>
         </nav>
-        <main className="min-w-0 flex-1 animate-fade-in" key={route.page === 'trade' ? `trade-${route.id}` : route.page}>
+        <main className="min-w-0 flex-1 animate-fade-in" key={route.page === 'trade' ? `trade-${route.id}` : route.page === 'day' ? `day-${route.date}` : route.page}>
           <ErrorBoundary onReset={() => navigate({ page: 'journal' })}>
             <Page route={route} />
           </ErrorBoundary>

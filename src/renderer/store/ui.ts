@@ -4,10 +4,12 @@ import type { ScreenRef } from '@shared/schema'
 export type Route =
   | { page: 'journal' }
   | { page: 'trade'; id: string }
+  | { page: 'day'; date: string }
+  | { page: 'calculator'; tradeId?: string }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 
-export type SettingsTab = 'folder' | 'pairs' | 'killzones' | 'dictionaries' | 'screens' | 'display'
+export type SettingsTab = 'folder' | 'pairs' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display'
 
 export interface Toast {
   id: number

@@ -13,6 +13,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'folder', label: 'Folder danych' },
   { id: 'pairs', label: 'Pary' },
   { id: 'killzones', label: "Killzone'y" },
+  { id: 'rules', label: 'Zasady (walidator)' },
   { id: 'dictionaries', label: 'Słowniki' },
   { id: 'screens', label: 'Screeny' },
   { id: 'display', label: 'Wyświetlanie i ryzyko' }
@@ -46,6 +47,7 @@ export function SettingsPage() {
           {tab === 'folder' && <FolderTab />}
           {tab === 'pairs' && <PairsTab journal={journal} />}
           {tab === 'killzones' && <KillzonesTab journal={journal} />}
+          {tab === 'rules' && <RulesTab settings={journal.settings} />}
           {tab === 'dictionaries' && <DictionariesTab journal={journal} />}
           {tab === 'screens' && <ScreensTab settings={journal.settings} />}
           {tab === 'display' && <DisplayTab settings={journal.settings} />}
@@ -279,6 +281,75 @@ function KillzonesTab({ journal }: { journal: JournalFile }) {
       >
         <IconPlus size={13} /> Dodaj
       </button>
+    </Panel>
+  )
+}
+
+// ---------------------------------------------------------------- rules
+
+function RulesTab({ settings }: { settings: Settings }) {
+  const r = settings.rules
+  const setRules = (patch: Partial<Settings['rules']>) => setSettings((s) => ({ ...s, rules: { ...s.rules, ...patch } }))
+  const row = (enabled: boolean, onToggle: (v: boolean) => void, label: string, control: ReactNode, hint: string) => (
+    <Row className="grid-cols-[260px_200px_1fr]">
+      <Toggle checked={enabled} onChange={onToggle} label={label} />
+      <div className={cx(!enabled && 'pointer-events-none opacity-40')}>{control}</div>
+      <span className="text-[11.5px] text-muted">{hint}</span>
+    </Row>
+  )
+  return (
+    <Panel title="Zasady – walidator nigdy nie blokuje zapisu, tylko flaguje">
+      {row(
+        r.maxStopPips.enabled,
+        (enabled) => setRules({ maxStopPips: { ...r.maxStopPips, enabled } }),
+        'Maksymalny SL',
+        <div className="flex items-center gap-2">
+          <NumberField className="w-[80px]" value={r.maxStopPips.value} onChange={(v) => v && v > 0 && setRules({ maxStopPips: { ...r.maxStopPips, value: v } })} decimals={1} step={1} />
+          <span className="text-muted">pips</span>
+        </div>,
+        'SL większy niż próg = złamana zasada'
+      )}
+      {row(
+        r.minRiskReward.enabled,
+        (enabled) => setRules({ minRiskReward: { ...r.minRiskReward, enabled } }),
+        'Minimalne R:R do TP1',
+        <div className="flex items-center gap-2">
+          <NumberField className="w-[80px]" value={r.minRiskReward.value} onChange={(v) => v && v > 0 && setRules({ minRiskReward: { ...r.minRiskReward, value: v } })} decimals={1} step={0.5} />
+          <span className="text-muted">: 1</span>
+        </div>,
+        'liczone do pierwszego celu'
+      )}
+      {row(r.requireKillzone.enabled, (enabled) => setRules({ requireKillzone: { ...r.requireKillzone, enabled } }), 'Wejście w killzone', <span className="text-muted">—</span>, "według listy killzone'ów (czas NY)")}
+      {row(
+        r.htfBias.enabled,
+        (enabled) => setRules({ htfBias: { ...r.htfBias, enabled } }),
+        'Zgodność z biasem HTF',
+        <Segmented
+          size="sm"
+          value={r.htfBias.timeframe}
+          onChange={(timeframe) => setRules({ htfBias: { ...r.htfBias, timeframe } })}
+          options={(['W', 'D', 'H4', 'H1'] as const).map((tf) => ({ value: tf, label: tf }))}
+        />,
+        'bias z planu dnia dla pary; brak planu lub neutral = n/d'
+      )}
+      {row(
+        r.stopBeyondLiquidity.enabled,
+        (enabled) => setRules({ stopBeyondLiquidity: { ...r.stopBeyondLiquidity, enabled } }),
+        'SL poza oczywistą płynnością',
+        <span className="text-muted">checkbox w transakcji</span>,
+        '„nie oceniono” = n/d'
+      )}
+      {row(
+        r.newsDay.enabled,
+        (enabled) => setRules({ newsDay: { ...r.newsDay, enabled } }),
+        'Dzień danych high-impact',
+        <span className="text-muted">tylko informacja</span>,
+        'newsy z planu dnia; nie wpływa na ocenę zgodności'
+      )}
+      <p className="mt-2 text-[11.5px] text-muted">
+        Ocena zgodności = spełnione / zasady, które dało się ocenić. Transakcja jest „zgodna”, gdy żadna oceniana zasada nie jest złamana (macierz
+        zgodność × wynik w analityce).
+      </p>
     </Panel>
   )
 }

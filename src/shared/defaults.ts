@@ -2,6 +2,7 @@ import { newId } from './ids'
 import { SCHEMA_VERSION } from './schema/common'
 import { journalSchema, type DictItem, type JournalFile, type Killzone, type PairConfig } from './schema/journal'
 import { tradeSchema, type Trade } from './schema/trade'
+import { dayPlanSchema, type DayPlan } from './schema/day'
 
 const dict = (names: string[]): DictItem[] => names.map((name) => ({ id: newId(), name, archived: false }))
 
@@ -83,5 +84,17 @@ export function createTrade(partial: Partial<Trade> & Pick<Trade, 'pair' | 'dire
     updatedAt: now,
     exits: [{ id: newId(), time: null, price: null, percent: 100, note: '' }],
     ...partial
+  })
+}
+
+export function createDayPlan(date: string, pairs: string[], instruments: string[], now = new Date().toISOString()): DayPlan {
+  return dayPlanSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    date,
+    pairs: pairs.map((pair) => ({ pair })),
+    intermarket: instruments.map((instrument) => ({ instrument }))
   })
 }

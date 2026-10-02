@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { formatDateTime } from './calc/time'
 import { round, tradeMetrics, metricsContext } from './calc/trade'
+import { validateTrade } from './calc/validator'
 import { migrateRaw, SchemaTooNewError } from './migrations'
 import type { Collection, FileKind } from './paths'
 import { dayPlanSchema, type DayPlan } from './schema/day'
@@ -67,9 +68,17 @@ export function parseRecordObject<K extends FileKind>(kind: K, raw: unknown): Pa
 const r2 = (v: number | null) => (v == null ? null : round(v, 2))
 const r1 = (v: number | null) => (v == null ? null : round(v, 1))
 
+export interface SerializeContext {
+  settings: Settings
+  /** Day plan of the trade's trading date (for the HTF-bias and news rules). */
+  dayPlan?: DayPlan | null
+}
+
 /** Human-readable derived values stored alongside a trade (ignored on read). */
-export function tradeComputed(trade: Trade, settings: Settings): Record<string, unknown> {
+export function tradeComputed(trade: Trade, ctx: SerializeContext): Record<string, unknown> {
+  const settings = ctx.settings
   const m = tradeMetrics(trade, metricsContext(settings))
+  const v = validateTrade(trade, m, settings, ctx.dayPlan ?? null)
   return {
     note: 'Pola wyliczane automatycznie przy zapisie - edycja nie ma wpływu.',
     tradingDateNy: m.tradingDate,
@@ -81,14 +90,16 @@ export function tradeComputed(trade: Trade, settings: Settings): Record<string, 
     rrTp2: r2(m.rrTp2),
     resultR: r2(m.resultR),
     resultPips: r1(m.resultPips),
-    outcome: m.outcome
+    outcome: m.outcome,
+    complianceScore: v.score == null ? null : Math.round(v.score * 100),
+    brokenRules: v.broken.map((b) => `${b.label}: ${b.detail}`)
   }
 }
 
 /** Serialize a record as indented JSON with a trailing newline. */
-export function serializeRecord(kind: FileKind, record: AnyRecord | JournalFile, settings?: Settings): string {
+export function serializeRecord(kind: FileKind, record: AnyRecord | JournalFile, ctx?: SerializeContext): string {
   const out: Record<string, unknown> = { ...(record as unknown as Record<string, unknown>) }
   delete out.computed
-  if (kind === 'trades' && settings) out.computed = tradeComputed(record as Trade, settings)
+  if (kind === 'trades' && ctx) out.computed = tradeComputed(record as Trade, ctx)
   return `${JSON.stringify(out, null, 2)}\n`
 }

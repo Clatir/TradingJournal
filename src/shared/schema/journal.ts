@@ -70,7 +70,9 @@ export const settingsSchema = z.looseObject({
       contractSize: z.number().positive().default(100000),
       lotStep: z.number().positive().default(0.01),
       dailyLossLimitR: z.number().positive().nullable().default(2),
-      dailyMaxTrades: z.number().int().positive().nullable().default(3)
+      dailyMaxTrades: z.number().int().positive().nullable().default(3),
+      /** Manually entered conversion rates: 1 unit of the key currency = value in account currency. */
+      conversionRates: z.record(z.string(), z.number().positive()).default({})
     })
     .prefault({}),
   stats: z

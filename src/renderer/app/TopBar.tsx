@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatClock, primaryKillzone } from '@shared/calc/time'
 import { useJournal } from '../store/journal'
-import { setPalette } from '../store/ui'
+import { useDailyLimits } from '../store/derived'
+import { fmtR } from '../lib/format'
+import { navigate, setPalette } from '../store/ui'
 import { IconSearch } from '../components/icons'
 import { Kbd, cx } from '../components/ui'
 import { SaveIndicator } from './SaveIndicator'
@@ -22,6 +24,8 @@ export function TopBar() {
   const iso = now.toISOString()
   const kz = primaryKillzone(iso, killzones)
   const secs = String(now.getUTCSeconds()).padStart(2, '0')
+  const limits = useDailyLimits(iso.slice(0, 16))
+  const hit = !!limits && (limits.lossLimitHit || limits.maxTradesHit)
   return (
     <header className="flex h-[32px] shrink-0 items-center gap-4 border-b border-line bg-panel pr-3 pl-3">
       <span className="text-[12px] font-semibold tracking-wide text-fg-strong">
@@ -32,6 +36,24 @@ export function TopBar() {
       </span>
       <div className="ml-auto flex items-center gap-4">
         <SaveIndicator />
+        {limits && (
+          <button
+            className={cx('num flex items-center gap-2 border px-2 text-[11.5px]', hit ? 'border-accent/60 bg-accent-soft text-accent' : 'border-transparent text-muted hover:text-fg-strong')}
+            onClick={() => navigate({ page: 'calculator' })}
+            title="Wynik i liczba transakcji dziś (data NY) względem limitów dziennych"
+            data-testid="daily-limits"
+          >
+            <span>dziś</span>
+            <span className={hit ? '' : 'text-fg-strong'}>
+              {fmtR(limits.totalR, 1)}
+              {limits.lossLimitR != null && <span className="text-dim">/−{limits.lossLimitR}</span>}
+            </span>
+            <span className={hit ? '' : 'text-fg-strong'}>
+              {limits.trades}
+              {limits.maxTrades != null && <span className="text-dim">/{limits.maxTrades}</span>}
+            </span>
+          </button>
+        )}
         <div className="flex items-center gap-3 num text-[12px]" data-testid="clock">
           <span>
             <span className="mr-1 text-[10.5px] text-muted">NY</span>

@@ -31,7 +31,7 @@ export async function launch(opts: { dataDir?: string; userData?: string; machin
   const executable = process.env.ICTJ_E2E_EXECUTABLE
   const app = executable
     ? await electron.launch({ executablePath: executable, env, args: process.platform === 'win32' ? [] : ['--no-sandbox'] })
-    : await electron.launch({ args: [resolve('out/main/index.js'), '--no-sandbox'], env })
+    : await electron.launch({ args: [resolve('.'), '--no-sandbox'], env })
   const page = await app.firstWindow()
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
