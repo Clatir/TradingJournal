@@ -80,7 +80,8 @@ jobs:
         shell: pwsh
         run: |
           $next = node scripts/next-version.mjs
-          npx electron-builder --win --x64 --publish never -c.directories.output=release-next
+          # Quoted: PowerShell would split -c.directories... at the dot into two arguments.
+          npx electron-builder --win --x64 --publish never '-c.directories.output=release-next'
           $code = $LASTEXITCODE
           git checkout -- package.json
           if ($code -ne 0) { exit $code }
