@@ -8,13 +8,16 @@
   "license": "UNLICENSED",
   "main": "./out/main/index.js",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
+    "predev": "node scripts/check-node.mjs",
     "dev": "electron-vite dev",
+    "prebuild": "node scripts/check-node.mjs",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "pretest": "node scripts/check-node.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",

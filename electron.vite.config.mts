@@ -1,12 +1,15 @@
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'electron-vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const root = fileURLToPath(new URL('.', import.meta.url))
+
 const alias = {
-  '@shared': resolve(__dirname, 'src/shared'),
-  '@renderer': resolve(__dirname, 'src/renderer')
+  '@shared': resolve(root, 'src/shared'),
+  '@renderer': resolve(root, 'src/renderer')
 }
 
 /** Strict Content-Security-Policy for the packaged app (dev server needs inline scripts for HMR). */

@@ -5,10 +5,12 @@ Dane to zwykły folder z plikami JSON i WebP (może leżeć w OneDrive albo na p
 
 ## Zbudowanie pliku .exe na Windows
 
-Wymagania: [Node.js 22 LTS](https://nodejs.org/) i [Git](https://git-scm.com/). Visual Studio Build Tools **nie są potrzebne**
-(aplikacja nie używa natywnych modułów).
+Wymagania: [Node.js](https://nodejs.org/) **24 LTS** (minimum 22.12) i [Git](https://git-scm.com/). Visual Studio Build Tools
+**nie są potrzebne** (aplikacja nie używa natywnych modułów). Sprawdź wersję poleceniem `node -v`. Aktualizacja: instalator
+LTS z nodejs.org albo `winget install OpenJS.NodeJS.LTS`, potem nowe okno terminala.
 
 ```powershell
+node -v
 git clone https://github.com/Clatir/TradingJournal.git
 cd TradingJournal
 git checkout claude/ict-trade-journal-app-9fp4r4
@@ -29,6 +31,20 @@ Wynik w folderze `release\`:
 - Wersja portable przy każdym starcie rozpakowuje się do folderu tymczasowego, dlatego startuje kilka sekund dłużej.
 - Gotowe pliki .exe buduje też GitHub Actions przy każdym pushu (zakładka **Actions** → ostatni przebieg → **Artifacts**,
   tam też zrzuty ekranu z testów na Windows).
+
+Masz już sklonowane repozytorium? Pobierz zmiany i zainstaluj zależności od nowa:
+
+```powershell
+cd TradingJournal
+git pull
+npm ci
+npm test
+npm run dist:win
+```
+
+**Błąd `ERR_REQUIRE_ESM` … `std-env` przy `npm test`** – występował w starszej wersji repozytorium na Node starszym niż 22.12.
+Rozwiązanie: `git pull` i `npm ci` (konfiguracje są teraz modułami ES `.mts`), a najlepiej też aktualizacja Node do 24 LTS.
+Na zbyt starym Node `npm test` i `npm run build` wypisują ostrzeżenie z instrukcją.
 
 Tryb deweloperski: `npm ci` i `npm run dev`. Testy: `npm test` (jednostkowe i na plikach), `npm run build` + `npx playwright test` (E2E).
 
