@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import type { RecordEntry } from '@shared/api'
+import type { MonteCarloSummary } from '@shared/calc/montecarlo'
 import type { Forecast } from '@shared/schema'
+
+/** Result of "Policz rozrzut" for one scenario; `key` tells whether the scenario changed since. */
+export interface SpreadResult {
+  scenarioId: string
+  key: string
+  summary: MonteCarloSummary
+}
 
 /** Page state kept only for the session (never written to files, chapter 4.3). */
 interface ForecastSession {
@@ -11,9 +19,20 @@ interface ForecastSession {
   /** Collapsed years of the month table ("2027" → true). */
   collapsed: Record<string, true>
   chartScale: 'linear' | 'log'
+  /** Results of many runs, by scenario id. */
+  spread: Record<string, SpreadResult>
+  /** "Pokaż rozrzut" on the chart. */
+  showSpread: boolean
 }
 
-export const useForecastSession = create<ForecastSession>(() => ({ lastId: null, compareId: null, collapsed: {}, chartScale: 'linear' }))
+export const useForecastSession = create<ForecastSession>(() => ({
+  lastId: null,
+  compareId: null,
+  collapsed: {},
+  chartScale: 'linear',
+  spread: {},
+  showSpread: true
+}))
 
 /** Scenarios sorted by name (Polish collation). */
 export function sortedScenarios(map: Record<string, RecordEntry<Forecast>>): Forecast[] {

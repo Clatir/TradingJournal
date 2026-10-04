@@ -533,3 +533,51 @@ test('prognoza: folder tylko do odczytu – scenariusz widoczny, zmiany nie są 
     await second.app.close()
   }
 })
+
+test('prognoza: rozrzut wyników (200 przebiegów), wykres z legendą i porównaniem', async () => {
+  const { app, page, errors } = await launch()
+  try {
+    await firstScenarioLikeT1(page)
+    // A fixed return has no randomness.
+    await expect(page.getByTestId('fc-mc-run')).toBeDisabled()
+    await expect(page.getByTestId('fc-spread')).toContainText('Ten scenariusz nie ma losowości, więc każdy przebieg jest taki sam.')
+    await expect(page.getByTestId('fc-chart-legend')).toContainText('Kapitał')
+    await expect(page.getByTestId('fc-chart-legend')).toContainText('Odłożona gotówka')
+    await expect(page.getByTestId('fc-chart-spread')).toHaveCount(0)
+
+    await radio(page, 'Rodzaj zwrotu', 'Losowy z zakresu').click()
+    await radio(page, 'Liczba przebiegów', '200').click()
+    await page.getByTestId('fc-mc-run').click()
+    await expect(page.getByTestId('fc-mc-table')).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('fc-mc-table')).toContainText('200 przebiegów')
+    await expect(page.getByTestId('fc-mc-table')).toContainText('Pesymistyczny (5%)')
+    await expect(page.getByTestId('fc-mc-table')).toContainText('Typowy (50%)')
+    await expect(page.getByTestId('fc-mc-table')).toContainText('Optymistyczny (95%)')
+    await expect(page.getByTestId('fc-mc-end')).toContainText('Kapitał na koniec')
+    await expect(page.getByTestId('fc-mc-below')).toContainText('Szansa, że na koniec masz mniej kapitału, niż wpłaciłeś: 0.0%')
+    await expect(page.getByTestId('fc-mc-goals')).toContainText('w 100% przebiegów')
+    // The chart shows the spread (toggle and legend).
+    await expect(page.getByTestId('fc-legend-spread')).toContainText('rozrzut 5% / 95% (200 przebiegów)')
+    await expect(page.getByTestId('fc-legend-median')).toBeVisible()
+    await page.getByTestId('fc-chart-spread').getByRole('switch').click()
+    await expect(page.getByTestId('fc-legend-spread')).toHaveCount(0)
+    await page.getByTestId('fc-chart-spread').getByRole('switch').click()
+    await expect(page.getByTestId('fc-legend-spread')).toBeVisible()
+    // Logarithmic scale.
+    await radio(page, 'Skala', 'Logarytmiczna').click()
+    await expect(radio(page, 'Skala', 'Logarytmiczna')).toHaveAttribute('aria-checked', 'true')
+    await page.getByTestId('fc-chart').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: shots('57-prognoza-wykres-rozrzut') })
+    // A changed scenario marks the result as stale.
+    await fill(page, 'fc-pct-hi', '12')
+    await expect(page.getByTestId('fc-mc-stale')).toHaveText('nieaktualny — policz ponownie')
+    await expect(page.getByTestId('fc-legend-spread')).toHaveCount(0)
+    // The compared scenario is a dashed line with its name in the legend.
+    await page.getByTestId('fc-duplicate').click()
+    await page.getByTestId('fc-compare').selectOption({ label: 'Scenariusz 1' })
+    await expect(page.getByTestId('fc-legend-compare')).toHaveText('Scenariusz 1')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})

@@ -15,6 +15,8 @@ import { MonthTable } from './MonthTable'
 import { Explanations } from './Explanations'
 import { ScenarioBar } from './ScenarioBar'
 import { ComparePanel } from './ComparePanel'
+import { ForecastChart } from './ForecastChart'
+import { SpreadPanel, spreadKey } from './SpreadPanel'
 
 export interface ForecastComputation {
   outcome: ForecastInputOutcome
@@ -39,6 +41,7 @@ export function ForecastPage({ id }: { id?: string }) {
   const folderReadOnly = useJournal((s) => s.status?.readOnly ?? false)
   const lastId = useForecastSession((s) => s.lastId)
   const compareId = useForecastSession((s) => s.compareId)
+  const spreadMap = useForecastSession((s) => s.spread)
   const scenario = pickScenario(forecasts, id, lastId)
   const scenarioId = scenario?.id ?? null
   const fileReadOnly = scenarioId ? (forecasts[scenarioId]?.readOnly ?? false) : false
@@ -60,6 +63,8 @@ export function ForecastPage({ id }: { id?: string }) {
 
   const computed = useMemo(() => (scenario && settings ? computeForecast(scenario, settings) : null), [scenario, settings])
   const otherComputed = useMemo(() => (other && settings ? computeForecast(other, settings) : null), [other, settings])
+  const compareLine = useMemo(() => (other && otherComputed?.result ? { scenario: other, result: otherComputed.result } : null), [other, otherComputed])
+  const spreadResult = scenarioId ? (spreadMap[scenarioId] ?? null) : null
 
   if (!settings) return null
   if (!scenario || !computed)
@@ -94,6 +99,15 @@ export function ForecastPage({ id }: { id?: string }) {
         </div>
         <SummaryPanel scenario={scenario} input={input} result={result} cash={cash} />
         {other && otherComputed && <ComparePanel scenario={scenario} computed={computed} other={other} otherComputed={otherComputed} />}
+        {input && result && (
+          <ForecastChart
+            scenario={scenario}
+            result={result}
+            spread={spreadResult && spreadResult.key === spreadKey(input) ? spreadResult.summary : null}
+            compare={compareLine}
+          />
+        )}
+        <SpreadPanel scenario={scenario} input={input} />
         {input && result ? (
           <MonthTable scenario={scenario} input={input} result={result} readOnly={readOnly} />
         ) : (
