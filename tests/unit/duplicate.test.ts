@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createDayPlan, createTrade } from '@shared/defaults'
-import { copyDayPlanTo, duplicateLibraryItem, duplicateTrade } from '@shared/duplicate'
+import { createDayPlan, createForecast, createTrade } from '@shared/defaults'
+import { copyDayPlanTo, copyName, duplicateForecast, duplicateLibraryItem, duplicateTrade } from '@shared/duplicate'
 import { newId } from '@shared/ids'
-import { SCHEMA_VERSION, dayPlanSchema, libraryItemSchema, tradeSchema, type ScreenRef } from '@shared/schema'
+import { SCHEMA_VERSION, dayPlanSchema, forecastSchema, libraryItemSchema, tradeSchema, type ScreenRef } from '@shared/schema'
 
 const NOW = '2026-10-02T10:00:00.000Z'
 
@@ -90,5 +90,32 @@ describe('duplikowanie wpisów', () => {
     expect(copy.review).toMatchObject({ whatHappened: '', vsPlan: null, notes: '' })
     expect(copy.screens).toEqual([])
     expect(d.news).toHaveLength(1)
+  })
+
+  it('scenariusz prognozy: nowe id i czasy, nazwa „(kopia)”, te same losowania i ustawienia', () => {
+    const f = createForecast({ accountCurrency: 'PLN', accountBalance: 20000 }, [], '2026-03-16T07:00:00.000Z')
+    f.goals = [{ id: newId(), name: 'Cel 1', month: 6, amount: 2000, enabled: true, flexible: false }]
+    f.deposits = { '3': 5000 }
+    f.notes = 'wariant ostrożny'
+    const copy = duplicateForecast(f, ['Scenariusz 1'], NOW)
+    expect(forecastSchema.safeParse(copy).success).toBe(true)
+    expect(copy.id).not.toBe(f.id)
+    expect(copy).toMatchObject({ createdAt: NOW, updatedAt: NOW, schemaVersion: SCHEMA_VERSION, name: 'Scenariusz 1 (kopia)' })
+    expect(copy.draws).toEqual(f.draws)
+    expect(copy.draws.rate).not.toBe(f.draws.rate)
+    expect(copy.deposits).toEqual({ '3': 5000 })
+    expect(copy.notes).toBe('wariant ostrożny')
+    expect(copy.goals[0]).toMatchObject({ name: 'Cel 1', month: 6, amount: 2000 })
+    expect(copy.goals[0]!.id).not.toBe(f.goals[0]!.id)
+    expect(f.name).toBe('Scenariusz 1')
+  })
+
+  it('nazwa kopii: „(kopia)”, potem „(kopia 2)”, „(kopia 3)”; zmieszczona w 60 znakach', () => {
+    expect(copyName('Plan', [])).toBe('Plan (kopia)')
+    expect(copyName('Plan', ['Plan (kopia)'])).toBe('Plan (kopia 2)')
+    expect(copyName('Plan', ['Plan (kopia)', 'Plan (kopia 2)'])).toBe('Plan (kopia 3)')
+    const long = 'x'.repeat(60)
+    expect(copyName(long, [])).toBe(`${'x'.repeat(52)} (kopia)`)
+    expect(copyName(long, [`${'x'.repeat(52)} (kopia)`])).toHaveLength(60)
   })
 })

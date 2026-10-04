@@ -23,6 +23,7 @@ interface JournalState {
   days: EntryMap<'days'>
   weeks: EntryMap<'weeks'>
   library: EntryMap<'library'>
+  forecasts: EntryMap<'forecasts'>
   problems: Problem[]
   conflicts: ConflictEntry[]
   status: FolderStatus | null
@@ -78,6 +79,7 @@ export const useJournal = create<JournalState>(() => ({
   days: {},
   weeks: {},
   library: {},
+  forecasts: {},
   problems: [],
   conflicts: [],
   status: null,
@@ -109,6 +111,7 @@ export function applySnapshot(snapshot: Snapshot): void {
     days: toMap(snapshot.days),
     weeks: toMap(snapshot.weeks),
     library: toMap(snapshot.library),
+    forecasts: toMap(snapshot.forecasts),
     problems: snapshot.problems,
     conflicts: snapshot.conflicts,
     status: snapshot.status,

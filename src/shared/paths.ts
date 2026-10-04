@@ -4,8 +4,8 @@
  */
 import { tradingDateNy } from './calc/time'
 
-export type Collection = 'trades' | 'days' | 'weeks' | 'library'
-export const COLLECTIONS: readonly Collection[] = ['trades', 'days', 'weeks', 'library']
+export type Collection = 'trades' | 'days' | 'weeks' | 'library' | 'forecasts'
+export const COLLECTIONS: readonly Collection[] = ['trades', 'days', 'weeks', 'library', 'forecasts']
 export type FileKind = Collection | 'journal'
 
 export const JOURNAL_FILE = 'journal.json'
@@ -20,7 +20,8 @@ const CANONICAL: Record<FileKind, RegExp> = {
   trades: new RegExp(`^trades/(\\d{4})/(\\d{4}-\\d{2}-\\d{2})_([A-Z0-9]+)_(${ULID})\\.json$`),
   days: /^days\/(\d{4})\/(\d{4}-\d{2}-\d{2})\.json$/,
   weeks: /^weeks\/(\d{4}-W\d{2})\.json$/,
-  library: new RegExp(`^library/(${ULID})\\.json$`)
+  library: new RegExp(`^library/(${ULID})\\.json$`),
+  forecasts: new RegExp(`^forecasts/(${ULID})\\.json$`)
 }
 
 /** Stem prefixes used to recognize copies made by sync tools (anything appended after a canonical stem). */
@@ -29,7 +30,8 @@ const STEM_PREFIX: Record<FileKind, RegExp> = {
   trades: new RegExp(`^(\\d{4}-\\d{2}-\\d{2}_[A-Z0-9]+_${ULID})(.+)$`),
   days: /^(\d{4}-\d{2}-\d{2})(.+)$/,
   weeks: /^(\d{4}-W\d{2})(.+)$/,
-  library: new RegExp(`^(${ULID})(.+)$`)
+  library: new RegExp(`^(${ULID})(.+)$`),
+  forecasts: new RegExp(`^(${ULID})(.+)$`)
 }
 
 export function toPosix(p: string): string {
@@ -114,6 +116,10 @@ export function libraryRelPath(id: string): string {
   return `library/${id}.json`
 }
 
+export function forecastRelPath(id: string): string {
+  return `forecasts/${id}.json`
+}
+
 export function recordRelPath(collection: Collection, record: Record<string, unknown>): string {
   switch (collection) {
     case 'trades':
@@ -124,6 +130,8 @@ export function recordRelPath(collection: Collection, record: Record<string, unk
       return weekRelPath(String(record.week))
     case 'library':
       return libraryRelPath(String(record.id))
+    case 'forecasts':
+      return forecastRelPath(String(record.id))
   }
 }
 

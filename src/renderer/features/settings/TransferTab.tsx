@@ -97,6 +97,7 @@ export function TransferTab() {
                 <span>plany dni <b className="num text-fg-strong">{report.valid.days}</b></span>
                 <span>tygodnie <b className="num text-fg-strong">{report.valid.weeks}</b></span>
                 <span>biblioteka <b className="num text-fg-strong">{report.valid.library}</b></span>
+                <span>scenariusze prognozy <b className="num text-fg-strong">{report.valid.forecasts}</b></span>
                 <span>screeny <b className="num text-fg-strong">{report.screens}</b></span>
                 {!report.hasJournal && <Badge tone="warn">brak journal.json</Badge>}
                 {report.tooNew && <Badge tone="warn">część plików w nowszym formacie</Badge>}
