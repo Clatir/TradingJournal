@@ -11,3 +11,4 @@ playwright-report/
 scripts/output/
 *.tsbuildinfo
 .tools/
+/.forecast/
