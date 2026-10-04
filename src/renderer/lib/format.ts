@@ -61,6 +61,31 @@ export function countLabel(n: number, one: string, few: string, many: string, fr
   return `${n} ${plural(n, one, few, many, fraction)}`
 }
 
+const groupThousands = (int: string) => int.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')
+
+/**
+ * Amount of the payout forecast: no plus sign, thousands grouped with U+00A0, minus U+2212, never "−0.00":
+ * 1 223.50 PLN. Without `currency` just the number.
+ */
+export function fmtAmount(v: number | null | undefined, currency?: string, decimals = 2): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  const abs = Math.abs(v).toFixed(decimals)
+  const negative = v < 0 && Number(abs) !== 0
+  const [int, dec] = abs.split('.')
+  return `${negative ? MINUS : ''}${groupThousands(int ?? '')}${dec != null ? `.${dec}` : ''}${currency ? ` ${currency}` : ''}`
+}
+
+/** A percentage value (11 → "11.00%"), minus U+2212, never "−0.00%". */
+export function fmtPct(v: number | null | undefined, decimals = 2): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return `${fmtAmount(v, undefined, decimals)}%`
+}
+
+/** Percentage without trailing zeros: 50 → "50%", 46.5 → "46.5%". */
+export function fmtPctShort(v: number): string {
+  return `${Number(v.toFixed(2))}%`
+}
+
 export function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`
@@ -83,6 +108,18 @@ export function parseNumberInput(text: string): number | null | undefined {
   if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return undefined
   const n = Number(t)
   return Number.isFinite(n) ? n : undefined
+}
+
+/**
+ * An amount typed or shown with grouped thousands: spaces (also U+00A0) ignored, comma or dot, minus "-" or
+ * U+2212, at most 1e12 in size; null = empty, undefined = invalid.
+ */
+export function parseAmountInput(text: string): number | null | undefined {
+  const t = text.replace(/\s/g, '').replace(MINUS, '-').replace(',', '.')
+  if (t === '') return null
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return undefined
+  const v = Number(t)
+  return Number.isFinite(v) && Math.abs(v) <= 1e12 ? v : undefined
 }
 
 /** Parse "330", "3:30", "03.30", "0330" → "03:30". */

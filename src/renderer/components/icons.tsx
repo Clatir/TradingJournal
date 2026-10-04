@@ -133,3 +133,11 @@ export const IconWeek = base(
     <path d="M2 6.2h12M4.6 9h1.4M7.3 9h1.4M10 9h1.4M4.6 11.2h1.4M7.3 11.2h1.4M10 11.2h1.4" />
   </>
 )
+/** Rising line with a point: payout forecast. */
+export const IconForecast = base(
+  <>
+    <path d="M1.8 13.2h12.4" />
+    <path d="M2.5 11 6 7.4l2.6 2.2 4.4-5" />
+    <circle cx="13" cy="4.6" r="1.3" />
+  </>
+)

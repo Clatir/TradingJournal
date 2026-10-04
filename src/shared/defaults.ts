@@ -119,6 +119,15 @@ export function freshForecastDraws(): ForecastDraws {
   }
 }
 
+/** A table shorter than 240 numbers (file edited by hand) gets the missing ones drawn; null when nothing is missing. */
+export function completedDraws(draws: ForecastDraws): ForecastDraws | null {
+  const keys = ['rate', 'loss', 'lossSize', 'pips'] as const
+  if (keys.every((k) => draws[k].length >= FORECAST_MAX_MONTHS)) return null
+  const out = { ...draws }
+  for (const k of keys) if (draws[k].length < FORECAST_MAX_MONTHS) out[k] = [...draws[k], ...drawUniforms(FORECAST_MAX_MONTHS - draws[k].length)]
+  return out
+}
+
 /**
  * New payout forecast scenario: "Scenariusz N", account currency, start capital = account balance (or 10000),
  * first month = the current month on this computer, fresh random numbers; everything else from the schema.

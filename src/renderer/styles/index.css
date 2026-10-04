@@ -185,6 +185,53 @@
     border-color: rgb(232 163 61 / 0.6);
     background: var(--color-accent-soft);
   }
+  /* Month table of the payout forecast: sticky header and first column need opaque backgrounds. */
+  .fc-table th,
+  .fc-table td {
+    padding: 3px 8px;
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+  }
+  .fc-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-raised);
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--color-muted);
+    vertical-align: bottom;
+    text-align: right;
+  }
+  .fc-table .fc-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-panel);
+    text-align: left;
+  }
+  .fc-table thead .fc-sticky {
+    z-index: 3;
+    background: var(--color-raised);
+  }
+  .fc-table tr.fc-buy td {
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-panel));
+  }
+  .fc-table tr.fc-buy td.fc-sticky {
+    box-shadow: inset 2px 0 0 var(--color-accent);
+  }
+  .fc-table tr.fc-year td {
+    background: var(--color-raised);
+  }
+  .fc-dep {
+    height: 22px;
+    width: 112px;
+    text-align: right;
+  }
+  .fc-dep[data-custom='true'] {
+    border-color: rgb(232 163 61 / 0.6);
+    color: var(--color-accent);
+  }
   .kbd {
     white-space: nowrap;
     flex-shrink: 0;

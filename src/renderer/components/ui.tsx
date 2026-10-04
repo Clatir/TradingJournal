@@ -34,9 +34,22 @@ export function Panel({
   )
 }
 
-export function Field({ label, children, hint, className }: { label: ReactNode; children: ReactNode; hint?: ReactNode; className?: string }) {
+export function Field({
+  label,
+  children,
+  hint,
+  className,
+  labelWidth = 104
+}: {
+  label: ReactNode
+  children: ReactNode
+  hint?: ReactNode
+  className?: string
+  /** Width of the label column in px. */
+  labelWidth?: number
+}) {
   return (
-    <div className={cx('grid grid-cols-[104px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5', className)}>
+    <div className={cx('grid items-center gap-x-2 gap-y-0.5', className)} style={{ gridTemplateColumns: `${labelWidth}px minmax(0,1fr)` }}>
       <span className="truncate text-[11.5px] text-muted">{label}</span>
       <div className="min-w-0">{children}</div>
       {hint && <div className="col-start-2 text-[11px] text-muted">{hint}</div>}
@@ -59,17 +72,23 @@ interface NumberFieldProps {
   readOnly?: boolean
   id?: string
   autoFocus?: boolean
+  /** A parsed number this returns false for is refused like unparsable text (error border, state unchanged). */
+  isValid?: (v: number | null) => boolean
   'aria-label'?: string
   'data-testid'?: string
 }
 
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(function NumberField(
-  { value, onChange, decimals, step, placeholder, className, readOnly, id, autoFocus, ...aria },
+  { value, onChange, decimals, step, placeholder, className, readOnly, id, autoFocus, isValid, ...aria },
   ref
 ) {
   const [draft, setDraft] = useState<string | null>(null)
   const shown = draft ?? (value == null ? '' : decimals != null ? value.toFixed(decimals) : String(value))
-  const invalid = draft != null && parseNumberInput(draft) === undefined
+  const accepts = (t: string) => {
+    const parsed = parseNumberInput(t)
+    return parsed !== undefined && (!isValid || isValid(parsed))
+  }
+  const invalid = draft != null && !accepts(draft)
   return (
     <input
       ref={ref}
@@ -89,7 +108,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
         const t = e.currentTarget.value
         setDraft(t)
         const parsed = parseNumberInput(t)
-        if (parsed !== undefined) onChange(parsed)
+        if (parsed !== undefined && (!isValid || isValid(parsed))) onChange(parsed)
       }}
       onBlur={() => setDraft(null)}
       onKeyDown={(e) => {
@@ -99,8 +118,11 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
         }
         e.preventDefault()
         const delta = (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1)
-        const next = (value ?? 0) + delta
-        onChange(decimals != null ? Number(next.toFixed(decimals)) : next)
+        const raw = (value ?? 0) + delta
+        // Clean numbers after repeated steps (0.1 + 0.2), whatever the display precision.
+        const next = decimals != null ? Number(raw.toFixed(decimals)) : Number(raw.toFixed(10))
+        if (isValid && !isValid(next)) return
+        onChange(next)
         setDraft(null)
       }}
     />

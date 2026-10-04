@@ -9,6 +9,7 @@ export type Route =
   | { page: 'library'; id?: string }
   | { page: 'week'; week: string }
   | { page: 'calculator'; tradeId?: string }
+  | { page: 'forecast'; id?: string }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 

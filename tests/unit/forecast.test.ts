@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { percentile, simulateForecast, type ForecastInput, type ForecastPipsInput, type ForecastResult } from '@shared/calc/forecast'
-import { createForecast, firstFreeName } from '@shared/defaults'
+import { completedDraws, createForecast, firstFreeName } from '@shared/defaults'
 import { drawUniforms } from '@shared/random'
 import { FORECAST_MAX_GOALS, FORECAST_MAX_MONTHS, forecastGoalSchema, forecastSchema } from '@shared/schema'
 
@@ -418,5 +418,19 @@ describe('createForecast', () => {
       expect(a.draws[key]).not.toEqual(b.draws[key])
     }
     expect(a.id).not.toBe(b.id)
+  })
+})
+
+describe('losowania scenariusza', () => {
+  it('krótsze tablice (plik edytowany ręcznie) są uzupełniane do 240 liczb, istniejące zostają', () => {
+    const f = createForecast({ accountCurrency: 'PLN', accountBalance: null }, [])
+    expect(completedDraws(f.draws)).toBeNull()
+    const short = { ...f.draws, rate: f.draws.rate.slice(0, 10), pips: [] }
+    const done = completedDraws(short)!
+    expect(done.rate).toHaveLength(240)
+    expect(done.rate.slice(0, 10)).toEqual(f.draws.rate.slice(0, 10))
+    expect(done.pips).toHaveLength(240)
+    expect(done.loss).toBe(f.draws.loss)
+    expect(done.rate.every((x) => x >= 0 && x < 1)).toBe(true)
   })
 })
