@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { clockTime, isoDateTime, recordBase, ulidSchema } from './common'
+import { PNL_PRESETS } from '../calc/pnl'
+import { clockTime, isoDate, isoDateTime, recordBase, text, ulidSchema } from './common'
 
 export const pairConfigSchema = z.looseObject({
   symbol: z.string().regex(/^[A-Z0-9]{3,12}$/, 'Symbol: wielkie litery i cyfry, np. EURUSD'),
@@ -57,6 +58,51 @@ export const rulesSchema = z.looseObject({
 })
 export type RulesSettings = z.infer<typeof rulesSchema>
 
+/** Instrument of the P/L calculator and of the pip mode of the payout forecast. */
+export const instrumentSchema = z.looseObject({
+  /** Stable key; also the key of hand-entered pip values in risk.pipValuesPerLot. */
+  id: z.string().regex(/^[A-Z0-9]{2,16}$/),
+  name: z.string().min(1).max(24),
+  /** Price change of one pip; null = no calculated pip value (hand-entered only). */
+  pipSize: z.number().positive().nullable().default(null),
+  /** Units per 1.00 lot; null = risk.contractSize. */
+  contractSize: z.number().positive().nullable().default(null),
+  /** Currency of the pip value; null = account currency. */
+  quoteCurrency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .nullable()
+    .default(null),
+  /** Smallest lot; null = risk.lotStep. */
+  minLot: z.number().positive().nullable().default(null),
+  description: text,
+  archived: z.boolean().default(false)
+})
+export type Instrument = z.infer<typeof instrumentSchema>
+
+/** The calculator presets as instruments (ids stay, so hand-entered pip values keep working). */
+export function presetInstruments(): Instrument[] {
+  return PNL_PRESETS.map((p) => ({
+    id: p.id,
+    name: p.label,
+    pipSize: p.pipSize,
+    contractSize: p.contractSize,
+    quoteCurrency: p.quoteCurrency,
+    minLot: null,
+    description: p.description,
+    archived: false
+  }))
+}
+
+/** NBP table A: mid rates, PLN for 1 unit of the currency. */
+export const nbpTableSchema = z.looseObject({
+  no: z.string(),
+  effectiveDate: isoDate,
+  fetchedAt: isoDateTime,
+  rates: z.record(z.string(), z.number().positive())
+})
+export type NbpTable = z.infer<typeof nbpTableSchema>
+
 /** 1.2.0 kept hand-entered pip values per smallest lot; they are converted to values per 1.00 lot. */
 function migrateLegacyPipValues<
   R extends { lotStep: number; pipValues: Record<string, number>; pipValuesPerLot: Record<string, number>; customInstrument: { minLot: number | null } }
@@ -69,6 +115,31 @@ function migrateLegacyPipValues<
     if (pipValuesPerLot[id] == null) pipValuesPerLot[id] = Number((value / minLot).toFixed(10))
   }
   return { ...r, pipValues: {}, pipValuesPerLot }
+}
+
+/**
+ * An empty instrument list (journal from 1.2.x) is filled with the calculator presets and the former
+ * own instrument, whose hand-entered pip value stays under the same id ("CUSTOM").
+ */
+function seedInstruments<S extends { instruments: Instrument[]; risk: { customInstrument: { name: string; minLot: number | null } } }>(s: S): S {
+  if (s.instruments.length) return s
+  const custom = s.risk.customInstrument
+  return {
+    ...s,
+    instruments: [
+      ...presetInstruments(),
+      {
+        id: 'CUSTOM',
+        name: custom.name.trim().slice(0, 24) || 'Własny',
+        pipSize: null,
+        contractSize: null,
+        quoteCurrency: null,
+        minLot: custom.minLot,
+        description: '',
+        archived: false
+      }
+    ]
+  }
 }
 
 export const settingsSchema = z.looseObject({
@@ -143,8 +214,20 @@ export const settingsSchema = z.looseObject({
       showMoney: z.boolean().default(false),
       timeInputZone: z.enum(['NY', 'WAW']).default('NY')
     })
+    .prefault({}),
+  /** P/L calculator and pip mode of the payout forecast; an empty list is seeded on load. */
+  instruments: z.array(instrumentSchema).default([]),
+  fx: z
+    .looseObject({
+      /** Fetch NBP table A automatically. */
+      autoFetch: z.boolean().default(true),
+      /** Last fetched NBP table: mid rates, PLN for 1 unit of the currency. */
+      nbp: nbpTableSchema.nullable().default(null),
+      /** Hand-entered rates for pairs that do not involve the account currency: "USD>PLN" -> 3.9. */
+      manual: z.record(z.string().regex(/^[A-Z]{3}>[A-Z]{3}$/), z.number().positive()).default({})
+    })
     .prefault({})
-})
+}).transform(seedInstruments)
 export type Settings = z.infer<typeof settingsSchema>
 
 export const journalSchema = z.looseObject({

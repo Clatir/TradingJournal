@@ -60,3 +60,12 @@ export function positionSize(input: PositionInput): PositionResult | null {
     actualRiskPercent: (actualRiskAmount / balance) * 100
   }
 }
+
+/**
+ * Profit at the take profit for the rounded position (lots × TP pips × pip value of 1.00 lot, account
+ * currency) and the reward-to-risk ratio TP / SL ("1 : 2.00"); null without a positive TP.
+ */
+export function takeProfitResult(position: Pick<PositionResult, 'lots' | 'pipValuePerLot'>, tpPips: number | null, stopPips: number): { profit: number; ratio: number } | null {
+  if (tpPips == null || !(tpPips > 0) || !(stopPips > 0)) return null
+  return { profit: position.lots * tpPips * position.pipValuePerLot, ratio: tpPips / stopPips }
+}

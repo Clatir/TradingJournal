@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react'
 import { parseNumberInput } from '../lib/format'
+import { toast } from '../store/ui'
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
@@ -289,4 +290,128 @@ export function Toggle({ checked, onChange, label, ...rest }: { checked: boolean
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="flex h-full items-center justify-center p-6 text-center text-muted">{children}</div>
+}
+
+/**
+ * Three-letter currency code. Edited as a draft and applied on blur/Enter: applying every keystroke
+ * would reject the intermediate one- and two-letter states and snap the field back.
+ */
+export function CurrencyInput({
+  value,
+  onChange,
+  className,
+  allowEmpty,
+  placeholder,
+  ...rest
+}: {
+  value: string
+  onChange: (v: string) => void
+  className?: string
+  /** An emptied field applies '' (e.g. "account currency"). */
+  allowEmpty?: boolean
+  placeholder?: string
+  'aria-label'?: string
+  'data-testid'?: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const valid = (t: string) => /^[A-Z]{3}$/.test(t) || (!!allowEmpty && t === '')
+  return (
+    <input
+      className={cx('input num', className)}
+      value={draft ?? value}
+      placeholder={placeholder}
+      spellCheck={false}
+      aria-label={rest['aria-label']}
+      data-testid={rest['data-testid']}
+      aria-invalid={draft != null && !valid(draft)}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.currentTarget.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3))}
+      onBlur={() => {
+        if (draft != null && valid(draft) && draft !== value) onChange(draft)
+        setDraft(null)
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
+  )
+}
+
+/**
+ * A name edited as a draft and applied on blur/Enter: it can be cleared and retyped, an empty name keeps
+ * the old one and `validate` can refuse a name (e.g. a duplicate) with a message.
+ */
+export const NameInput = forwardRef<
+  HTMLInputElement,
+  {
+    value: string
+    onChange: (v: string) => void
+    validate?: (v: string) => string | null
+    className?: string
+    maxLength?: number
+    placeholder?: string
+    'aria-label'?: string
+    'data-testid'?: string
+  }
+>(function NameInput({ value, onChange, validate, className, maxLength, placeholder, ...rest }, ref) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const apply = () => {
+    const next = draft?.trim()
+    setDraft(null)
+    if (!next || next === value) return
+    const problem = validate?.(next) ?? null
+    if (problem) return toast(problem, 'error')
+    onChange(next)
+  }
+  return (
+    <input
+      ref={ref}
+      className={cx('input', className)}
+      value={draft ?? value}
+      spellCheck={false}
+      maxLength={maxLength}
+      placeholder={placeholder}
+      aria-label={rest['aria-label']}
+      data-testid={rest['data-testid']}
+      onChange={(e) => setDraft(e.currentTarget.value)}
+      onBlur={apply}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setDraft(null)
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+})
+
+/** One cell of a result grid (label, value, optional caption); borders fit a two-column grid by default. */
+export function Cell({
+  label,
+  value,
+  sub,
+  testId,
+  className,
+  valueClassName
+}: {
+  label: ReactNode
+  value: ReactNode
+  sub?: ReactNode
+  testId?: string
+  className?: string
+  valueClassName?: string
+}) {
+  return (
+    <div
+      className={cx(
+        'flex min-w-0 flex-col gap-0.5 px-2 py-1.5',
+        className ?? 'border-r border-b border-line [&:nth-child(2n)]:border-r-0 [&:nth-last-child(-n+2)]:border-b-0'
+      )}
+    >
+      <span className="label truncate">{label}</span>
+      <span className={cx('num text-[13px] text-fg-strong', valueClassName)} data-testid={testId}>
+        {value}
+      </span>
+      {sub != null && sub !== false && <span className="text-[11px] text-muted">{sub}</span>}
+    </div>
+  )
 }

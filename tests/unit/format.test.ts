@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtR, fmtPips, parseClockInput, parseDateInput, parseNumberInput } from '../../src/renderer/lib/format'
+import { countLabel, fmtR, fmtPips, parseClockInput, parseDateInput, parseNumberInput, plural } from '../../src/renderer/lib/format'
 
 describe('formatowanie i parsowanie pól', () => {
   it('R i pipsy ze znakiem', () => {
@@ -28,5 +28,27 @@ describe('formatowanie i parsowanie pól', () => {
     expect(parseDateInput('16.03.2026')).toBe('2026-03-16')
     expect(parseDateInput('16.3', 2026)).toBe('2026-03-16')
     expect(parseDateInput('31.02.2026')).toBeNull()
+  })
+})
+
+describe('odmiana liczebników', () => {
+  const cel = (n: number) => countLabel(n, 'cel', 'cele', 'celów')
+  const miesiac = (n: number) => countLabel(n, 'miesiąc', 'miesiące', 'miesięcy')
+  it('1, 2–4, 5+ i wyjątki 12–14', () => {
+    expect([0, 1, 2, 3, 4, 5, 11, 12, 13, 14, 21, 22, 24, 25, 101, 102, 112, 122].map(cel)).toEqual([
+      '0 celów', '1 cel', '2 cele', '3 cele', '4 cele', '5 celów', '11 celów', '12 celów', '13 celów', '14 celów',
+      '21 celów', '22 cele', '24 cele', '25 celów', '101 celów', '102 cele', '112 celów', '122 cele'
+    ])
+    expect([1, 2, 5, 12, 23].map(miesiac)).toEqual(['1 miesiąc', '2 miesiące', '5 miesięcy', '12 miesięcy', '23 miesiące'])
+  })
+
+  it('ułamek: dopełniacz liczby pojedynczej; liczby ujemne jak dodatnie', () => {
+    expect(countLabel(2.5, 'pips', 'pipsy', 'pipsów', 'pipsa')).toBe('2.5 pipsa')
+    expect(countLabel(200, 'pips', 'pipsy', 'pipsów', 'pipsa')).toBe('200 pipsów')
+    expect(countLabel(-3, 'pips', 'pipsy', 'pipsów', 'pipsa')).toBe('-3 pipsy')
+    expect(plural(-1, 'pips', 'pipsy', 'pipsów', 'pipsa')).toBe('pips')
+    expect(plural(0.5, 'wpłata', 'wpłaty', 'wpłat')).toBe('wpłaty')
+    expect(plural(Number.NaN, 'cel', 'cele', 'celów')).toBe('celów')
+    expect(countLabel(3, 'wpłata niestandardowa', 'wpłaty niestandardowe', 'wpłat niestandardowych')).toBe('3 wpłaty niestandardowe')
   })
 })

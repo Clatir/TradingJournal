@@ -138,7 +138,10 @@ export function mergeJournal(current: JournalFile, incoming: JournalFile): Journ
   for (const p of incoming.settings.pairs) if (!pairs.some((x) => x.symbol === p.symbol)) pairs.push(p)
   const killzones = [...current.settings.killzones]
   for (const k of incoming.settings.killzones) if (!killzones.some((x) => x.id === k.id)) killzones.push(k)
-  return { ...current, dictionaries: dicts, settings: { ...current.settings, pairs, killzones } }
+  // Forecast scenarios refer to instruments by id.
+  const instruments = [...current.settings.instruments]
+  for (const i of incoming.settings.instruments) if (!instruments.some((x) => x.id === i.id)) instruments.push(i)
+  return { ...current, dictionaries: dicts, settings: { ...current.settings, pairs, killzones, instruments } }
 }
 
 export async function applyImport(store: DataStore, inspected: Inspected, policy: ImportPolicy): Promise<{ imported: number; skipped: number; screensCopied: number }> {

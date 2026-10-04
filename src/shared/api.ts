@@ -1,6 +1,7 @@
 /** Contract between the main process (data folder owner) and the renderer. */
 import type { Collection, FileKind } from './paths'
 import type { RecordTypes } from './records'
+import type { FxFetchResult } from './fx'
 import type { JournalFile } from './schema'
 import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
 
@@ -160,6 +161,8 @@ export interface AppInfo {
   userDataDir: string
   sampleDir: string
   isPortable: boolean
+  /** Delay of the automatic NBP fetch after start (ICTJ_NBP_FETCH_DELAY_MS in test runs). */
+  fxFetchDelayMs: number
 }
 
 export type OpenFolderResult =
@@ -218,6 +221,8 @@ export interface JournalApi {
   setUpdatePrefs(prefs: Partial<UpdatePrefs>): Promise<UpdateState>
   dismissUpdateNotice(): Promise<UpdateState>
   onUpdateState(cb: (state: UpdateState) => void): () => void
+  /** Fetch the latest NBP table A (main process, net.fetch, 10 s limit). Nothing is saved. */
+  fetchFxRates(): Promise<FxFetchResult>
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes (false = something stayed unsaved). */
   onFlushRequest(cb: () => Promise<boolean>): () => void

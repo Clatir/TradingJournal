@@ -42,6 +42,25 @@ export function fmtMoneyGrouped(v: number | null | undefined, currency: string):
   return `${(int ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')}.${dec} ${currency}`
 }
 
+/**
+ * Polish plural form of the noun after a number: 1 → `one`, 2–4 (except 12–14) → `few`, otherwise `many`;
+ * a fractional number takes `fraction` (genitive singular: "2.5 pipsa"), by default the `few` form.
+ */
+export function plural(n: number, one: string, few: string, many: string, fraction = few): string {
+  if (!Number.isFinite(n)) return many
+  const abs = Math.abs(n)
+  if (!Number.isInteger(abs)) return fraction
+  if (abs === 1) return one
+  const last = abs % 10
+  const lastTwo = abs % 100
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? few : many
+}
+
+/** "3 cele", "5 miesięcy", "1 pips", "2.5 pipsa". */
+export function countLabel(n: number, one: string, few: string, many: string, fraction?: string): string {
+  return `${n} ${plural(n, one, few, many, fraction)}`
+}
+
 export function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`

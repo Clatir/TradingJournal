@@ -187,3 +187,89 @@ test('ustawienia: wszystkie opcje przyjmują poprawne wartości i odrzucają nie
     await app.close()
   }
 })
+
+test('kursy NBP: pobieranie z lokalnego serwera, kurs w kalkulatorach, kurs ręczny i powrót do NBP', async () => {
+  test.setTimeout(120_000)
+  const { createServer } = await import('node:http')
+  let mode: 'ok' | 'error' = 'ok'
+  let requests = 0
+  const table = [
+    {
+      table: 'A',
+      no: '192/A/NBP/2026',
+      effectiveDate: '2026-10-02',
+      rates: [
+        { currency: 'dolar amerykański', code: 'USD', mid: 3.8881 },
+        { currency: 'euro', code: 'EUR', mid: 4.3745 },
+        { currency: 'funt szterling', code: 'GBP', mid: 5.1353 },
+        { currency: 'dolar australijski', code: 'AUD', mid: 2.699 }
+      ]
+    }
+  ]
+  const server = createServer((_req, res) => {
+    requests++
+    if (mode === 'error') res.writeHead(500).end()
+    else res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(table))
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+  const port = (server.address() as { port: number }).port
+  const { app, page, dataDir, errors } = await launch({ env: { ICTJ_NBP_URL: `http://127.0.0.1:${port}`, ICTJ_NBP_FETCH_DELAY_MS: '300' } })
+  const journal = async () => JSON.parse(await fs.readFile(join(dataDir, 'journal.json'), 'utf8')) as any
+  try {
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    // Fetched automatically shortly after start (the journal had no table yet).
+    await expect.poll(async () => (await journal()).settings.fx.nbp?.no ?? null, { timeout: 15_000 }).toBe('192/A/NBP/2026')
+    expect(requests).toBe(1)
+    await settingsTab(page, 'display')
+    await expect(page.getByTestId('fx-nbp-info')).toContainText('Tabela A NBP nr 192/A/NBP/2026 z dnia 2026-10-02')
+    await page.getByTestId('fx-panel').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join('test-results', 'screens', '49-kursy-walut.png') })
+
+    // Account in PLN: EURUSD pip value 0.10 USD × 3.8881 from the table.
+    const currency = page.getByTestId('risk-currency')
+    await currency.fill('PLN')
+    await currency.press('Tab')
+    await page.keyboard.press('Control+6')
+    await page.getByTestId('pnl').getByRole('radio', { name: 'EURUSD', exact: true }).click()
+    const rate = page.getByTestId('pnl-rate')
+    await expect(rate).toHaveValue('3.8881')
+    await expect(page.getByTestId('pnl').getByText('kurs NBP z dnia 2026-10-02 — możesz wpisać własny')).toBeVisible()
+    await page.getByTestId('pnl-lots').fill('0.5')
+    await page.getByTestId('pnl-pips').fill('20')
+    await expect(page.getByTestId('pnl-amount')).toHaveText('+388.81 PLN')
+    // The position calculator uses the same rate.
+    await expect(page.getByTestId('calc-rate')).toHaveValue('3.8881')
+
+    // A typed rate wins until "przywróć kurs NBP".
+    await rate.fill('4')
+    await expect(page.getByTestId('pnl-amount')).toHaveText('+400.00 PLN')
+    await page.getByTestId('pnl-lots').click()
+    await expect(page.getByTestId('pnl').getByText('kurs wpisany ręcznie')).toBeVisible()
+    await expect.poll(async () => (await journal()).settings.risk.conversionRates).toEqual({ USD: 4 })
+    await page.screenshot({ path: join('test-results', 'screens', '47-kurs-nbp-reczny.png') })
+    await page.getByTestId('pnl-rate-nbp').click()
+    await expect(rate).toHaveValue('3.8881')
+    await expect(page.getByTestId('pnl-amount')).toHaveText('+388.81 PLN')
+    await expect.poll(async () => (await journal()).settings.risk.conversionRates).toEqual({})
+
+    // Nothing typed by hand is left in the settings list.
+    await settingsTab(page, 'display')
+    await expect(page.getByTestId('fx-panel')).toContainText('Brak – wszystkie kursy pochodzą z tabeli NBP.')
+
+    // Manual refresh: same table → "aktualne"; server error → message, the old table stays.
+    await page.getByTestId('fx-refresh').click()
+    await expect(page.getByText('Kursy NBP są aktualne: tabela 192/A/NBP/2026 z dnia 2026-10-02.')).toBeVisible()
+    mode = 'error'
+    await page.getByTestId('fx-refresh').click()
+    await expect(page.getByText('Nie udało się pobrać kursów NBP: serwer NBP odpowiedział błędem 500. Zostają kursy z dnia 2026-10-02.')).toBeVisible()
+    expect((await journal()).settings.fx.nbp.no).toBe('192/A/NBP/2026')
+
+    // Switching the automatic fetch off is saved.
+    await page.getByTestId('fx-auto').getByRole('switch').click()
+    await expect.poll(async () => (await journal()).settings.fx.autoFetch).toBe(false)
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+    server.close()
+  }
+})

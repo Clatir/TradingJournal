@@ -105,7 +105,9 @@ describe('scenariusze prognozy na dysku', () => {
 
   it('eksport ZIP → import: scenariusze są w raporcie i trafiają do dziennika', async () => {
     const source = await freshStore()
-    const f = scenario({ name: 'Scenariusz z importu' })
+    const us30 = { id: 'US30', name: 'US30', pipSize: 1, contractSize: 1, quoteCurrency: 'USD', minLot: 0.1, description: '', archived: false }
+    await source.saveJournal({ ...source.journal, settings: { ...source.journal.settings, instruments: [...source.journal.settings.instruments, us30] } })
+    const f = scenario({ name: 'Scenariusz z importu', gain: 'pips', pips: { ...scenario().pips, instrumentId: 'US30' } })
     await source.saveRecord('forecasts', f)
     await source.saveRecord('trades', sampleTrade())
     const zip = join(tempDir(), 'eksport.zip')
@@ -122,5 +124,7 @@ describe('scenariusze prognozy na dysku', () => {
     expect(snap.forecasts).toHaveLength(1)
     expect(snap.forecasts[0]!.record).toMatchObject({ id: f.id, name: 'Scenariusz z importu' })
     expect(snap.forecasts[0]!.record.draws).toEqual(f.draws)
+    // the instrument the scenario uses comes along with the journal settings
+    expect(snap.journal.settings.instruments.find((i) => i.id === 'US30')).toEqual(us30)
   })
 })

@@ -12,7 +12,7 @@ export type Route =
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 
-export type SettingsTab = 'folder' | 'pairs' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer' | 'updates'
+export type SettingsTab = 'folder' | 'pairs' | 'instruments' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer' | 'updates'
 
 export interface Toast {
   id: number

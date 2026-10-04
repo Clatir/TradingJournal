@@ -20,6 +20,7 @@ import { writeFileAtomic } from './datastore/atomic'
 import { GITHUB_API, detectInstallMode, type UpdatePrefs } from '@shared/update'
 import { Updater } from './update/updater'
 import { startPortableSwap, startSilentInstaller } from './update/apply'
+import { fetchNbpTable, nbpSource } from './fx/nbp'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
 if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DATA)
@@ -41,6 +42,8 @@ let updater: Updater | null = null
 const imports = new Map<string, Inspected>()
 /** First automatic update check after start (test runs shorten it). */
 const updateCheckDelayMs = (): number => Number(process.env.ICTJ_UPDATE_CHECK_DELAY_MS) || 15_000
+/** First automatic NBP fetch after start (done by the renderer, which knows the journal settings). */
+const fxFetchDelayMs = (): number => Number(process.env.ICTJ_NBP_FETCH_DELAY_MS) || 20_000
 
 function requireUpdater(): Updater {
   if (!updater) throw new Error('Moduł aktualizacji nie jest gotowy.')
@@ -214,7 +217,8 @@ function registerIpc(): void {
     platform: process.platform,
     userDataDir: app.getPath('userData'),
     sampleDir: sampleDir(),
-    isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR
+    isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR,
+    fxFetchDelayMs: fxFetchDelayMs()
   }))
   handle('journal:getConfig', () => config.get())
   handle('journal:loadCurrent', async () => {
@@ -258,6 +262,11 @@ function registerIpc(): void {
       return
     }
     shell.showItemInFolder(s.abs(rel))
+  })
+  handle('journal:fetchFxRates', async () => {
+    const result = await fetchNbpTable((url, init) => net.fetch(url, init), nbpSource(process.env.ICTJ_NBP_URL))
+    log(result.ok ? 'info' : 'warn', result.ok ? `NBP table ${result.table.no} (${result.table.effectiveDate})` : `NBP fetch failed: ${result.message}`)
+    return result
   })
   handle('journal:openExternal', async (url: string) => {
     if (!/^https:\/\//i.test(url)) throw new Error('Można otwierać tylko adresy https://')

@@ -1,13 +1,18 @@
 import { create } from 'zustand'
-import { PNL_PRESETS, pipValueForMinLot, pipValuePerLotFrom, presetPipValue, profitLoss, type PnlInstrumentId } from '@shared/calc/pnl'
-import { lotDecimals, shownDecimals, stepDecimals } from '@shared/calc/position'
+import { pipValueForMinLot, pipValuePerLotFrom, profitLoss } from '@shared/calc/pnl'
+import { lotDecimals, shownDecimals } from '@shared/calc/position'
+import { rateFor } from '@shared/fx'
+import { calculatedPipValue, findInstrument, instrumentCurrency, instrumentMinLot, selectableInstruments } from '@shared/instruments'
 import type { Settings } from '@shared/schema'
 import { fmtMoneyGrouped, tone, toneClass } from '../../lib/format'
 import { updateJournal } from '../../store/journal'
-import { Field, NumberField, Panel, Segmented, TextField, cx } from '../../components/ui'
+import { navigate } from '../../store/ui'
+import { RateField } from '../../components/RateField'
+import { Cell, Field, NumberField, Panel, Segmented, cx } from '../../components/ui'
 
 interface PnlInputs {
-  instrument: PnlInstrumentId
+  /** Instrument id from settings.instruments. */
+  instrument: string
   lots: number | null
   /** Always >= 0; the sign comes from `loss`. */
   pips: number | null
@@ -21,43 +26,57 @@ const setInputs = (patch: Partial<PnlInputs>) => usePnlInputs.setState(patch)
 type Risk = Settings['risk']
 const setRisk = (fn: (r: Risk) => Risk) => updateJournal((j) => ({ ...j, settings: { ...j.settings, risk: fn(j.settings.risk) } }))
 
-const INSTRUMENTS: Array<{ value: PnlInstrumentId; label: string }> = [
-  ...PNL_PRESETS.map((p) => ({ value: p.id, label: p.label })),
-  { value: 'CUSTOM', label: 'Własny' }
-]
+/** At most this many instruments are shown as buttons; more make a list. */
+const SEGMENTED_MAX = 6
 
 const fmtValue = (v: number, currency: string, decimals = 2) => `${v.toFixed(decimals)} ${currency}`
 
 /** Profit / loss from lots, pips and the value of one pip for the smallest lot. */
 export function PnlCalculator({ settings }: { settings: Settings }) {
-  const { instrument, lots, pips, loss } = usePnlInputs()
+  const { instrument: selectedId, lots, pips, loss } = usePnlInputs()
   const risk = settings.risk
   const account = risk.accountCurrency
-  const preset = PNL_PRESETS.find((p) => p.id === instrument) ?? null
-  const custom = instrument === 'CUSTOM'
-  const minLot = custom ? (risk.customInstrument.minLot ?? risk.lotStep) : risk.lotStep
-  const quote = preset?.quoteCurrency ?? account
+  const options = selectableInstruments(settings, findInstrument(settings, selectedId) ? selectedId : null)
+  const inst = (options.some((i) => i.id === selectedId) ? findInstrument(settings, selectedId) : null) ?? options[0] ?? null
+
+  const manageLink = (
+    <button className="text-accent hover:underline" onClick={() => navigate({ page: 'settings', tab: 'instruments' })} data-testid="pnl-manage">
+      Zarządzaj instrumentami
+    </button>
+  )
+  if (!inst)
+    return (
+      <Panel title="Kalkulator zysku / straty" className="col-span-2" id="pnl">
+        <div className="text-muted" data-testid="pnl">
+          Brak instrumentów na liście. {manageLink}
+        </div>
+      </Panel>
+    )
+
+  const minLot = instrumentMinLot(inst, risk)
+  const quote = instrumentCurrency(inst, risk)
   const sameCurrency = quote === account
-  const rate = sameCurrency ? 1 : (risk.conversionRates[quote] ?? null)
-  const computed = preset ? presetPipValue(preset, { minLot, fxContractSize: risk.contractSize, quoteToAccountRate: rate }) : null
-  const ownPerLot = risk.pipValuesPerLot[instrument] ?? null
+  const rate = rateFor(quote, account, settings)?.rate ?? null
+  const computed = calculatedPipValue(inst, settings, account)?.value ?? null
+  const ownPerLot = risk.pipValuesPerLot[inst.id] ?? null
   const own = ownPerLot != null ? pipValueForMinLot(ownPerLot, minLot) : null
   const pipValue = own ?? computed
+  const calculable = inst.pipSize != null
   const signedPips = pips == null ? null : loss ? -Math.abs(pips) : Math.abs(pips)
   const result =
     lots != null && signedPips != null && pipValue != null ? profitLoss({ lots, pips: signedPips, pipValueMinLot: pipValue, minLot }) : null
   const balance = risk.accountBalance
   // Never hide typed digits (0.015 lota, 12.25 pipsa): the calculation uses exactly what is shown.
   const lotsDecimals = shownDecimals(lots, lotDecimals(minLot))
-  const name = custom ? risk.customInstrument.name.trim() || 'własny instrument' : (preset?.label ?? '')
+  const label = (i: typeof inst) => (i.archived ? `${i.name} (zarchiwizowany)` : i.name)
 
   /** Entered per smallest lot, stored per 1.00 lot (a later lot step change keeps the meaning). */
   const setPipValue = (v: number | null) => {
     if (v != null && !(v > 0)) return
     setRisk((r) => {
       const pipValuesPerLot = { ...r.pipValuesPerLot }
-      if (v == null) delete pipValuesPerLot[instrument]
-      else pipValuesPerLot[instrument] = pipValuePerLotFrom(v, minLot)
+      if (v == null) delete pipValuesPerLot[inst.id]
+      else pipValuesPerLot[inst.id] = pipValuePerLotFrom(v, minLot)
       return { ...r, pipValuesPerLot }
     })
   }
@@ -66,32 +85,25 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
     <Panel title="Kalkulator zysku / straty" className="col-span-2" id="pnl">
       <div className="grid grid-cols-[1fr_1fr] gap-4" data-testid="pnl">
         <div className="flex flex-col gap-2">
-          <Field label="Instrument">
-            <Segmented value={instrument} options={INSTRUMENTS} onChange={(v) => setInputs({ instrument: v })} size="sm" aria-label="Instrument" />
+          <Field label="Instrument" hint={manageLink}>
+            {options.length <= SEGMENTED_MAX ? (
+              <Segmented
+                value={inst.id}
+                options={options.map((i) => ({ value: i.id, label: label(i) }))}
+                onChange={(v) => setInputs({ instrument: v })}
+                size="sm"
+                aria-label="Instrument"
+              />
+            ) : (
+              <select className="input" value={inst.id} onChange={(e) => setInputs({ instrument: e.currentTarget.value })} aria-label="Instrument" data-testid="pnl-instrument">
+                {options.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {label(i)}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
-          {custom && (
-            <>
-              <Field label="Nazwa">
-                <TextField
-                  value={risk.customInstrument.name}
-                  onChange={(v) => setRisk((r) => ({ ...r, customInstrument: { ...r.customInstrument, name: v } }))}
-                  placeholder="np. XAUUSD, US30, DAX"
-                  data-testid="pnl-custom-name"
-                />
-              </Field>
-              <Field label="Najmniejszy lot" hint={risk.customInstrument.minLot == null ? `jak w ustawieniach ryzyka (${risk.lotStep})` : undefined}>
-                <NumberField
-                  value={minLot}
-                  onChange={(v) => {
-                    if (v != null && !(v > 0)) return
-                    setRisk((r) => ({ ...r, customInstrument: { ...r.customInstrument, minLot: v } }))
-                  }}
-                  decimals={stepDecimals(minLot)}
-                  data-testid="pnl-min-lot"
-                />
-              </Field>
-            </>
-          )}
           <Field label="Wielkość (loty)">
             <NumberField value={lots} onChange={(v) => setInputs({ lots: v })} decimals={lotsDecimals} step={minLot} data-testid="pnl-lots" />
           </Field>
@@ -117,25 +129,13 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
               />
             </div>
           </Field>
-          {preset && !sameCurrency && (
-            <Field label="Kurs" hint={`ile ${account} kosztuje 1 ${quote} – wspólny z kalkulatorem pozycji`}>
-              <div className="flex items-center gap-2">
-                <span className="num w-[54px] text-muted">1 {quote} =</span>
-                <NumberField
-                  value={rate}
-                  onChange={(v) => v && v > 0 && setRisk((r) => ({ ...r, conversionRates: { ...r.conversionRates, [quote]: v } }))}
-                  decimals={4}
-                  step={0.0001}
-                  data-testid="pnl-rate"
-                />
-                <span className="num text-muted">{account}</span>
-              </div>
-            </Field>
+          {calculable && !sameCurrency && (
+            <RateField from={quote} to={account} settings={settings} noneHint={`ile ${account} kosztuje 1 ${quote} – wspólny z kalkulatorem pozycji`} testId="pnl-rate" />
           )}
           <Field
             label="Wartość pipsa"
             hint={
-              custom ? (
+              !calculable ? (
                 'z platformy brokera albo specyfikacji kontraktu – zapamiętywana w ustawieniach dziennika'
               ) : own != null ? (
                 <span>
@@ -145,7 +145,7 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
                   </button>
                 </span>
               ) : computed != null ? (
-                `wyliczona: ${preset!.pipSize} × ${(preset!.contractSize ?? risk.contractSize).toLocaleString('pl-PL')} jedn./lot × ${minLot} lota${sameCurrency ? '' : ` × kurs ${rate}`} – możesz wpisać własną`
+                `wyliczona: ${inst.pipSize} × ${(inst.contractSize ?? risk.contractSize).toLocaleString('pl-PL')} jedn./lot × ${minLot} lota${sameCurrency ? '' : ` × kurs ${rate}`} – możesz wpisać własną`
               ) : (
                 `wpisz kurs ${quote} → ${account} albo wartość pipsa`
               )
@@ -158,7 +158,7 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
               </span>
             </div>
           </Field>
-          {preset && <p className="text-[11.5px] text-muted">{preset.description}</p>}
+          {inst.description && <p className="text-[11.5px] text-muted">{inst.description}</p>}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -179,7 +179,7 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
                 <Cell label="Względem kapitału" value={balance ? `${((result.amount / balance) * 100).toFixed(2)}%` : '—'} />
               </div>
               <p className="num text-[11.5px] text-muted">
-                {name}: {signedPips! < 0 ? '−' : '+'}
+                {inst.name}: {signedPips! < 0 ? '−' : '+'}
                 {Math.abs(signedPips!).toFixed(shownDecimals(signedPips, 1))} pips × {pipValue} {account} × {Number(result.minLots.toFixed(4))} = {fmtMoneyGrouped(result.amount, account)}
               </p>
               {!result.wholeLots && (
@@ -194,26 +194,15 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
                 ? 'Wpisz wielkość pozycji w lotach.'
                 : !(lots > 0)
                   ? 'Wielkość pozycji musi być większa od zera.'
-                : pips == null
-                  ? 'Wpisz liczbę pipsów.'
-                  : custom
-                    ? `Wpisz wartość pipsa dla ${minLot} lota.`
-                    : `Wpisz kurs ${quote} → ${account} albo wartość pipsa.`}
+                  : pips == null
+                    ? 'Wpisz liczbę pipsów.'
+                    : !calculable
+                      ? `Wpisz wartość pipsa dla ${minLot} lota.`
+                      : `Wpisz kurs ${quote} → ${account} albo wartość pipsa.`}
             </div>
           )}
         </div>
       </div>
     </Panel>
-  )
-}
-
-function Cell({ label, value, testId }: { label: string; value: string; testId?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 border-r border-b border-line px-2 py-1.5 [&:nth-child(2n)]:border-r-0 [&:nth-last-child(-n+2)]:border-b-0">
-      <span className="label">{label}</span>
-      <span className="num text-[13px] text-fg-strong" data-testid={testId}>
-        {value}
-      </span>
-    </div>
   )
 }

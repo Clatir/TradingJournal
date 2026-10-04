@@ -105,6 +105,7 @@ function appEnv(root: string): Record<string, string> {
     ICTJ_MACHINE_NAME: 'CI-UPDATE',
     ICTJ_UPDATE_URL: base,
     ICTJ_UPDATE_CHECK_DELAY_MS: '1000',
+    ICTJ_NBP_URL: 'off',
     ELECTRON_DISABLE_SECURITY_WARNINGS: 'true'
   }
 }

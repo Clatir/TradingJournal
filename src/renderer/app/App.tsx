@@ -25,6 +25,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { ShortcutsHelp } from './ShortcutsHelp'
 import { flushSaves } from '../store/journal'
 import { initUpdates } from '../store/update'
+import { useFxAutoFetch } from '../store/fx'
 import { toast } from '../store/ui'
 
 function useGlobalHotkeys(): void {
@@ -132,6 +133,7 @@ export function App() {
   const route = useUi((s) => s.route)
   const issues = useJournal((s) => s.conflicts.length + s.problems.filter((p) => p.kind !== 'unknown-file').length)
   useGlobalHotkeys()
+  useFxAutoFetch()
   useEffect(() => {
     void boot()
     initUpdates()

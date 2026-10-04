@@ -10,12 +10,15 @@ import { enterSample, exitSample } from '../sample/sample'
 import { switchAccountCurrency } from '@shared/risk'
 import { TransferTab } from './TransferTab'
 import { UpdatesTab } from './UpdatesTab'
+import { InstrumentsTab } from './InstrumentsTab'
+import { FxPanel } from './FxPanel'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
-import { Field, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
+import { CurrencyInput, Field, NameInput, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'folder', label: 'Folder danych' },
   { id: 'pairs', label: 'Pary' },
+  { id: 'instruments', label: 'Instrumenty' },
   { id: 'killzones', label: "Killzone'y" },
   { id: 'rules', label: 'Zasady (walidator)' },
   { id: 'dictionaries', label: 'Słowniki' },
@@ -52,6 +55,7 @@ export function SettingsPage() {
         <div className="mx-auto flex max-w-[980px] flex-col gap-3">
           {tab === 'folder' && <FolderTab />}
           {tab === 'pairs' && <PairsTab journal={journal} />}
+          {tab === 'instruments' && <InstrumentsTab settings={journal.settings} />}
           {tab === 'killzones' && <KillzonesTab journal={journal} />}
           {tab === 'rules' && <RulesTab settings={journal.settings} />}
           {tab === 'dictionaries' && <DictionariesTab journal={journal} />}
@@ -241,74 +245,6 @@ function PairsTab({ journal }: { journal: JournalFile }) {
         <span className="text-[11px] text-muted">Pary z JPY dostają pips 0.01. Ukryte pary znikają z wyboru, historia zostaje.</span>
       </div>
     </Panel>
-  )
-}
-
-/**
- * Three-letter currency code. Edited as a draft and applied on blur/Enter: applying every keystroke
- * would reject the intermediate one- and two-letter states and snap the field back.
- */
-function CurrencyInput({
-  value,
-  onChange,
-  className,
-  ...rest
-}: {
-  value: string
-  onChange: (v: string) => void
-  className?: string
-  'data-testid'?: string
-}) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const valid = (t: string) => /^[A-Z]{3}$/.test(t)
-  return (
-    <input
-      className={cx('input num', className)}
-      value={draft ?? value}
-      spellCheck={false}
-      data-testid={rest['data-testid']}
-      aria-invalid={draft != null && !valid(draft)}
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setDraft(e.currentTarget.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3))}
-      onBlur={() => {
-        if (draft != null && valid(draft) && draft !== value) onChange(draft)
-        setDraft(null)
-      }}
-      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-    />
-  )
-}
-
-/**
- * A name edited as a draft and applied on blur/Enter: it can be cleared and retyped, an empty name keeps
- * the old one and `validate` can refuse a name (e.g. a duplicate) with a message.
- */
-function NameInput({ value, onChange, validate, ...rest }: { value: string; onChange: (v: string) => void; validate?: (v: string) => string | null; 'aria-label'?: string }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const apply = () => {
-    const next = draft?.trim()
-    setDraft(null)
-    if (!next || next === value) return
-    const problem = validate?.(next) ?? null
-    if (problem) return toast(problem, 'error')
-    onChange(next)
-  }
-  return (
-    <input
-      className="input"
-      value={draft ?? value}
-      spellCheck={false}
-      aria-label={rest['aria-label']}
-      onChange={(e) => setDraft(e.currentTarget.value)}
-      onBlur={apply}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur()
-        if (e.key === 'Escape') {
-          setDraft(null)
-          e.currentTarget.blur()
-        }
-      }}
-    />
   )
 }
 
@@ -760,6 +696,7 @@ function DisplayTab({ settings }: { settings: Settings }) {
           </Field>
         </div>
       </Panel>
+      <FxPanel settings={settings} />
     </>
   )
 }

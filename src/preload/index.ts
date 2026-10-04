@@ -42,6 +42,7 @@ const api: JournalApi = {
   installUpdateNow: () => invoke('installUpdateNow'),
   setUpdatePrefs: (prefs) => invoke('setUpdatePrefs', prefs),
   dismissUpdateNotice: () => invoke('dismissUpdateNotice'),
+  fetchFxRates: () => invoke('fetchFxRates'),
   onUpdateState: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, state: UpdateState) => cb(state)
     ipcRenderer.on('journal:update', listener)
