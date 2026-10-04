@@ -57,6 +57,14 @@ test('wycieczka po ekranach na danych przykładowych', async () => {
     await page.waitForTimeout(300)
     await page.screenshot({ path: shots('6-tydzien') })
 
+    // The demo has one forecast scenario (neutral numbers, fixed draws).
+    await page.getByTestId('nav-forecast').click()
+    await expect(page.getByTestId('fc-name')).toHaveValue('Scenariusz 1')
+    await expect(page.getByTestId('fc-goal-3-flex').getByRole('switch')).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('fc-sum-fundGain')).toBeVisible()
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: shots('6b-prognoza') })
+
     await page.getByTestId('nav-help').click()
     await expect(page.getByTestId('shortcuts')).toBeVisible()
     await page.screenshot({ path: shots('7-skroty') })

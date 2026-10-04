@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { percentile, simulateForecast, type ForecastInput, type ForecastPipsInput, type ForecastResult } from '@shared/calc/forecast'
 import { completedDraws, createForecast, firstFreeName } from '@shared/defaults'
 import { drawUniforms } from '@shared/random'
+import { generateSample } from '@shared/sample/generate'
 import { FORECAST_MAX_GOALS, FORECAST_MAX_MONTHS, forecastGoalSchema, forecastSchema } from '@shared/schema'
 
 // ---------------------------------------------------------------- reference vectors
@@ -432,5 +433,20 @@ describe('losowania scenariusza', () => {
     expect(done.pips).toHaveLength(240)
     expect(done.loss).toBe(f.draws.loss)
     expect(done.rate.every((x) => x >= 0 && x < 1)).toBe(true)
+  })
+})
+
+describe('scenariusz w danych przykładowych', () => {
+  it('neutralne nazwy, stałe deterministyczne losowania, poprawny rekord', () => {
+    const a = generateSample({ seed: 1234, endDate: '2026-09-30', now: '2026-10-01T10:00:00.000Z' })
+    const b = generateSample({ seed: 1234, endDate: '2026-09-30', now: '2026-10-01T10:00:00.000Z' })
+    expect(a.forecasts).toHaveLength(1)
+    const f = a.forecasts[0]!
+    expect(forecastSchema.parse(f)).toEqual(f)
+    expect(f).toMatchObject({ name: 'Scenariusz 1', currency: 'USD', firstMonth: '2026-10', months: 36, keep: 'fund' })
+    expect(f.goals.map((g) => g.name)).toEqual(['Cel 1', 'Cel 2', 'Cel 3'])
+    expect(f.draws.rate).toHaveLength(240)
+    expect(f.draws).toEqual(b.forecasts[0]!.draws)
+    expect(generateSample({ seed: 99, endDate: '2026-09-30' }).forecasts[0]!.draws.rate).not.toEqual(f.draws.rate)
   })
 })

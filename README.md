@@ -1,6 +1,8 @@
 # ICT Trade Journal
 
-Osobisty dziennik day tradera forex w metodologii ICT – aplikacja desktopowa dla Windows, działa w pełni offline.
+Osobisty dziennik day tradera forex w metodologii ICT – aplikacja desktopowa dla Windows, działa offline. Łączy się z siecią
+tylko po aktualizacje (GitHub) i kursy walut (tabela A NBP); jedno i drugie można wyłączyć w ustawieniach, a aplikacja
+niczego nie wysyła.
 Dane to zwykły folder z plikami JSON i WebP (może leżeć w OneDrive albo na pendrive).
 
 ## Pobranie gotowej aplikacji
@@ -152,3 +154,19 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 4. WTI: 1 lot × 30 pipsów = 300 USD (1 lot = 1000 baryłek). Inny kontrakt u brokera → wpisz własną wartość pipsa,
    „przywróć wyliczoną” wraca do domyślnej.
 5. „Własny”: nazwa, najmniejszy lot i wartość pipsa dla najmniejszego lota (z platformy brokera) – zapamiętywane.
+
+**Wersja 1.3 – prognoza wypłat, kursy NBP, instrumenty**
+1. `Ctrl+7` → „Utwórz pierwszy scenariusz”. Ustaw zwrot stały 11%, wypłatę 10%, kapitał 10 000, dopłatę 2 000, pierwszy
+   miesiąc listopad 2026, 50 miesięcy, trzy cele (miesiące 6, 12, 19), tryb „Gotówka” – cele dostają 1 223.50 / 3 171.61 /
+   8 198.92, kapitał na koniec 3 365 620.22. „Fundusz celowy” – wyższe kwoty i „w gotówce: …” przy celach.
+2. Suwak, pole i szybki wybór wypłaty; w kolumnie „Wpłata” wpisz kwotę (także ujemną) – fokus zostaje, Enter przechodzi niżej.
+3. Cel z kwotą (np. 2 000) – „Kupiony w mies. 8 (6-2027), 2 mies. po planie”; „może poczekać” przy dużej kwocie.
+4. Miesiące stratne, zwrot losowy („Losuj ponownie”), podatek roczny, podsumowania lat (klik w wiersz roku zwija miesiące).
+5. Tryb pipsowy: instrument, pipsy stałe lub losowe, lot stały / na kwotę kapitału / z ryzyka; kurs z NBP albo wpisany ręcznie.
+6. Pasek scenariusza: „Nowy”, „Duplikuj” (`Ctrl+Shift+D`), zmiana nazwy, „Porównaj z…”, „Usuń”. Plik `forecasts/<id>.json`
+   pojawia się i znika w folderze danych.
+7. „Rozrzut wyników” (200 / 1000 / 5000 przebiegów) i wykres z „Pokaż rozrzut”; „Kopiuj tabelę”, „CSV”, „XLSX” – otwórz w Excelu.
+8. Ustawienia → Wyświetlanie i ryzyko → „Kursy walut”: „Odśwież kursy NBP” (bez internetu zostaje ostatnia tabela),
+   kursy wpisane ręcznie. Ustawienia → Instrumenty: dodaj instrument, zarchiwizuj, „Przywróć domyślne”.
+9. Kalkulator pozycji: pole „TP (pips)” – zysk przy TP i zysk do ryzyka (1 : 2.00).
+10. Ten sam folder na drugim komputerze: scenariusz pokazuje identyczne liczby (losowania są zapisane w pliku).

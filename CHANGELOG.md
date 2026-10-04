@@ -3,6 +3,27 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.3.0
+
+### Nowe
+- **Prognoza wypłat** (`Ctrl+7`, przycisk „Prognoza”): ile zarobisz i wypłacisz miesiąc po miesiącu, kiedy kupisz cele
+  zakupowe i jak działa fundusz celowy (odkładana wypłata pracuje razem z kapitałem).
+  - Zysk procentowy (stały albo losowy z zakresu) albo z pipsów (instrument, pipsy stałe lub losowe, lot stały, na kwotę
+    kapitału albo z ryzyka), miesiące stratne, podatek roczny, wpłaty i wypłaty z kapitału w wybranych miesiącach.
+  - Do 10 celów zakupowych z kwotą albo „cała pula”, „może poczekać”, statusy i opóźnienia.
+  - Podsumowanie, tabela miesięcy z podsumowaniami lat, wykres, rozrzut wyników (wiele przebiegów z percentylami).
+  - Scenariusze zapisane w folderze danych (`forecasts/`), porównanie dwóch scenariuszy, duplikowanie.
+  - Eksport tabeli: schowek (Excel), CSV i XLSX (arkusze: Prognoza, Lata, Cele, Ustawienia).
+- **Kursy walut z NBP**: tabela A pobierana automatycznie (20 s po starcie, gdy ostatnia ma ponad 12 h) albo przyciskiem.
+  Bez internetu zostaje ostatnia pobrana tabela. Kursy wpisane ręcznie mają pierwszeństwo i można wrócić do kursu NBP.
+- **Instrumenty**: lista w ustawieniach (dodawanie, archiwizacja, „Przywróć domyślne”), wspólna dla kalkulatora zysku /
+  straty i prognozy. Dotychczasowe instrumenty i ręczne wartości pipsa przechodzą bez zmian.
+- **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka.
+
+### Ważne przy pracy na kilku komputerach
+- Format danych się nie zmienia (wersja 1.2.x otwiera folder normalnie), ale **kopia dzienna zrobiona wersją 1.2.x nie
+  zawiera scenariuszy prognozy, a import w wersji 1.2.x je pomija**. Zaktualizuj aplikację na wszystkich komputerach.
+
 ## 1.2.1
 
 ### Poprawki

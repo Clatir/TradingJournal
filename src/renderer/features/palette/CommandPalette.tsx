@@ -14,6 +14,8 @@ import { enterSample, exitSample } from '../sample/sample'
 import { currentWeek } from '../week/WeekPage'
 import { copyMarkdownForRoute, exportCsv } from '../export/markdownActions'
 import { checkForUpdates } from '../../store/update'
+import { refreshFxRates } from '../../store/fx'
+import { createScenario } from '../forecast/actions'
 
 export function toggleMoney(): void {
   let on = false
@@ -43,7 +45,7 @@ export function CommandPalette() {
     () => [
       { id: 'new', label: 'Nowa transakcja', keys: 'Ctrl N', run: () => newTrade() },
       { id: 'missed', label: 'Nowy missed trade', keys: 'Ctrl Shift N', run: () => newTrade('missed') },
-      { id: 'duplicate', label: 'Duplikuj bieżący wpis (transakcja, przykład; plan → następny dzień)', keys: 'Ctrl Shift D', run: duplicateCurrent },
+      { id: 'duplicate', label: 'Duplikuj bieżący wpis (transakcja, przykład, scenariusz; plan → następny dzień)', keys: 'Ctrl Shift D', run: duplicateCurrent },
       { id: 'journal', label: 'Dziennik transakcji', keys: 'Ctrl 1', run: () => navigate({ page: 'journal' }) },
       { id: 'day', label: 'Plan dnia – dziś', keys: 'Ctrl D', run: () => navigate({ page: 'day', date: todayNy() }) },
       { id: 'analytics', label: 'Analityka', keys: 'Ctrl 3', run: () => navigate({ page: 'analytics' }) },
@@ -58,6 +60,16 @@ export function CommandPalette() {
           requestAnimationFrame(() => document.getElementById('pnl')?.scrollIntoView({ block: 'start' }))
         }
       },
+      { id: 'forecast', label: 'Prognoza wypłat', keys: 'Ctrl 7', run: () => navigate({ page: 'forecast' }) },
+      {
+        id: 'forecast-new',
+        label: 'Prognoza: nowy scenariusz',
+        run: () => {
+          if (!createScenario()) toast('Folder danych jest tylko do odczytu.', 'error')
+        }
+      },
+      { id: 'instruments', label: 'Instrumenty kalkulatora', run: () => navigate({ page: 'settings', tab: 'instruments' }) },
+      { id: 'nbp', label: 'Odśwież kursy NBP', run: () => void refreshFxRates(true) },
       { id: 'md', label: 'Kopiuj markdown bieżącej transakcji / planu dnia', keys: 'Ctrl Shift M', run: () => void copyMarkdownForRoute() },
       { id: 'csv', label: 'Eksport CSV wszystkich transakcji', run: () => void exportCsv() },
       { id: 'zip', label: 'Eksport ZIP całego folderu', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
