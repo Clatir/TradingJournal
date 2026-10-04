@@ -3,7 +3,7 @@
  * numbers as numbers (rounded like the screen shows them). Columns of the improvements appear only when the
  * table on screen has them.
  */
-import { goalQueue, type ForecastInput, type ForecastResult } from '../calc/forecast'
+import { calendarOf, goalQueue, type ForecastInput, type ForecastResult } from '../calc/forecast'
 import type { Forecast } from '../schema'
 
 export type ForecastCell = number | string | null
@@ -112,4 +112,51 @@ export function forecastTsv(table: ForecastTableData): string {
   const text = (s: string) => s.replace(/[\t\r\n]+/g, ' ')
   const cell = (v: ForecastCell, kind: ForecastColumnKind) => (v == null ? '' : typeof v === 'number' ? commaNumber(v, kind) : text(v))
   return [table.columns.map((c) => text(c.header)).join('\t'), ...table.rows.map((r) => r.map((v, i) => cell(v, table.columns[i]!.kind)).join('\t'))].join('\r\n')
+}
+
+/** One calendar year of the forecast table (chapter 7.3). */
+export interface ForecastYear {
+  year: number
+  fromK: number
+  toK: number
+  /** Compound return of the year: Π(1 + r) − 1, as a fraction. */
+  rate: number
+  /** Net deposits (withdrawals negative). */
+  deposit: number
+  tax: number
+  profit: number
+  payout: number
+  /** Set aside / fund and capital / mass at the end of the year. */
+  pot: number
+  end: number
+  /** Goals bought in the year and their total. */
+  buys: number
+  spent: number
+}
+
+/** Year summaries: after December of every calendar year and after the last row. */
+export function forecastYears(sim: ForecastResult, input: Pick<ForecastInput, 'm0' | 'y0'>): ForecastYear[] {
+  const years: ForecastYear[] = []
+  let cur: ForecastYear | null = null
+  let growth = 1
+  for (const r of sim.rows) {
+    const { year } = calendarOf(r.k, input.m0, input.y0)
+    if (!cur || cur.year !== year) {
+      cur = { year, fromK: r.k, toK: r.k, rate: 0, deposit: 0, tax: 0, profit: 0, payout: 0, pot: 0, end: 0, buys: 0, spent: 0 }
+      growth = 1
+      years.push(cur)
+    }
+    growth *= 1 + r.rate
+    cur.toK = r.k
+    cur.rate = growth - 1
+    cur.deposit += r.deposit
+    cur.tax += r.tax
+    cur.profit += r.profit
+    cur.payout += r.payout
+    cur.pot = r.pot
+    cur.end = r.end
+    cur.buys += r.buys.length
+    cur.spent += r.buys.reduce((s, b) => s + b.amount, 0)
+  }
+  return years
 }

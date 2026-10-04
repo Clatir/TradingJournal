@@ -1,12 +1,13 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { Fragment, useRef, useState, type ReactNode } from 'react'
 import type { ForecastInput, ForecastResult, ForecastRow } from '@shared/calc/forecast'
-import { forecastColumnsVisible, forecastTable, forecastTsv, goalName } from '@shared/export/forecast'
+import { forecastColumnsVisible, forecastTable, forecastTsv, forecastYears, goalName, type ForecastYear } from '@shared/export/forecast'
 import type { Forecast } from '@shared/schema'
 import { api, errorMessage } from '../../lib/api'
-import { fmtAmount, fmtPct, fmtPctShort, parseAmountInput as parseDeposit } from '../../lib/format'
+import { countLabel, fmtAmount, fmtPct, fmtPctShort, parseAmountInput as parseDeposit } from '../../lib/format'
 import { toast } from '../../store/ui'
 import { Badge, Panel, cx } from '../../components/ui'
 import { updateScenario } from './actions'
+import { useForecastSession } from './session'
 import { tableDescription } from './texts'
 
 /** "Miesiąc po miesiącu" (chapter 7). */
@@ -17,6 +18,20 @@ export function MonthTable({ scenario, input, result, readOnly }: { scenario: Fo
   const inputs = useRef(new Map<number, HTMLInputElement>())
   const hasCustom = Object.keys(scenario.deposits).length > 0
   const names = new Map(scenario.goals.map((g) => [g.id, goalName(g.name)]))
+  const years = forecastYears(result, input)
+  const collapsed = useForecastSession((s) => s.collapsed)
+  const yearKey = (year: number) => `${scenario.id}:${year}`
+  const isCollapsed = (year: number) => !!collapsed[yearKey(year)]
+  const allCollapsed = years.every((y) => isCollapsed(y.year))
+  const setCollapsed = (keys: string[], on: boolean) =>
+    useForecastSession.setState((st) => {
+      const next = { ...st.collapsed }
+      for (const k of keys) {
+        if (on) next[k] = true
+        else delete next[k]
+      }
+      return { collapsed: next }
+    })
 
   const setDeposit = (k: number, v: number | null) =>
     updateScenario(scenario.id, (f) => {
@@ -25,11 +40,15 @@ export function MonthTable({ scenario, input, result, readOnly }: { scenario: Fo
       else deposits[String(k)] = v
       return { ...f, deposits }
     })
-  const focusMonth = (k: number) => {
-    const el = inputs.current.get(k)
-    if (!el) return
-    el.focus()
-    el.select()
+  /** Next visible month in that direction (months of collapsed years are skipped). */
+  const focusMonth = (from: number, dir: 1 | -1) => {
+    for (let k = from + dir; k >= 1 && k <= input.horizon; k += dir) {
+      const el = inputs.current.get(k)
+      if (!el) continue
+      el.focus()
+      el.select()
+      return
+    }
   }
   const copy = async () => {
     try {
@@ -62,6 +81,13 @@ export function MonthTable({ scenario, input, result, readOnly }: { scenario: Fo
               Przywróć standardowe wpłaty
             </button>
           )}
+          <button
+            className="btn h-[22px] px-2 text-[11.5px]"
+            onClick={() => setCollapsed(years.map((y) => yearKey(y.year)), !allCollapsed)}
+            data-testid="fc-years-toggle"
+          >
+            {allCollapsed ? 'Rozwiń lata' : 'Zwiń lata'}
+          </button>
           <button className="btn h-[22px] px-2 text-[11.5px]" onClick={copy} data-testid="fc-copy">
             Kopiuj tabelę
           </button>
@@ -98,25 +124,53 @@ export function MonthTable({ scenario, input, result, readOnly }: { scenario: Fo
               </tr>
             </thead>
             <tbody>
-              {result.rows.map((row) => (
-                <MonthRow
-                  key={row.k}
-                  row={row}
-                  scenario={scenario}
-                  visible={visible}
-                  pipsMode={pipsMode}
-                  names={names}
-                  readOnly={readOnly}
-                  inputRef={(el) => (el ? inputs.current.set(row.k, el) : inputs.current.delete(row.k))}
-                  onDeposit={setDeposit}
-                  onNav={(dir) => focusMonth(row.k + dir)}
-                />
+              {years.map((y) => (
+                <Fragment key={y.year}>
+                  {!isCollapsed(y.year) &&
+                    result.rows.slice(y.fromK - 1, y.toK).map((row) => (
+                      <MonthRow
+                        key={row.k}
+                        row={row}
+                        scenario={scenario}
+                        visible={visible}
+                        pipsMode={pipsMode}
+                        names={names}
+                        readOnly={readOnly}
+                        inputRef={(el) => (el ? inputs.current.set(row.k, el) : inputs.current.delete(row.k))}
+                        onDeposit={setDeposit}
+                        onNav={(dir) => focusMonth(row.k, dir)}
+                      />
+                    ))}
+                  <YearRow year={y} visible={visible} collapsed={isCollapsed(y.year)} onToggle={() => setCollapsed([yearKey(y.year)], !isCollapsed(y.year))} />
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
       </div>
     </Panel>
+  )
+}
+
+/** Summary of a calendar year (chapter 7.3); a click folds / unfolds its months. */
+function YearRow({ year: y, visible, collapsed, onToggle }: { year: ForecastYear; visible: ReturnType<typeof forecastColumnsVisible>; collapsed: boolean; onToggle: () => void }) {
+  return (
+    <tr className="fc-year cursor-default" onClick={onToggle} data-testid={`fc-year-${y.year}`} aria-expanded={!collapsed}>
+      <td className="fc-sticky font-medium text-fg-strong">
+        <span className="inline-block w-[12px] text-muted">{collapsed ? '▸' : '▾'}</span>Rok {y.year}
+      </td>
+      <td className={cx('text-right', y.rate < 0 && 'text-down')}>{fmtPct(y.rate * 100)}</td>
+      <td className="text-right">{fmtAmount(y.deposit)}</td>
+      {visible.tax && <td className="text-right">{y.tax > 0 ? fmtAmount(y.tax) : ''}</td>}
+      {visible.pips && <td />}
+      {visible.lot && <td />}
+      <td />
+      <td className={cx('text-right', y.profit < 0 && 'text-down')}>{fmtAmount(y.profit)}</td>
+      <td className="text-right">{fmtAmount(y.payout)}</td>
+      <td className="text-right">{fmtAmount(y.pot)}</td>
+      {visible.goals && <td className="text-left font-sans">{y.buys ? `${countLabel(y.buys, 'cel', 'cele', 'celów')} · ${fmtAmount(y.spent)}` : '—'}</td>}
+      <td className="text-right font-medium text-fg-strong">{fmtAmount(y.end)}</td>
+    </tr>
   )
 }
 

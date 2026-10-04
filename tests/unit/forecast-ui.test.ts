@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { simulateForecast } from '@shared/calc/forecast'
 import { createForecast } from '@shared/defaults'
-import { forecastColumnsVisible, forecastTable, forecastTsv, shortPercent } from '@shared/export/forecast'
+import { forecastColumnsVisible, forecastTable, forecastTsv, forecastYears, shortPercent } from '@shared/export/forecast'
 import { forecastInputFrom } from '@shared/forecast-input'
 import { newId } from '@shared/ids'
 import { settingsSchema, type Forecast } from '@shared/schema'
@@ -234,5 +234,74 @@ describe('teksty strony prognozy', () => {
     expect(parseDeposit('abc')).toBeUndefined()
     expect(parseDeposit('1e5')).toBeUndefined()
     expect(parseDeposit('2000000000000')).toBeUndefined()
+  })
+})
+
+describe('usprawnienia w tabeli', () => {
+  it('forecastTable: kolumny podatku, pipsów i lota tylko wtedy, gdy są w tabeli', () => {
+    const base = t1({ gain: 'pips' })
+    const all = t1({
+      gain: 'pips',
+      tax: { enabled: true, ratePercent: 19, payMonth: 4 },
+      pips: { ...base.pips, pipsMode: 'random', pipsLo: 100, pipsHi: 300, lotMode: 'risk', lotMax: 5 },
+      loss: { probability: 25, pctLo: 2, pctHi: 5, pipsLo: 50, pipsHi: 150 }
+    })
+    const { input, result } = run(all)
+    const table = forecastTable(result, all, input)
+    expect(table.columns.map((c) => c.header)).toEqual([
+      'Nr miesiąca',
+      'Miesiąc',
+      'Zwrot [%]',
+      'Wpłata',
+      'Podatek',
+      'Pipsy',
+      'Lot',
+      'Kapitał na początku',
+      'Zysk',
+      'Wypłata (10%)',
+      'Odłożona gotówka',
+      'Cel zakupowy',
+      'Kwota na cel',
+      'Kapitał na koniec'
+    ])
+    const col = (h: string) => table.columns.findIndex((c) => c.header === h)
+    for (const [i, row] of table.rows.entries()) {
+      const r = result.rows[i]!
+      expect(row[col('Pipsy')]).toBeCloseTo(r.pips!, 2)
+      expect(row[col('Lot')]).toBeCloseTo(r.lot!, 4)
+      expect(row[col('Podatek')]).toBe(r.tax > 0 ? Number(r.tax.toFixed(2)) : null)
+    }
+    expect(table.rows.some((r) => (r[col('Podatek')] as number) > 0)).toBe(true)
+    // stały lot i stałe pipsy bez strat: bez kolumn pipsów i lota
+    const plain = run(base)
+    expect(forecastTable(plain.result, base, plain.input).columns.map((c) => c.key)).not.toContain('pips')
+    // miesiące stratne pokazują pipsy także przy stałych pipsach
+    const lossy = t1({ gain: 'pips', loss: { probability: 25, pctLo: 2, pctHi: 5, pipsLo: 50, pipsHi: 150 } })
+    expect(forecastColumnsVisible(lossy, run(lossy).input)).toEqual({ tax: false, pips: true, lot: false, goals: true })
+  })
+
+  it('podsumowania roczne: zwrot składany, sumy roku, stan na koniec roku', () => {
+    const f = t1({ tax: { enabled: true, ratePercent: 19, payMonth: 4 }, deposits: { '5': -1000 } })
+    const { input, result } = run(f)
+    const years = forecastYears(result, input)
+    expect(years.map((y) => [y.year, y.fromK, y.toK])).toEqual([
+      [2026, 1, 2],
+      [2027, 3, 14],
+      [2028, 15, 26],
+      [2029, 27, 38],
+      [2030, 39, 50]
+    ])
+    expect(years[0]!.rate).toBeCloseTo(1.11 * 1.11 - 1, 12)
+    expect(years[1]!.rate).toBeCloseTo(1.11 ** 12 - 1, 10)
+    const sum = (k: 'profit' | 'payout' | 'tax' | 'deposit' | 'spent') => years.reduce((s, y) => s + y[k], 0)
+    expect(sum('profit')).toBeCloseTo(result.totals.profit, 6)
+    expect(sum('payout')).toBeCloseTo(result.totals.payout, 6)
+    expect(sum('tax')).toBeCloseTo(result.totals.taxPaid, 6)
+    expect(sum('spent')).toBeCloseTo(result.totals.spent, 6)
+    expect(sum('deposit')).toBeCloseTo(result.totals.paidIn - 10000 - result.totals.withdrawn, 6)
+    expect(years[1]!.end).toBe(result.rows[13]!.end)
+    expect(years[1]!.pot).toBe(result.rows[13]!.pot)
+    expect(years[1]!.buys).toBe(2) // Cel 1 (mies. 6) i Cel 2 (mies. 12)
+    expect(years[4]!.toK).toBe(50)
   })
 })

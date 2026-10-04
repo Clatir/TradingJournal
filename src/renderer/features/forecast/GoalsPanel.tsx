@@ -172,6 +172,14 @@ function GoalRow({
           data-testid={testId('amount')}
         />
         <span className="num text-[11.5px] text-muted">{scenario.currency}</span>
+        <span
+          className={cx('ml-1 text-[11.5px]', goal.amount == null && 'pointer-events-none opacity-40')}
+          title={goal.amount == null ? 'Dotyczy celu z kwotą' : 'Gdy czeka na swoją kwotę, nie wstrzymuje kolejnych celów'}
+          aria-disabled={goal.amount == null}
+          data-testid={testId('flex')}
+        >
+          <Toggle checked={goal.flexible} onChange={(flexible) => goal.amount != null && set({ flexible })} label="może poczekać" />
+        </span>
       </div>
       <div
         className={cx('pl-[36px] text-[11.5px]', status?.tone === 'warn' ? 'text-accent' : status?.tone === 'dim' ? 'text-dim' : 'text-fg')}

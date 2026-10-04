@@ -3,7 +3,7 @@ import { instrumentMinLot, selectableInstruments } from '@shared/instruments'
 import type { Forecast, Settings } from '@shared/schema'
 import { navigate } from '../../store/ui'
 import { RateField } from '../../components/RateField'
-import { CurrencyInput, Field as BaseField, Panel, Segmented } from '../../components/ui'
+import { CurrencyInput, Field as BaseField, Panel, Segmented, Toggle } from '../../components/ui'
 import { rerollDraws, updateScenario } from './actions'
 import { MONTH_NAMES, Num } from './fields'
 import { fixedPipsSummary, lotHint, pipValueText } from './texts'
@@ -11,7 +11,7 @@ import { fixedPipsSummary, lotHint, pipValueText } from './texts'
 const SEGMENTED_MAX = 6
 
 /** Fields of this panel have longer labels ("Tryb prognozy zysku", "Waluta scenariusza"). */
-const Field = (props: Parameters<typeof BaseField>[0]) => <BaseField labelWidth={140} {...props} />
+const Field = (props: Parameters<typeof BaseField>[0]) => <BaseField labelWidth={168} {...props} />
 
 /** "Zysk i kapitał" (chapter 6.2–6.3). */
 export function GainPanel({ scenario, settings, outcome }: { scenario: Forecast; settings: Settings; outcome: ForecastInputOutcome }) {
@@ -82,6 +82,8 @@ export function GainPanel({ scenario, settings, outcome }: { scenario: Forecast;
           <PipsSection scenario={scenario} settings={settings} outcome={outcome} />
         )}
 
+        <LossSection scenario={scenario} />
+
         <div className="label mt-2">Kapitał i okres</div>
         <Field label="Kapitał na start" hint="w 1. miesiącu">
           <span className="flex items-center gap-1.5">
@@ -113,8 +115,101 @@ export function GainPanel({ scenario, settings, outcome }: { scenario: Forecast;
         <Field label="Waluta scenariusza" hint="Zmiana waluty nie przelicza kwot — zmienia tylko ich oznaczenie i kurs w trybie pipsowym.">
           <CurrencyInput className="w-[76px]" value={cur} onChange={(currency) => set({ currency })} aria-label="Waluta scenariusza" data-testid="fc-currency" />
         </Field>
+
+        <TaxSection scenario={scenario} />
       </div>
     </Panel>
+  )
+}
+
+/** "Miesiące stratne" (chapter 5.4), for both modes. */
+function LossSection({ scenario }: { scenario: Forecast }) {
+  const l = scenario.loss
+  const setLoss = (patch: Partial<Forecast['loss']>) => updateScenario(scenario.id, (f) => ({ ...f, loss: { ...f.loss, ...patch } }))
+  const pips = scenario.gain === 'pips'
+  const fixedGain = pips ? scenario.pips.pipsMode === 'fixed' : scenario.pct.mode === 'fixed'
+  const unit = pips ? 'pipsy' : '% kapitału'
+  const lo = pips ? l.pipsLo : l.pctLo
+  const hi = pips ? l.pipsHi : l.pctHi
+  const max = pips ? 1e9 : 100
+  return (
+    <>
+      <div className="label mt-2">Miesiące stratne</div>
+      <Field label="Szansa na miesiąc stratny" hint="0 = bez miesięcy stratnych">
+        <span className="flex items-center gap-1.5">
+          <Num value={l.probability} onChange={(v) => v != null && setLoss({ probability: v })} min={0} max={100} step={1} className="w-[86px]" aria-label="Szansa na miesiąc stratny" data-testid="fc-loss-prob" />
+          <span className="text-muted">%</span>
+        </span>
+      </Field>
+      {l.probability > 0 && (
+        <Field label="Strata od – do">
+          <span className="flex items-center gap-1.5">
+            <Num
+              value={lo}
+              onChange={(v) => v != null && setLoss(pips ? { pipsLo: v } : { pctLo: v })}
+              min={0}
+              max={max}
+              step={pips ? 10 : 0.5}
+              className="w-[86px]"
+              aria-label="Strata od"
+              data-testid="fc-loss-lo"
+            />
+            <span className="text-muted">–</span>
+            <Num
+              value={hi}
+              onChange={(v) => v != null && setLoss(pips ? { pipsHi: v } : { pctHi: v })}
+              min={0}
+              max={max}
+              step={pips ? 10 : 0.5}
+              className="w-[86px]"
+              aria-label="Strata do"
+              data-testid="fc-loss-hi"
+            />
+            <span className="text-muted">{unit}</span>
+            {fixedGain && (
+              <button className="btn ml-2" onClick={() => rerollDraws(scenario.id)} data-testid="fc-reroll-loss">
+                Losuj ponownie
+              </button>
+            )}
+          </span>
+        </Field>
+      )}
+    </>
+  )
+}
+
+/** "Podatek od zysków" (chapter 5.5). */
+function TaxSection({ scenario }: { scenario: Forecast }) {
+  const t = scenario.tax
+  const setTax = (patch: Partial<Forecast['tax']>) => updateScenario(scenario.id, (f) => ({ ...f, tax: { ...f.tax, ...patch } }))
+  return (
+    <>
+      <div className="label mt-2">Podatek od zysków</div>
+      <Toggle checked={t.enabled} onChange={(enabled) => setTax({ enabled })} label="Uwzględnij podatek" data-testid="fc-tax" />
+      {t.enabled && (
+        <>
+          <Field label="Stawka">
+            <span className="flex items-center gap-1.5">
+              <Num value={t.ratePercent} onChange={(v) => v != null && setTax({ ratePercent: v })} min={0} max={100} step={1} className="w-[86px]" aria-label="Stawka podatku" data-testid="fc-tax-rate" />
+              <span className="text-muted">%</span>
+            </span>
+          </Field>
+          <Field label="Miesiąc zapłaty">
+            <select className="input w-[150px]" value={t.payMonth} onChange={(e) => setTax({ payMonth: Number(e.currentTarget.value) })} aria-label="Miesiąc zapłaty podatku" data-testid="fc-tax-month">
+              {MONTH_NAMES.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <p className="text-[11.5px] text-muted">
+            Uproszczenie: podatek = stawka × dodatni zysk roku kalendarzowego, płatny w wybranym miesiącu następnego roku, bez rozliczania strat z lat poprzednich. To nie
+            jest porada podatkowa.
+          </p>
+        </>
+      )}
+    </>
   )
 }
 
@@ -158,22 +253,107 @@ function PipsSection({ scenario, settings, outcome }: { scenario: Forecast; sett
           </select>
         )}
       </Field>
-      <Field label="Pipsy w miesiącu" hint="łączny wynik miesiąca w pipsach">
-        <Num value={p.pips} onChange={(v) => v != null && setPips({ pips: v })} min={-1e9} max={1e9} maxDecimals={2} step={10} aria-label="Pipsy w miesiącu" data-testid="fc-pips" />
-      </Field>
-      <Field label="Wielkość lota" hint={p.lot > 0 ? lotHint(p.lot, minLot) : undefined}>
-        <Num
-          value={p.lot}
-          onChange={(v) => v != null && setPips({ lot: v })}
-          min={0}
-          max={1e9}
-          maxDecimals={6}
-          step={minLot}
-          isValid={(v) => v == null || v > 0}
-          aria-label="Wielkość lota"
-          data-testid="fc-lot"
+      <Field label="Pipsy w miesiącu">
+        <Segmented
+          value={p.pipsMode}
+          options={[
+            { value: 'fixed', label: 'Stałe' },
+            { value: 'random', label: 'Losowe z zakresu' }
+          ]}
+          onChange={(pipsMode) => setPips({ pipsMode })}
+          size="sm"
+          aria-label="Pipsy w miesiącu"
         />
       </Field>
+      {p.pipsMode === 'fixed' ? (
+        <Field label="" hint="łączny wynik miesiąca w pipsach">
+          <Num value={p.pips} onChange={(v) => v != null && setPips({ pips: v })} min={-1e9} max={1e9} maxDecimals={2} step={10} aria-label="Pipsy w miesiącu (stałe)" data-testid="fc-pips" />
+        </Field>
+      ) : (
+        <Field label="" hint="każdy miesiąc dostaje osobno wylosowaną liczbę pipsów z tego zakresu (może być ujemna)">
+          <span className="flex items-center gap-1.5">
+            <span className="text-[11.5px] text-muted">od</span>
+            <Num value={p.pipsLo} onChange={(v) => v != null && setPips({ pipsLo: v })} min={-1e9} max={1e9} maxDecimals={2} step={10} className="w-[86px]" aria-label="Pipsy od" data-testid="fc-pips-lo" />
+            <span className="text-[11.5px] text-muted">do</span>
+            <Num value={p.pipsHi} onChange={(v) => v != null && setPips({ pipsHi: v })} min={-1e9} max={1e9} maxDecimals={2} step={10} className="w-[86px]" aria-label="Pipsy do" data-testid="fc-pips-hi" />
+            <button className="btn ml-2" onClick={() => rerollDraws(id)} data-testid="fc-reroll-pips">
+              Losuj ponownie
+            </button>
+          </span>
+        </Field>
+      )}
+      <Field label="Wielkość lota">
+        <Segmented
+          value={p.lotMode}
+          options={[
+            { value: 'fixed', label: 'Stały lot' },
+            { value: 'perCapital', label: 'Lot na kwotę kapitału' },
+            { value: 'risk', label: 'Lot z ryzyka' }
+          ]}
+          onChange={(lotMode) => setPips({ lotMode })}
+          size="sm"
+          aria-label="Wielkość lota"
+        />
+      </Field>
+      {p.lotMode === 'fixed' && (
+        <Field label="" hint={p.lot > 0 ? lotHint(p.lot, minLot) : undefined}>
+          <Num
+            value={p.lot}
+            onChange={(v) => v != null && setPips({ lot: v })}
+            min={0}
+            max={1e9}
+            maxDecimals={6}
+            step={minLot}
+            isValid={(v) => v == null || v > 0}
+            aria-label="Wielkość lota (stała)"
+            data-testid="fc-lot"
+          />
+        </Field>
+      )}
+      {p.lotMode === 'perCapital' && (
+        <Field label="">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Num value={p.lotPer} onChange={(v) => v != null && setPips({ lotPer: v })} max={1e9} maxDecimals={6} step={minLot} isValid={(v) => v == null || v > 0} className="w-[80px]" aria-label="Lota na kwotę" data-testid="fc-lot-per" />
+            <span className="text-[11.5px] text-muted">lota na każde</span>
+            <Num value={p.lotPerAmount} onChange={(v) => v != null && setPips({ lotPerAmount: v })} max={1e12} format="money" step={100} isValid={(v) => v == null || v > 0} className="w-[100px]" aria-label="Kwota kapitału na lot" data-testid="fc-lot-per-amount" />
+            <span className="text-[11.5px] text-muted">
+              <span className="num">{cur}</span> kapitału
+            </span>
+          </span>
+        </Field>
+      )}
+      {p.lotMode === 'risk' && (
+        <>
+          <Field label="Ryzyko">
+            <span className="flex items-center gap-1.5">
+              <Num value={p.riskPercent} onChange={(v) => v != null && setPips({ riskPercent: v })} max={100} step={0.25} isValid={(v) => v == null || v > 0} className="w-[86px]" aria-label="Ryzyko" data-testid="fc-risk" />
+              <span className="text-muted">%</span>
+            </span>
+          </Field>
+          <Field label="Stop loss">
+            <span className="flex items-center gap-1.5">
+              <Num value={p.stopPips} onChange={(v) => v != null && setPips({ stopPips: v })} max={1e9} step={1} isValid={(v) => v == null || v > 0} className="w-[86px]" aria-label="Stop loss w pipsach" data-testid="fc-stop" />
+              <span className="text-[11.5px] text-muted">pipsy</span>
+            </span>
+          </Field>
+        </>
+      )}
+      {p.lotMode !== 'fixed' && (
+        <Field label="Maksymalny lot" hint="Lot liczony co miesiąc od kapitału na początku miesiąca i zaokrąglany w dół do najmniejszego lota.">
+          <Num
+            value={p.lotMax}
+            onChange={(lotMax) => setPips({ lotMax })}
+            nullable
+            max={1e9}
+            maxDecimals={6}
+            step={minLot}
+            isValid={(v) => v == null || v > 0}
+            placeholder="bez limitu"
+            aria-label="Maksymalny lot"
+            data-testid="fc-lot-max"
+          />
+        </Field>
+      )}
       <Field
         label="Wartość pipsa"
         hint={

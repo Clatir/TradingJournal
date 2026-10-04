@@ -292,3 +292,80 @@ test('prognoza: tryb pipsowy z kursem NBP z lokalnego serwera (T7)', async () =>
     server.close()
   }
 })
+
+test('prognoza: podatek, miesiące stratne, „może poczekać”, pipsy losowe, lot z ryzyka, podsumowania roczne', async () => {
+  const { server, url } = await nbpServer()
+  const { app, page, errors } = await launch({ env: { ICTJ_NBP_URL: url, ICTJ_NBP_FETCH_DELAY_MS: '200' } })
+  const headers = () => page.getByTestId('fc-table').locator('thead th').allInnerTexts()
+  try {
+    await firstScenarioLikeT1(page)
+    // Tax: a column, the summary cells and the yearly rows.
+    expect((await headers()).join('|')).not.toContain('Podatek')
+    await page.getByTestId('fc-tax').getByRole('switch').click()
+    await expect(page.getByTestId('fc-tax-rate')).toHaveValue('19')
+    await expect(page.getByTestId('fc-tax-month')).toHaveValue('4')
+    await expect.poll(async () => (await headers()).some((h) => h.startsWith('Podatek'))).toBe(true)
+    await expect(page.getByTestId('fc-sum-tax')).toBeVisible()
+    await expect(page.getByTestId('fc-sum-tax-sub')).toContainText('do zapłaty po okresie:')
+    // tax for 2026 (2 months) is paid in April 2027 = month 6
+    await expect(page.getByTestId('fc-row-6').locator('td').nth(3)).not.toHaveText('')
+    await expect(page.getByTestId('fc-row-5').locator('td').nth(3)).toHaveText('')
+
+    // Yearly rows; folding one year and all of them.
+    await expect(page.getByTestId('fc-year-2027')).toContainText('Rok 2027')
+    await expect(page.getByTestId('fc-year-2027')).toContainText('2 cele')
+    await page.getByTestId('fc-year-2027').click()
+    await expect(page.getByTestId('fc-row-5')).toHaveCount(0)
+    await expect(page.getByTestId('fc-row-15')).toBeVisible()
+    await page.getByTestId('fc-year-2027').click()
+    await expect(page.getByTestId('fc-row-5')).toBeVisible()
+    await page.getByTestId('fc-years-toggle').click()
+    await expect(page.getByTestId('fc-table').locator('tbody tr')).toHaveCount(5)
+    await expect(page.getByTestId('fc-years-toggle')).toHaveText('Rozwiń lata')
+    await page.getByTestId('fc-years-toggle').click()
+    await expect(page.getByTestId('fc-table').locator('tbody tr')).toHaveCount(55)
+
+    // "Może poczekać": only with an amount; a waiting goal does not block the next ones.
+    await expect(page.getByTestId('fc-goal-1-flex')).toHaveAttribute('aria-disabled', 'true')
+    await fill(page, 'fc-goal-1-amount', '50000000')
+    await expect(page.getByTestId('fc-goal-2-status')).toHaveText('Czeka na cel „Cel 1”, który nie uzbierał się do końca tabeli.')
+    await page.getByTestId('fc-goal-1-flex').getByRole('switch').click()
+    await expect(page.getByTestId('fc-goal-1-status')).toContainText('Nie uzbierał się do końca tabeli: w gotówce jest')
+    await expect(page.getByTestId('fc-goal-2-status')).toContainText('w mies. 12 (10-2027)')
+    await expect(page.getByTestId('fc-sum-spent-sub')).toHaveText('kupione: 2 cele, 1 czeka')
+
+    // Loss months (percent mode): range, re-draw, the summary counts them; losing months are red.
+    await fill(page, 'fc-loss-prob', '30')
+    await expect(page.getByTestId('fc-loss-lo')).toHaveValue('2')
+    await expect(page.getByTestId('fc-loss-hi')).toHaveValue('5')
+    await expect(page.getByTestId('fc-sum-mean-sub')).toContainText('stratnych miesięcy:')
+    await expect(page.getByTestId('fc-table').locator('td.text-down').first()).toBeVisible()
+    await page.getByTestId('fc-reroll-loss').click()
+    await expect(page.getByText('Wylosowano nowy scenariusz.')).toBeVisible()
+
+    // Pip mode: random pips (column Pipsy) and a lot from risk (column Lot) with a maximum.
+    await radio(page, 'Tryb prognozy zysku', 'Pipsowy').click()
+    await expect(page.getByTestId('fc-rate')).toHaveValue('3.8881', { timeout: 15_000 })
+    await expect.poll(async () => (await headers()).some((h) => h.startsWith('Pipsy'))).toBe(true) // losing months show pips
+    await radio(page, 'Pipsy w miesiącu', 'Losowe z zakresu').click()
+    await fill(page, 'fc-pips-lo', '-100')
+    await fill(page, 'fc-pips-hi', '300')
+    await expect(page.getByTestId('fc-reroll-pips')).toBeVisible()
+    await radio(page, 'Wielkość lota', 'Lot z ryzyka').click()
+    await fill(page, 'fc-risk', '1')
+    await fill(page, 'fc-stop', '20')
+    await fill(page, 'fc-lot-max', '0.5')
+    await expect.poll(async () => (await headers()).some((h) => h.startsWith('Lot'))).toBe(true)
+    await expect(page.getByTestId('fc-pips-summary')).toHaveText('Zysk zmienia się co miesiąc; lot i pipsy każdego miesiąca są w tabeli.')
+    // 1% of 10 000 PLN with SL 20 pips and 0.3888 PLN per pip for 0.01 lot → 0.12 lota
+    await expect(page.getByTestId('fc-row-1')).toContainText('0.12')
+    await radio(page, 'Wielkość lota', 'Lot na kwotę kapitału').click()
+    await expect(page.getByTestId('fc-lot-per')).toHaveValue('0.01')
+    await expect(page.getByTestId('fc-lot-per-amount')).toHaveValue('1000')
+    await page.screenshot({ path: shots('55-prognoza-usprawnienia') })
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+    server.close()
+  }
+})
