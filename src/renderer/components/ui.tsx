@@ -367,17 +367,20 @@ export const NameInput = forwardRef<
     value: string
     onChange: (v: string) => void
     validate?: (v: string) => string | null
+    /** Shown when the field is left empty (the old name stays); without it an empty name is ignored silently. */
+    emptyMessage?: string
     className?: string
     maxLength?: number
     placeholder?: string
     'aria-label'?: string
     'data-testid'?: string
   }
->(function NameInput({ value, onChange, validate, className, maxLength, placeholder, ...rest }, ref) {
+>(function NameInput({ value, onChange, validate, emptyMessage, className, maxLength, placeholder, ...rest }, ref) {
   const [draft, setDraft] = useState<string | null>(null)
   const apply = () => {
     const next = draft?.trim()
     setDraft(null)
+    if (draft != null && !next && emptyMessage) return toast(emptyMessage, 'error')
     if (!next || next === value) return
     const problem = validate?.(next) ?? null
     if (problem) return toast(problem, 'error')

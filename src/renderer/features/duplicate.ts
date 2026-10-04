@@ -2,6 +2,7 @@ import { shiftTradingDay } from '@shared/calc/time'
 import { copyDayPlanTo, duplicateLibraryItem, duplicateTrade } from '@shared/duplicate'
 import { addRecord, discardDraft, useJournal } from '../store/journal'
 import { navigate, toast, useUi } from '../store/ui'
+import { currentScenarioId, duplicateScenario } from './forecast/actions'
 
 /**
  * Null when the entry can be copied; otherwise the reason (already shown as a toast). An entry written by
@@ -87,5 +88,9 @@ export function duplicateCurrent(): void {
   else if (route.page === 'journal' && selectedTradeId) duplicateTradeEntry(selectedTradeId)
   else if (route.page === 'library' && route.id) duplicateLibraryEntry(route.id)
   else if (route.page === 'day') copyDayPlanToDate(route.date, shiftTradingDay(route.date, 1))
-  else toast('Duplikowanie: otwórz transakcję, przykład z biblioteki albo plan dnia.')
+  else if (route.page === 'forecast') {
+    const id = currentScenarioId(route.id)
+    if (id) duplicateScenario(id)
+    else toast('Nie ma jeszcze scenariusza do skopiowania.')
+  } else toast('Duplikowanie: otwórz transakcję, przykład z biblioteki, plan dnia albo scenariusz prognozy.')
 }

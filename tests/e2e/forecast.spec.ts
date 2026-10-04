@@ -39,7 +39,7 @@ async function firstScenarioLikeT1(page: Page) {
   await expect(page.getByTestId('fc-empty')).toBeVisible()
   await expect(page.getByTestId('fc-empty')).toContainText('Utwórz pierwszy scenariusz')
   await page.getByTestId('fc-create-first').click()
-  await expect(page.getByTestId('fc-name')).toHaveText('Scenariusz 1')
+  await expect(page.getByTestId('fc-name')).toHaveValue('Scenariusz 1')
   await fill(page, 'fc-currency', 'PLN')
   await radio(page, 'Rodzaj zwrotu', 'Stały').click()
   await fill(page, 'fc-pct-fixed', '11')
@@ -367,5 +367,169 @@ test('prognoza: podatek, miesiące stratne, „może poczekać”, pipsy losowe,
   } finally {
     await app.close()
     server.close()
+  }
+})
+
+test('prognoza: scenariusze – duplikuj, zmień nazwę, porównaj, usuń (plik znika z forecasts/)', async () => {
+  const { app, page, dataDir, errors } = await launch()
+  const files = async () => (await fs.readdir(join(dataDir, 'forecasts')).catch(() => [] as string[])).filter((n) => n.endsWith('.json'))
+  try {
+    await firstScenarioLikeT1(page)
+    await expect.poll(files, { timeout: 8000 }).toHaveLength(1)
+    // Duplicate (button): same draws and settings, name "(kopia)".
+    await page.getByTestId('fc-duplicate').click()
+    await expect(page.getByTestId('fc-name')).toHaveValue('Scenariusz 1 (kopia)')
+    await expect(page.getByText('Utworzono kopię: „Scenariusz 1 (kopia)”.')).toBeVisible()
+    await expect(page.getByTestId('fc-sum-end')).toHaveText('3 365 620.22 PLN')
+    // Ctrl+Shift+D: the next copy gets "(kopia 2)".
+    await page.getByTestId('fc-sum-end').click()
+    await page.keyboard.press('Control+Shift+D')
+    await expect(page.getByTestId('fc-name')).toHaveValue('Scenariusz 1 (kopia) (kopia)')
+    await expect.poll(files, { timeout: 8000 }).toHaveLength(3)
+
+    // Rename: empty and duplicate names are refused with a message.
+    const name = page.getByTestId('fc-name')
+    await name.fill('')
+    await name.press('Enter')
+    await expect(page.getByText('Nazwa scenariusza nie może być pusta.')).toBeVisible()
+    await expect(name).toHaveValue('Scenariusz 1 (kopia) (kopia)')
+    await name.fill('scenariusz 1')
+    await name.press('Enter')
+    await expect(page.getByText('Scenariusz „scenariusz 1” już jest.')).toBeVisible()
+    await name.fill('Fundusz 46%')
+    await name.press('Enter')
+    await expect(name).toHaveValue('Fundusz 46%')
+    // The list is sorted by name.
+    await expect(page.getByTestId('fc-scenario').locator('option')).toHaveText(['Fundusz 46%', 'Scenariusz 1', 'Scenariusz 1 (kopia)'])
+    await radio(page, 'Tryb odkładania', 'Fundusz celowy').click()
+    await page.getByTestId('fc-quick-46').click()
+
+    // Notes.
+    await page.getByTestId('fc-notes-toggle').click()
+    await page.getByTestId('fc-notes').fill('Wariant z funduszem celowym')
+
+    // Compare with "Scenariusz 1" (cash): different saving modes → only comparable rows.
+    await page.getByTestId('fc-compare').selectOption({ label: 'Scenariusz 1' })
+    await expect(page.getByTestId('fc-compare-panel')).toContainText('różne tryby odkładania')
+    await expect(page.getByTestId('fc-cmp-end')).toContainText('3 365 620.22 PLN')
+    // goals without an amount take the whole fund out of the mass, so the sign depends on the numbers: just green or red
+    await expect(page.getByTestId('fc-cmp-end-diff')).toHaveClass(/text-(up|down)/)
+    await expect(page.getByTestId('fc-cmp-end-diff')).toHaveText(/^[+−]\d/)
+    await expect(page.getByTestId('fc-cmp-mean-diff')).toHaveText('0.00%')
+    await expect(page.getByTestId('fc-compare-panel')).toContainText('mies. 6 (4-2027)')
+    await page.screenshot({ path: shots('56-prognoza-porownanie'), fullPage: true })
+    // The same mode: all summary rows; the copy without changes differs by zero.
+    await page.getByTestId('fc-scenario').selectOption({ label: 'Scenariusz 1 (kopia)' })
+    await page.getByTestId('fc-compare').selectOption({ label: 'Scenariusz 1' })
+    await expect(page.getByTestId('fc-cmp-last')).toBeVisible()
+    await expect(page.getByTestId('fc-cmp-end-diff')).toHaveText('0.00 PLN')
+    await page.getByTestId('fc-compare').selectOption({ label: '—' })
+    await expect(page.getByTestId('fc-compare-panel')).toHaveCount(0)
+
+    // Delete with the in-page confirmation; the file goes away.
+    const before = await files()
+    await page.getByTestId('fc-delete').click()
+    await expect(page.getByTestId('fc-delete-question')).toHaveText(/Usunąć scenariusz „Scenariusz 1 \(kopia\)”\?/)
+    await page.getByTestId('fc-delete-cancel').click()
+    await expect(page.getByTestId('fc-delete-question')).toHaveCount(0)
+    await page.getByTestId('fc-delete').click()
+    await page.getByTestId('fc-delete-confirm').click()
+    await expect(page.getByTestId('fc-scenario').locator('option')).toHaveText(['Fundusz 46%', 'Scenariusz 1'])
+    await expect.poll(files, { timeout: 8000 }).toHaveLength(2)
+    expect(before.length - (await files()).length).toBe(1)
+    // Saving is asynchronous (debounced): wait until the files carry the last edits.
+    const readAll = async () => Promise.all((await files()).map(async (f) => JSON.parse(await fs.readFile(join(dataDir, 'forecasts', f), 'utf8'))))
+    await expect
+      .poll(async () => (await readAll()).map((f) => `${f.name}|${f.keep}|${f.payoutPercent}|${f.notes}`).sort(), { timeout: 8000 })
+      .toEqual(['Fundusz 46%|fund|46|Wariant z funduszem celowym', 'Scenariusz 1|cash|10|'])
+    const saved = await readAll()
+    expect(saved[0].draws).toEqual(saved[1].draws)
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+test('prognoza: po ponownym uruchomieniu scenariusz i losowania są te same; brakujące losowania są dolosowane', async () => {
+  const first = await launch()
+  let mean = ''
+  let end = ''
+  let file = ''
+  try {
+    await expect(first.page.getByTestId('journal-table')).toBeVisible()
+    await first.page.keyboard.press('Control+7')
+    await first.page.getByTestId('fc-create-first').click()
+    // the default return is random (7–10%)
+    await expect(radio(first.page, 'Rodzaj zwrotu', 'Losowy z zakresu')).toHaveAttribute('aria-checked', 'true')
+    await fill(first.page, 'fc-payout', '30')
+    mean = (await first.page.getByTestId('fc-sum-mean').textContent()) ?? ''
+    end = (await first.page.getByTestId('fc-sum-end').textContent()) ?? ''
+    expect(mean).toMatch(/^[789]\.\d\d%$/)
+    await expect.poll(async () => (await fs.readdir(join(first.dataDir, 'forecasts')).catch(() => [])).length, { timeout: 8000 }).toBe(1)
+    file = join(first.dataDir, 'forecasts', (await fs.readdir(join(first.dataDir, 'forecasts')))[0]!)
+    await expect.poll(async () => JSON.parse(await fs.readFile(file, 'utf8')).payoutPercent, { timeout: 8000 }).toBe(30)
+  } finally {
+    await first.app.close()
+  }
+  const draws = JSON.parse(await fs.readFile(file, 'utf8')).draws
+
+  const second = await launch({ dataDir: first.dataDir, userData: first.userData })
+  try {
+    await expect(second.page.getByTestId('journal-table')).toBeVisible()
+    await second.page.keyboard.press('Control+7')
+    await expect(second.page.getByTestId('fc-payout')).toHaveValue('30')
+    await expect(second.page.getByTestId('fc-sum-mean')).toHaveText(mean)
+    await expect(second.page.getByTestId('fc-sum-end')).toHaveText(end)
+    expect(JSON.parse(await fs.readFile(file, 'utf8')).draws).toEqual(draws)
+  } finally {
+    await second.app.close()
+  }
+
+  // A hand-edited file with fewer numbers: the missing ones are drawn when the scenario opens, the rest stay.
+  const edited = JSON.parse(await fs.readFile(file, 'utf8'))
+  edited.draws.rate = edited.draws.rate.slice(0, 10)
+  await fs.writeFile(file, `${JSON.stringify(edited, null, 2)}\n`)
+  const third = await launch({ dataDir: first.dataDir, userData: first.userData })
+  try {
+    await expect(third.page.getByTestId('journal-table')).toBeVisible()
+    await third.page.keyboard.press('Control+7')
+    await expect.poll(async () => JSON.parse(await fs.readFile(file, 'utf8')).draws.rate.length, { timeout: 8000 }).toBe(240)
+    const after = JSON.parse(await fs.readFile(file, 'utf8')).draws
+    expect(after.rate.slice(0, 10)).toEqual(draws.rate.slice(0, 10))
+    expect(after.loss).toEqual(draws.loss)
+    expect(third.errors).toEqual([])
+  } finally {
+    await third.app.close()
+  }
+})
+
+test('prognoza: folder tylko do odczytu – scenariusz widoczny, zmiany nie są przyjmowane', async () => {
+  const first = await launch()
+  try {
+    await firstScenarioLikeT1(first.page)
+    await expect.poll(async () => (await fs.readdir(join(first.dataDir, 'forecasts')).catch(() => [])).length, { timeout: 8000 }).toBe(1)
+  } finally {
+    await first.app.close()
+  }
+  // A folder written by a newer app version is read-only.
+  const journalPath = join(first.dataDir, 'journal.json')
+  const journal = JSON.parse(await fs.readFile(journalPath, 'utf8'))
+  await fs.writeFile(journalPath, `${JSON.stringify({ ...journal, schemaVersion: 99 }, null, 2)}\n`)
+  const second = await launch({ dataDir: first.dataDir, userData: first.userData })
+  try {
+    await expect(second.page.getByTestId('journal-table')).toBeVisible()
+    await second.page.keyboard.press('Control+7')
+    await expect(second.page.getByTestId('fc-name')).toHaveValue('Scenariusz 1')
+    await expect(second.page.getByTestId('fc-sum-end')).toHaveText('3 365 620.22 PLN')
+    await expect(second.page.getByTestId('fc-new')).toBeDisabled()
+    await expect(second.page.getByTestId('fc-duplicate')).toBeDisabled()
+    await expect(second.page.getByTestId('fc-delete')).toBeDisabled()
+    await expect(second.page.getByTestId('fc-goal-add')).toBeDisabled()
+    await fill(second.page, 'fc-payout', '50')
+    await expect(second.page.getByTestId('fc-payout')).toHaveValue('10')
+    await second.page.keyboard.press('Control+Shift+D')
+    await expect(second.page.getByTestId('fc-name')).toHaveValue('Scenariusz 1')
+  } finally {
+    await second.app.close()
   }
 })

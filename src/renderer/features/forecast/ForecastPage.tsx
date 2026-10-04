@@ -13,6 +13,8 @@ import { GoalsPanel } from './GoalsPanel'
 import { SummaryPanel } from './SummaryPanel'
 import { MonthTable } from './MonthTable'
 import { Explanations } from './Explanations'
+import { ScenarioBar } from './ScenarioBar'
+import { ComparePanel } from './ComparePanel'
 
 export interface ForecastComputation {
   outcome: ForecastInputOutcome
@@ -34,10 +36,14 @@ export function computeForecast(scenario: Forecast, settings: Settings): Forecas
 export function ForecastPage({ id }: { id?: string }) {
   const forecasts = useJournal((s) => s.forecasts)
   const settings = useJournal((s) => s.journal?.settings ?? null)
-  const readOnly = useJournal((s) => s.status?.readOnly ?? false)
+  const folderReadOnly = useJournal((s) => s.status?.readOnly ?? false)
   const lastId = useForecastSession((s) => s.lastId)
+  const compareId = useForecastSession((s) => s.compareId)
   const scenario = pickScenario(forecasts, id, lastId)
   const scenarioId = scenario?.id ?? null
+  const fileReadOnly = scenarioId ? (forecasts[scenarioId]?.readOnly ?? false) : false
+  const readOnly = folderReadOnly || fileReadOnly
+  const other = compareId && compareId !== scenarioId ? (forecasts[compareId]?.record ?? null) : null
 
   useEffect(() => {
     if (scenarioId && scenarioId !== useForecastSession.getState().lastId) useForecastSession.setState({ lastId: scenarioId })
@@ -53,6 +59,7 @@ export function ForecastPage({ id }: { id?: string }) {
   }, [scenarioId, readOnly])
 
   const computed = useMemo(() => (scenario && settings ? computeForecast(scenario, settings) : null), [scenario, settings])
+  const otherComputed = useMemo(() => (other && settings ? computeForecast(other, settings) : null), [other, settings])
 
   if (!settings) return null
   if (!scenario || !computed)
@@ -65,10 +72,10 @@ export function ForecastPage({ id }: { id?: string }) {
               Policz, ile zarobisz i wypłacisz w kolejnych miesiącach, kiedy uzbierasz na cele zakupowe i jak zmieni to fundusz celowy. Scenariusz zapisuje się w folderze
               danych, razem z dziennikiem.
             </p>
-            <button className="btn btn-accent" disabled={readOnly} onClick={() => createScenario()} data-testid="fc-create-first">
+            <button className="btn btn-accent" disabled={folderReadOnly} onClick={() => createScenario()} data-testid="fc-create-first">
               Utwórz pierwszy scenariusz
             </button>
-            {readOnly && <span className="text-[11.5px] text-accent">Folder jest tylko do odczytu.</span>}
+            {folderReadOnly && <span className="text-[11.5px] text-accent">Folder jest tylko do odczytu.</span>}
           </div>
         </Empty>
       </div>
@@ -79,18 +86,14 @@ export function ForecastPage({ id }: { id?: string }) {
   return (
     <div className="h-full overflow-y-auto px-3 pb-3" data-testid="forecast">
       <div className="mx-auto flex max-w-[1280px] flex-col gap-3">
-        <div className="flex items-center gap-2 pt-3" data-testid="fc-header">
-          <h1 className="text-[14px] font-medium text-fg-strong" data-testid="fc-name">
-            {scenario.name}
-          </h1>
-          <span className="num text-[11.5px] text-muted">{scenario.currency}</span>
-        </div>
+        <ScenarioBar key={scenario.id} scenario={scenario} readOnly={readOnly} fileReadOnly={fileReadOnly} folderReadOnly={folderReadOnly} />
         <PayoutBar scenario={scenario} readOnly={readOnly} />
         <div className="grid grid-cols-1 items-start gap-3 min-[1100px]:grid-cols-2">
           <GainPanel scenario={scenario} settings={settings} outcome={outcome} />
           <GoalsPanel scenario={scenario} input={input ?? fallbackInput(scenario)} result={result} cash={cash} readOnly={readOnly} />
         </div>
         <SummaryPanel scenario={scenario} input={input} result={result} cash={cash} />
+        {other && otherComputed && <ComparePanel scenario={scenario} computed={computed} other={other} otherComputed={otherComputed} />}
         {input && result ? (
           <MonthTable scenario={scenario} input={input} result={result} readOnly={readOnly} />
         ) : (
