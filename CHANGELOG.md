@@ -3,6 +3,18 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.2.1
+
+### Poprawki
+- **Kalkulator zysku / straty**
+  - Ręcznie wpisana wartość pipsa zachowuje znaczenie po zmianie kroku lota (albo najmniejszego lota instrumentu własnego). Wcześniej wynik mógł się po cichu zmienić 10×.
+  - Pola lotów i pipsów pokazują dokładnie to, co jest liczone (np. 0.015 lota, 12.25 pipsa), zamiast zaokrąglać wyświetlanie.
+  - Wynik 0 opisany jako „bez zmian”, czytelny komunikat przy ujemnej wielkości pozycji, duże kwoty z odstępami co 3 cyfry.
+- **Zmiana waluty konta**: kursy przeliczeniowe i ręczne wartości pipsa są pamiętane osobno dla każdej waluty, zamiast błędnie przechodzić na nową walutę.
+- **Krok lota 0.001**: kalkulator pozycji, edytor transakcji i eksport CSV nie obcinają lotów do 2 miejsc po przecinku.
+- **Słowniki**: zmiana nazwy na już istniejącą jest odrzucana z komunikatem. Nazwę (także killzone) można wyczyścić i wpisać od nowa; zmiana zapisuje się po wyjściu z pola.
+- **Killzone'y**: ostrzeżenie, gdy początek = koniec (taka killzone nigdy nie obejmie transakcji).
+
 ## 1.2.0
 
 ### Nowe

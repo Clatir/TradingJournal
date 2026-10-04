@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { newId } from '@shared/ids'
 import { pipsBetween, directionSign, exitR } from '@shared/calc/trade'
+import { lotDecimals, shownDecimals } from '@shared/calc/position'
 import type { DictionaryKey, ScreenRef, Trade, TradeExit } from '@shared/schema'
 import { api, errorMessage } from '../../lib/api'
 import { fmtMoney, fmtPips, fmtR, fmtRatio, tone, toneClass } from '../../lib/format'
@@ -389,7 +390,12 @@ export function TradeEditor({ id }: { id: string }) {
                 <NumberField value={t.riskPercent} onChange={(v) => setField('riskPercent', v)} decimals={2} step={0.05} />
               </Field>
               <Field label="Loty">
-                <NumberField value={t.lots} onChange={(v) => setField('lots', v)} decimals={2} step={0.01} />
+                <NumberField
+                  value={t.lots}
+                  onChange={(v) => setField('lots', v)}
+                  decimals={shownDecimals(t.lots, lotDecimals(settings.risk.lotStep))}
+                  step={settings.risk.lotStep}
+                />
               </Field>
               {showMoney && (
                 <>

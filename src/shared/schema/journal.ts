@@ -57,6 +57,20 @@ export const rulesSchema = z.looseObject({
 })
 export type RulesSettings = z.infer<typeof rulesSchema>
 
+/** 1.2.0 kept hand-entered pip values per smallest lot; they are converted to values per 1.00 lot. */
+function migrateLegacyPipValues<
+  R extends { lotStep: number; pipValues: Record<string, number>; pipValuesPerLot: Record<string, number>; customInstrument: { minLot: number | null } }
+>(r: R): R {
+  const legacy = Object.entries(r.pipValues)
+  if (!legacy.length) return r
+  const pipValuesPerLot = { ...r.pipValuesPerLot }
+  for (const [id, value] of legacy) {
+    const minLot = id === 'CUSTOM' ? (r.customInstrument.minLot ?? r.lotStep) : r.lotStep
+    if (pipValuesPerLot[id] == null) pipValuesPerLot[id] = Number((value / minLot).toFixed(10))
+  }
+  return { ...r, pipValues: {}, pipValuesPerLot }
+}
+
 export const settingsSchema = z.looseObject({
   pairs: z.array(pairConfigSchema).default([]),
   contextInstruments: z.array(z.string().min(1)).default(['DXY', 'EURX', 'FGBL1!', 'ZB1!']),
@@ -73,11 +87,27 @@ export const settingsSchema = z.looseObject({
       dailyMaxTrades: z.number().int().positive().nullable().default(3),
       /** Manually entered conversion rates: 1 unit of the key currency = value in account currency. */
       conversionRates: z.record(z.string(), z.number().positive()).default({}),
-      /**
-       * P/L calculator: value of one pip for the smallest lot (account currency) entered by hand, per
-       * instrument (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, CUSTOM). Without an entry it is calculated.
-       */
+      /** Legacy (1.2.0): hand-entered pip values per smallest lot; moved to `pipValuesPerLot` on load. */
       pipValues: z.record(z.string(), z.number().positive()).default({}),
+      /**
+       * P/L calculator: value of one pip for 1.00 lot (account currency) entered by hand, per instrument
+       * (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, CUSTOM); shown per smallest lot. Without an entry it is
+       * calculated. Per 1.00 lot, so changing the lot step does not change its meaning.
+       */
+      pipValuesPerLot: z.record(z.string(), z.number().positive()).default({}),
+      /**
+       * Conversion rates and hand-entered pip values belong to one account currency: switching the
+       * account currency parks them here and brings back the ones of the new currency.
+       */
+      byAccountCurrency: z
+        .record(
+          z.string(),
+          z.looseObject({
+            conversionRates: z.record(z.string(), z.number().positive()).default({}),
+            pipValuesPerLot: z.record(z.string(), z.number().positive()).default({})
+          })
+        )
+        .default({}),
       /** P/L calculator: own instrument (name, smallest lot; null = lotStep). */
       customInstrument: z
         .looseObject({
@@ -86,6 +116,7 @@ export const settingsSchema = z.looseObject({
         })
         .prefault({})
     })
+    .transform(migrateLegacyPipValues)
     .prefault({}),
   stats: z
     .looseObject({

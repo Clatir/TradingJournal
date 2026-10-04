@@ -47,6 +47,16 @@ export function presetPipValue(
   return round(preset.pipSize * (preset.contractSize ?? opts.fxContractSize) * opts.minLot * rate)
 }
 
+/** Value of one pip for `minLot` from the value for 1.00 lot (how hand-entered values are shown). */
+export function pipValueForMinLot(perLot: number, minLot: number): number {
+  return round(perLot * minLot, 8)
+}
+
+/** Value of one pip for 1.00 lot from the value for `minLot` (how hand-entered values are stored). */
+export function pipValuePerLotFrom(valueForMinLot: number, minLot: number): number {
+  return round(round(valueForMinLot, 8) / minLot, 10)
+}
+
 export interface PnlInput {
   lots: number
   /** Signed: negative = loss. */

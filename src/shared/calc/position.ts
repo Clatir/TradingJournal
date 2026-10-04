@@ -21,10 +21,23 @@ export interface PositionResult {
   actualRiskPercent: number
 }
 
-function stepDecimals(step: number): number {
-  const s = String(step)
+/** Decimal places of a step or value like 0.01 or 0.015 (float noise such as 0.30000000000000004 ignored). */
+export function stepDecimals(step: number): number {
+  if (!Number.isFinite(step) || step === 0) return 0
+  const s = Math.abs(step).toFixed(10).replace(/0+$/, '')
   const i = s.indexOf('.')
-  return i < 0 ? 0 : s.length - i - 1
+  return i < 0 || i === s.length - 1 ? 0 : s.length - i - 1
+}
+
+/** Decimals for showing lots: at least 2, more when the lot step is finer (0.001). */
+export function lotDecimals(lotStep: number): number {
+  return Math.max(2, Math.min(8, stepDecimals(lotStep)))
+}
+
+/** Decimals that show a value without hiding digits: at least `min`, at most 8. */
+export function shownDecimals(value: number | null | undefined, min: number): number {
+  if (value == null || !Number.isFinite(value)) return min
+  return Math.max(min, Math.min(8, stepDecimals(value)))
 }
 
 export function positionSize(input: PositionInput): PositionResult | null {

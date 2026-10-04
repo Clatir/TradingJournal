@@ -41,6 +41,12 @@ describe('CSV dla Excela (PL)', () => {
     expect(csvNumber(-1.5, 2)).toBe('-1,50')
     expect(csvNumber(null)).toBe('')
   })
+
+  it('loty bez obcinania cyfr (krok lota 0.001)', () => {
+    const row = (lots: number) => tradesToCsv([{ ...trade, lots }], journal).split('\r\n')[1]
+    expect(row(0.123)).toContain(';0,123;')
+    expect(row(0.4)).toContain(';0,40;')
+  })
 })
 
 describe('markdown', () => {

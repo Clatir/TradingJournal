@@ -109,9 +109,15 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   P/L = pipsy × wartość pipsa najmniejszego lota × loty / najmniejszy lot.
   - Presety AUDUSD/EURGBP/EURUSD/EURAUD: pips 0.0001, lot = `risk.contractSize`, przez kurs waluty kwotowanej.
   - Preset WTI: pips 0.01, 1 lot = 1000 baryłek.
-  - Ręczne wartości pipsa: `risk.pipValues[id]` (także `CUSTOM`).
+  - Ręczne wartości pipsa: `risk.pipValuesPerLot[id]` (także `CUSTOM`). Są zapisane **na 1 lot**, a pokazywane na
+    najmniejszy lot, więc zmiana kroku lota nie zmienia ich znaczenia. Wartości z 1.2.0 (`risk.pipValues`, na najmniejszy
+    lot) przelicza transform schematu przy wczytaniu.
   - Instrument własny: `risk.customInstrument {name, minLot}`; minLot null = `lotStep`.
   - Pola pomocnicze (instrument, loty, pipsy) pamiętane tylko w sesji.
+  - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
+    Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
+- Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do
+  `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta.
 
 ## Screeny (kalibracja)
 - Pipeline w rendererze: `createImageBitmap` → skalowanie w dół (połowienie + high quality) do max 2560 px →
@@ -186,6 +192,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   killzone, bias HTF (z sekcji pary w planie dnia, interwał w ustawieniach), SL poza płynnością (tak/nie/nie oceniono),
   dzień z newsami (tylko informacja). Ocena = spełnione / ocenialne; „zgodna” = brak złamanych.
 - Szkic (nowy wpis) przestaje być szkicem przy pierwszej edycji – opuszczenie ekranu nigdy nie gubi zmian.
+- Nazwy w ustawieniach (słowniki, killzone'y) i kody walut edytowane jako szkic, stosowane po wyjściu z pola
+  (`NameInput`, `CurrencyInput`): można wyczyścić i wpisać od nowa, duplikat nazwy jest odrzucany z komunikatem.
 - Limity dzienne liczone dla daty NY „dziś”: suma R zamkniętych i liczba transakcji (bez missed).
 - Kursy przeliczeniowe kalkulatora: `settings.risk.conversionRates` (1 waluta kwotowana = x waluty konta).
 
@@ -197,6 +205,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 5. ✅ Szlif wizualny, lightbox porównawczy, ściąga skrótów (`?`/F1), Ctrl+S, folder kopii per komputer, finalny build 1.0.0.
 6. ✅ 1.1.0: duplikowanie wpisów, aktualizacje z GitHub Releases (portable bez instalatora), wydania z CI.
 7. ✅ 1.2.0: kalkulator zysku / straty (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, instrument własny).
+8. ✅ 1.2.1: przegląd opcji – poprawki kalkulatorów, waluty konta, kroku lota, słowników i killzone'ów (`tests/e2e/settings.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

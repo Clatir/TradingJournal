@@ -35,6 +35,13 @@ export function fmtMoney(v: number | null | undefined, currency: string): string
   return `${signed(v, 2)} ${currency}`
 }
 
+/** Signed amount with grouped thousands (large P/L amounts): +1 250 000.00 USD. */
+export function fmtMoneyGrouped(v: number | null | undefined, currency: string): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  const [int, dec] = signed(v, 2).split('.')
+  return `${(int ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')}.${dec} ${currency}`
+}
+
 export function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`

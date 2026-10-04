@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { positionSize } from '@shared/calc/position'
+import { lotDecimals, positionSize } from '@shared/calc/position'
 import { fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
 import { metricsFor, useDailyLimits } from '../../store/derived'
 import { updateJournal, updateRecord, useJournal } from '../../store/journal'
@@ -40,12 +40,13 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
         })
       : null
 
+  const lotDec = lotDecimals(settings.risk.lotStep)
   const setRisk = (patch: Partial<typeof settings.risk>) => updateJournal((j) => ({ ...j, settings: { ...j.settings, risk: { ...j.settings.risk, ...patch } } }))
 
   const apply = () => {
     if (!tradeId || !result) return
     updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)) }))
-    toast(`Zapisano w transakcji: ${result.lots.toFixed(2)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${account}.`, 'success')
+    toast(`Zapisano w transakcji: ${result.lots.toFixed(lotDec)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${account}.`, 'success')
     navigate({ page: 'trade', id: tradeId })
   }
 
@@ -104,7 +105,7 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
             <div className="flex flex-col gap-3">
               <div className="flex items-baseline gap-3">
                 <span className="num text-[34px] leading-none font-medium text-fg-strong" data-testid="calc-lots">
-                  {result.lots.toFixed(2)}
+                  {result.lots.toFixed(lotDec)}
                 </span>
                 <span className="text-muted">lota</span>
                 <span className="num ml-auto text-[12px] text-dim">dokładnie {result.lotsExact.toFixed(4)}</span>

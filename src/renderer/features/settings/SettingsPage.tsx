@@ -7,6 +7,7 @@ import { fmtBytes, parseClockInput } from '../../lib/format'
 import { flushSaves, openResult, updateJournal, useJournal } from '../../store/journal'
 import { navigate, toast, useUi, type SettingsTab } from '../../store/ui'
 import { enterSample, exitSample } from '../sample/sample'
+import { switchAccountCurrency } from '@shared/risk'
 import { TransferTab } from './TransferTab'
 import { UpdatesTab } from './UpdatesTab'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
@@ -247,7 +248,17 @@ function PairsTab({ journal }: { journal: JournalFile }) {
  * Three-letter currency code. Edited as a draft and applied on blur/Enter: applying every keystroke
  * would reject the intermediate one- and two-letter states and snap the field back.
  */
-function CurrencyInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+function CurrencyInput({
+  value,
+  onChange,
+  className,
+  ...rest
+}: {
+  value: string
+  onChange: (v: string) => void
+  className?: string
+  'data-testid'?: string
+}) {
   const [draft, setDraft] = useState<string | null>(null)
   const valid = (t: string) => /^[A-Z]{3}$/.test(t)
   return (
@@ -255,6 +266,7 @@ function CurrencyInput({ value, onChange, className }: { value: string; onChange
       className={cx('input num', className)}
       value={draft ?? value}
       spellCheck={false}
+      data-testid={rest['data-testid']}
       aria-invalid={draft != null && !valid(draft)}
       onFocus={(e) => e.currentTarget.select()}
       onChange={(e) => setDraft(e.currentTarget.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3))}
@@ -263,6 +275,39 @@ function CurrencyInput({ value, onChange, className }: { value: string; onChange
         setDraft(null)
       }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
+  )
+}
+
+/**
+ * A name edited as a draft and applied on blur/Enter: it can be cleared and retyped, an empty name keeps
+ * the old one and `validate` can refuse a name (e.g. a duplicate) with a message.
+ */
+function NameInput({ value, onChange, validate, ...rest }: { value: string; onChange: (v: string) => void; validate?: (v: string) => string | null; 'aria-label'?: string }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const apply = () => {
+    const next = draft?.trim()
+    setDraft(null)
+    if (!next || next === value) return
+    const problem = validate?.(next) ?? null
+    if (problem) return toast(problem, 'error')
+    onChange(next)
+  }
+  return (
+    <input
+      className="input"
+      value={draft ?? value}
+      spellCheck={false}
+      aria-label={rest['aria-label']}
+      onChange={(e) => setDraft(e.currentTarget.value)}
+      onBlur={apply}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setDraft(null)
+          e.currentTarget.blur()
+        }
+      }}
     />
   )
 }
@@ -305,7 +350,7 @@ function KillzonesTab({ journal }: { journal: JournalFile }) {
       </Row>
       {journal.settings.killzones.map((k) => (
         <Row key={k.id} className={cx('grid-cols-[1fr_70px_70px_140px_110px]', k.archived && 'opacity-50')}>
-          <TextField value={k.name} onChange={(v) => v.trim() && setKz(k.id, { name: v })} />
+          <NameInput value={k.name} onChange={(name) => setKz(k.id, { name })} aria-label="Nazwa killzone" />
           <ClockInput value={k.start} onChange={(v) => setKz(k.id, { start: v })} />
           <ClockInput value={k.end} onChange={(v) => setKz(k.id, { end: v })} />
           <Segmented
@@ -322,6 +367,13 @@ function KillzonesTab({ journal }: { journal: JournalFile }) {
           </button>
         </Row>
       ))}
+      {journal.settings.killzones
+        .filter((k) => !k.archived && k.start === k.end)
+        .map((k) => (
+          <p key={k.id} className="mt-1 text-[11.5px] text-accent" data-testid="kz-empty-warning">
+            „{k.name}”: początek = koniec ({k.start}) – ta killzone nigdy nie obejmie żadnej transakcji.
+          </p>
+        ))}
       <button
         className="btn mt-2"
         onClick={() =>
@@ -430,7 +482,12 @@ function DictionaryEditor({ journal, dictKey, label, hint }: { journal: JournalF
       <div className="flex flex-col">
         {items.map((it) => (
           <Row key={it.id} className={cx('grid-cols-[1fr_96px]', it.archived && 'opacity-50')}>
-            <TextField value={it.name} onChange={(v) => v.trim() && setItems((xs) => xs.map((x) => (x.id === it.id ? { ...x, name: v } : x)))} />
+            <NameInput
+              value={it.name}
+              onChange={(name) => setItems((xs) => xs.map((x) => (x.id === it.id ? { ...x, name } : x)))}
+              validate={(name) => (items.some((x) => x.id !== it.id && x.name.toLowerCase() === name.toLowerCase()) ? `„${name}” już jest na liście.` : null)}
+              aria-label={label}
+            />
             <button className="btn h-[22px]" onClick={() => setItems((xs) => xs.map((x) => (x.id === it.id ? { ...x, archived: !x.archived } : x)))}>
               {it.archived ? 'Przywróć' : 'Archiwizuj'}
             </button>
@@ -669,7 +726,11 @@ function DisplayTab({ settings }: { settings: Settings }) {
             <CurrencyInput
               className="w-[80px]"
               value={settings.risk.accountCurrency}
-              onChange={(accountCurrency) => setSettings((s) => ({ ...s, risk: { ...s.risk, accountCurrency } }))}
+              onChange={(accountCurrency) => {
+                setSettings((s) => ({ ...s, risk: switchAccountCurrency(s.risk, accountCurrency) }))
+                toast(`Waluta konta: ${accountCurrency}. Kursy przeliczeniowe i ręczne wartości pipsa są pamiętane osobno dla każdej waluty konta.`, 'info', 6000)
+              }}
+              data-testid="risk-currency"
             />
           </Field>
           <Field label="Domyślne ryzyko %">
@@ -694,6 +755,7 @@ function DisplayTab({ settings }: { settings: Settings }) {
               className="w-[90px]"
               value={settings.risk.lotStep}
               onChange={(v) => v && v > 0 && setSettings((s) => ({ ...s, risk: { ...s.risk, lotStep: v } }))}
+              data-testid="risk-lot-step"
             />
           </Field>
         </div>

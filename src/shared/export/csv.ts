@@ -5,6 +5,7 @@
 import { formatClock, zoned } from '../calc/time'
 import { tradeMetrics, metricsContext } from '../calc/trade'
 import { validateTrade } from '../calc/validator'
+import { shownDecimals } from '../calc/position'
 import type { DayPlan, DictionaryKey, JournalFile, Trade } from '../schema'
 
 const STATUS = { closed: 'zamknięta', open: 'otwarta', missed: 'missed' } as const
@@ -116,7 +117,7 @@ export function tradesToCsv(trades: readonly Trade[], journal: JournalFile, days
         csvNumber(m.pnlAmount, 2),
         csvNumber(t.riskPercent, 2),
         csvNumber(t.riskAmount, 2),
-        csvNumber(t.lots, 2),
+        csvNumber(t.lots, shownDecimals(t.lots, 2)),
         csvNumber(t.maePips, 1),
         csvNumber(t.mfePips, 1),
         v.score == null ? '' : String(Math.round(v.score * 100)),

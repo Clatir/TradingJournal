@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { PNL_PRESETS, presetPipValue, profitLoss, type PnlInstrumentId } from '@shared/calc/pnl'
+import { PNL_PRESETS, pipValueForMinLot, pipValuePerLotFrom, presetPipValue, profitLoss, type PnlInstrumentId } from '@shared/calc/pnl'
+import { lotDecimals, shownDecimals, stepDecimals } from '@shared/calc/position'
 import type { Settings } from '@shared/schema'
-import { fmtMoney, fmtPips, tone, toneClass } from '../../lib/format'
+import { fmtMoneyGrouped, tone, toneClass } from '../../lib/format'
 import { updateJournal } from '../../store/journal'
 import { Field, NumberField, Panel, Segmented, TextField, cx } from '../../components/ui'
 
@@ -25,11 +26,6 @@ const INSTRUMENTS: Array<{ value: PnlInstrumentId; label: string }> = [
   { value: 'CUSTOM', label: 'Własny' }
 ]
 
-function decimalsOf(step: number): number {
-  const s = String(step)
-  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0
-}
-
 const fmtValue = (v: number, currency: string, decimals = 2) => `${v.toFixed(decimals)} ${currency}`
 
 /** Profit / loss from lots, pips and the value of one pip for the smallest lot. */
@@ -44,22 +40,25 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
   const sameCurrency = quote === account
   const rate = sameCurrency ? 1 : (risk.conversionRates[quote] ?? null)
   const computed = preset ? presetPipValue(preset, { minLot, fxContractSize: risk.contractSize, quoteToAccountRate: rate }) : null
-  const own = risk.pipValues[instrument] ?? null
+  const ownPerLot = risk.pipValuesPerLot[instrument] ?? null
+  const own = ownPerLot != null ? pipValueForMinLot(ownPerLot, minLot) : null
   const pipValue = own ?? computed
   const signedPips = pips == null ? null : loss ? -Math.abs(pips) : Math.abs(pips)
   const result =
     lots != null && signedPips != null && pipValue != null ? profitLoss({ lots, pips: signedPips, pipValueMinLot: pipValue, minLot }) : null
   const balance = risk.accountBalance
-  const lotDecimals = Math.max(2, decimalsOf(minLot))
+  // Never hide typed digits (0.015 lota, 12.25 pipsa): the calculation uses exactly what is shown.
+  const lotsDecimals = shownDecimals(lots, lotDecimals(minLot))
   const name = custom ? risk.customInstrument.name.trim() || 'własny instrument' : (preset?.label ?? '')
 
+  /** Entered per smallest lot, stored per 1.00 lot (a later lot step change keeps the meaning). */
   const setPipValue = (v: number | null) => {
     if (v != null && !(v > 0)) return
     setRisk((r) => {
-      const pipValues = { ...r.pipValues }
-      if (v == null) delete pipValues[instrument]
-      else pipValues[instrument] = v
-      return { ...r, pipValues }
+      const pipValuesPerLot = { ...r.pipValuesPerLot }
+      if (v == null) delete pipValuesPerLot[instrument]
+      else pipValuesPerLot[instrument] = pipValuePerLotFrom(v, minLot)
+      return { ...r, pipValuesPerLot }
     })
   }
 
@@ -87,21 +86,21 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
                     if (v != null && !(v > 0)) return
                     setRisk((r) => ({ ...r, customInstrument: { ...r.customInstrument, minLot: v } }))
                   }}
-                  decimals={decimalsOf(minLot)}
+                  decimals={stepDecimals(minLot)}
                   data-testid="pnl-min-lot"
                 />
               </Field>
             </>
           )}
           <Field label="Wielkość (loty)">
-            <NumberField value={lots} onChange={(v) => setInputs({ lots: v })} decimals={lotDecimals} step={minLot} data-testid="pnl-lots" />
+            <NumberField value={lots} onChange={(v) => setInputs({ lots: v })} decimals={lotsDecimals} step={minLot} data-testid="pnl-lots" />
           </Field>
           <Field label="Pipsy">
             <div className="flex items-center gap-2">
               <NumberField
                 value={pips}
                 onChange={(v) => (v != null && v < 0 ? setInputs({ pips: -v, loss: true }) : setInputs({ pips: v }))}
-                decimals={1}
+                decimals={shownDecimals(pips, 1)}
                 step={1}
                 className="w-[96px]"
                 data-testid="pnl-pips"
@@ -167,18 +166,21 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
             <>
               <div className="flex items-baseline gap-3">
                 <span className={cx('num text-[34px] leading-none font-medium', toneClass[tone(result.amount)])} data-testid="pnl-amount">
-                  {fmtMoney(result.amount, account)}
+                  {fmtMoneyGrouped(result.amount, account)}
                 </span>
-                <span className="text-muted">{result.amount < 0 ? 'strata' : 'zysk'}</span>
+                <span className="text-muted" data-testid="pnl-kind">
+                  {result.amount < 0 ? 'strata' : result.amount > 0 ? 'zysk' : 'bez zmian'}
+                </span>
               </div>
               <div className="grid grid-cols-2 border border-line">
                 <Cell label="Wartość pipsa / pozycja" value={fmtValue(result.pipValuePosition, account, 4)} testId="pnl-pip-position" />
                 <Cell label="Wartość pipsa / 1 lot" value={fmtValue(result.pipValuePerLot, account, 4)} />
-                <Cell label="Pozycja" value={`${lots!.toFixed(lotDecimals)} lota = ${Number(result.minLots.toFixed(2))} × ${minLot}`} />
+                <Cell label="Pozycja" value={`${lots!.toFixed(lotsDecimals)} lota = ${Number(result.minLots.toFixed(2))} × ${minLot}`} />
                 <Cell label="Względem kapitału" value={balance ? `${((result.amount / balance) * 100).toFixed(2)}%` : '—'} />
               </div>
               <p className="num text-[11.5px] text-muted">
-                {name}: {fmtPips(signedPips)} pips × {pipValue} {account} × {Number(result.minLots.toFixed(4))} = {fmtMoney(result.amount, account)}
+                {name}: {signedPips! < 0 ? '−' : '+'}
+                {Math.abs(signedPips!).toFixed(shownDecimals(signedPips, 1))} pips × {pipValue} {account} × {Number(result.minLots.toFixed(4))} = {fmtMoneyGrouped(result.amount, account)}
               </p>
               {!result.wholeLots && (
                 <p className="text-[11.5px] text-accent" data-testid="pnl-lot-warning">
@@ -188,8 +190,10 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
             </>
           ) : (
             <div className="text-muted" data-testid="pnl-missing">
-              {lots == null || !(lots > 0)
+              {lots == null
                 ? 'Wpisz wielkość pozycji w lotach.'
+                : !(lots > 0)
+                  ? 'Wielkość pozycji musi być większa od zera.'
                 : pips == null
                   ? 'Wpisz liczbę pipsów.'
                   : custom
