@@ -109,7 +109,15 @@ export function ForecastPage({ id }: { id?: string }) {
         )}
         <SpreadPanel scenario={scenario} input={input} />
         {input && result ? (
-          <MonthTable scenario={scenario} input={input} result={result} readOnly={readOnly} />
+          <MonthTable
+            scenario={scenario}
+            input={input}
+            result={result}
+            cash={cash}
+            instrument={outcome.ok ? outcome.instrument : null}
+            pip={outcome.ok ? outcome.pip : null}
+            readOnly={readOnly}
+          />
         ) : (
           <div className="border border-line bg-panel p-3 text-muted" data-testid="fc-table-empty">
             Tabela pojawi się, gdy będzie znana wartość pipsa w walucie scenariusza.

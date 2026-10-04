@@ -21,6 +21,8 @@ import { GITHUB_API, detectInstallMode, type UpdatePrefs } from '@shared/update'
 import { Updater } from './update/updater'
 import { startPortableSwap, startSilentInstaller } from './update/apply'
 import { fetchNbpTable, nbpSource } from './fx/nbp'
+import { writeXlsx } from './export/xlsx'
+import type { XlsxSheet } from '@shared/export/xlsx'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
 if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DATA)
@@ -279,6 +281,12 @@ function registerIpc(): void {
     const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [filter] })
     if (res.canceled || !res.filePath) return null
     await writeFileAtomic(res.filePath, content)
+    return res.filePath
+  })
+  handle('journal:saveXlsx', async (name: string, sheets: XlsxSheet[]) => {
+    const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
+    if (res.canceled || !res.filePath) return null
+    await writeXlsx(res.filePath, sheets)
     return res.filePath
   })
   handle('journal:exportZip', async () => {

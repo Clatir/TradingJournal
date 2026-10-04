@@ -3,8 +3,10 @@
  * numbers as numbers (rounded like the screen shows them). Columns of the improvements appear only when the
  * table on screen has them.
  */
-import { calendarOf, goalQueue, type ForecastInput, type ForecastResult } from '../calc/forecast'
-import type { Forecast } from '../schema'
+import { calendarOf, goalQueue, monthLabel, type ForecastInput, type ForecastResult } from '../calc/forecast'
+import type { Forecast, ForecastGoal } from '../schema'
+import { csvNumber, csvText } from './csv'
+import type { XlsxKind, XlsxSheet } from './xlsx'
 
 export type ForecastCell = number | string | null
 export type ForecastColumnKind = 'int' | 'text' | 'pct' | 'money' | 'pips' | 'lot'
@@ -159,4 +161,116 @@ export function forecastYears(sim: ForecastResult, input: Pick<ForecastInput, 'm
     cur.spent += r.buys.reduce((s, b) => s + b.amount, 0)
   }
   return years
+}
+
+/** CSV for Polish Excel: semicolon, UTF-8 with BOM, CRLF, decimal comma (existing csvNumber / csvText). */
+export function forecastCsv(table: ForecastTableData): string {
+  const line = (cells: string[]) => cells.join(';')
+  const rows = table.rows.map((r) => line(r.map((v, i) => (typeof v === 'number' ? csvNumber(v, KIND_DECIMALS[table.columns[i]!.kind] ?? undefined) : csvText(v ?? '')))))
+  return `\ufeff${[line(table.columns.map((c) => csvText(c.header))), ...rows].join('\r\n')}\r\n`
+}
+
+const XLSX_KIND: Record<ForecastColumnKind, XlsxKind> = { int: 'int', text: 'text', pct: 'pct', money: 'money', pips: 'number', lot: 'number' }
+
+/** Simple goal state for the "Cele" sheet when the page does not pass its own texts. */
+function defaultGoalState(goal: ForecastGoal, sim: ForecastResult, horizon: number): string {
+  if (!goal.enabled) return 'wyłączony'
+  if (goal.month == null) return 'bez miesiąca'
+  if (goal.month > horizon) return 'poza tabelą'
+  const r = sim.goals[goal.id]
+  if (!r) return ''
+  if ('blockedBy' in r) return 'czeka na wcześniejszy cel'
+  if ('pending' in r) return 'nie uzbierał się do końca tabeli'
+  if (r.empty) return 'nic nie dostał'
+  return r.month > r.planned ? `kupiony, ${r.month - r.planned} mies. po planie` : 'kupiony'
+}
+
+/**
+ * Workbook of the "XLSX" button (chapter 13): "Prognoza" (months), "Lata", "Cele" and "Ustawienia"
+ * (scenario parameters as name–value pairs, `settings` already formatted by the page).
+ */
+export function forecastWorkbook(args: {
+  sim: ForecastResult
+  scenario: Forecast
+  input: Pick<ForecastInput, 'goals' | 'horizon' | 'm0' | 'y0'>
+  settings: Array<[string, string]>
+  goalState?: (goal: ForecastGoal) => string
+}): XlsxSheet[] {
+  const { sim, scenario, input } = args
+  const fund = scenario.keep === 'fund'
+  const table = forecastTable(sim, scenario, input)
+  const months: XlsxSheet = {
+    name: 'Prognoza',
+    freezeHeader: true,
+    columns: table.columns.map((c) => ({ header: c.header, kind: XLSX_KIND[c.kind], width: c.kind === 'text' ? 18 : Math.max(12, c.header.length + 2) })),
+    rows: table.rows
+  }
+  const years: XlsxSheet = {
+    name: 'Lata',
+    freezeHeader: true,
+    columns: [
+      { header: 'Rok', kind: 'int' },
+      { header: 'Miesiące', kind: 'text' },
+      { header: 'Zwrot roczny [%]', kind: 'pct' },
+      { header: 'Wpłaty', kind: 'money' },
+      { header: 'Podatek', kind: 'money' },
+      { header: 'Zysk', kind: 'money' },
+      { header: fund ? 'Odkładana wypłata' : 'Wypłata', kind: 'money' },
+      { header: fund ? 'Fundusz celowy na koniec' : 'Odłożona gotówka na koniec', kind: 'money', width: 26 },
+      { header: 'Zakupione cele', kind: 'int' },
+      { header: 'Kwota na cele', kind: 'money' },
+      { header: fund ? 'Masa obrotowa na koniec' : 'Kapitał na koniec', kind: 'money', width: 24 }
+    ],
+    rows: forecastYears(sim, input).map((y) => [
+      y.year,
+      `${y.fromK}–${y.toK}`,
+      roundFor('pct', y.rate * 100),
+      roundFor('money', y.deposit),
+      roundFor('money', y.tax),
+      roundFor('money', y.profit),
+      roundFor('money', y.payout),
+      roundFor('money', y.pot),
+      y.buys,
+      roundFor('money', y.spent),
+      roundFor('money', y.end)
+    ])
+  }
+  const goals: XlsxSheet = {
+    name: 'Cele',
+    freezeHeader: true,
+    columns: [
+      { header: 'Nazwa', kind: 'text', width: 24 },
+      { header: 'Planowany miesiąc', kind: 'int' },
+      { header: 'Data planowana', kind: 'text' },
+      { header: 'Kwota celu', kind: 'money' },
+      { header: 'Miesiąc zakupu', kind: 'int' },
+      { header: 'Data zakupu', kind: 'text' },
+      { header: 'Wydano', kind: 'money' },
+      { header: 'Stan', kind: 'text', width: 50 }
+    ],
+    rows: scenario.goals.map((g) => {
+      const r = sim.goals[g.id]
+      const bought = r && 'month' in r ? r : null
+      const validMonth = g.month != null && g.month >= 1 && g.month <= 240
+      return [
+        goalName(g.name),
+        g.month,
+        validMonth ? monthLabel(g.month!, input.m0, input.y0) : null,
+        g.amount,
+        bought ? bought.month : null,
+        bought ? monthLabel(bought.month, input.m0, input.y0) : null,
+        bought ? roundFor('money', bought.amount) : null,
+        (args.goalState ?? ((goal) => defaultGoalState(goal, sim, input.horizon)))(g)
+      ]
+    })
+  }
+  const params: XlsxSheet = {
+    name: 'Ustawienia',
+    columns: [
+      { header: 'Parametr', kind: 'text', width: 34 },
+      { header: 'Wartość', kind: 'text', width: 60 }
+    ],
+    rows: args.settings
+  }
+  return [months, years, goals, params]
 }

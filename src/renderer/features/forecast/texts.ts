@@ -259,3 +259,57 @@ export function goalOutcome(goal: ForecastGoal, result: ForecastResult, input: P
   if ('blockedBy' in r || 'pending' in r) return 'nie uzbierał się'
   return `mies. ${r.month} (${monthLabel(r.month, input.m0, input.y0)})`
 }
+
+const MONTHS_GENITIVE = ['styczniu', 'lutym', 'marcu', 'kwietniu', 'maju', 'czerwcu', 'lipcu', 'sierpniu', 'wrześniu', 'październiku', 'listopadzie', 'grudniu']
+const range = (a: number, b: number) => `${Number(Math.min(a, b).toFixed(4))}–${Number(Math.max(a, b).toFixed(4))}`
+
+/** Scenario parameters as name–value pairs (the "Ustawienia" sheet of the XLSX export). */
+export function scenarioSettingsRows(scenario: Forecast, ctx: { input: Pick<ForecastInput, 'm0' | 'y0'>; instrumentName: string | null; pip: PipValue | null; exportedAt: Date }): Array<[string, string]> {
+  const cur = scenario.currency
+  const rows: Array<[string, string]> = [
+    ['Scenariusz', scenario.name],
+    ['Waluta scenariusza', cur],
+    ['Wypłata z zysku', `${Number(scenario.payoutPercent.toFixed(2))}%`],
+    ['Tryb odkładania', scenario.keep === 'fund' ? 'Fundusz celowy' : 'Gotówka'],
+    ['Tryb prognozy zysku', scenario.gain === 'pips' ? 'Pipsowy' : 'Procentowy']
+  ]
+  if (scenario.gain === 'pct') rows.push(['Zwrot co miesiąc', scenario.pct.mode === 'fixed' ? `stały ${scenario.pct.fixed}%` : `losowy z zakresu ${range(scenario.pct.lo, scenario.pct.hi)}%`])
+  else {
+    const p = scenario.pips
+    rows.push(
+      ['Instrument', ctx.instrumentName ? `${ctx.instrumentName} (${p.instrumentId})` : p.instrumentId],
+      ['Pipsy w miesiącu', p.pipsMode === 'fixed' ? `stałe ${p.pips}` : `losowe z zakresu ${range(p.pipsLo, p.pipsHi)}`],
+      [
+        'Wielkość lota',
+        p.lotMode === 'fixed'
+          ? `stały lot ${p.lot}`
+          : p.lotMode === 'perCapital'
+            ? `${p.lotPer} lota na każde ${fmtAmount(p.lotPerAmount, cur)} kapitału`
+            : `z ryzyka ${p.riskPercent}%, stop loss ${pipsLabel(p.stopPips)}`
+      ]
+    )
+    if (p.lotMode !== 'fixed') rows.push(['Maksymalny lot', p.lotMax == null ? 'bez limitu' : String(p.lotMax)])
+    rows.push(['Wartość pipsa', ctx.pip ? pipValueText(ctx.pip, cur) : 'brak kursu albo wartości pipsa'])
+  }
+  const l = scenario.loss
+  rows.push([
+    'Miesiące stratne',
+    l.probability > 0
+      ? `szansa ${l.probability}%, strata ${scenario.gain === 'pips' ? `${range(l.pipsLo, l.pipsHi)} pipsów` : `${range(l.pctLo, l.pctHi)}% kapitału`}`
+      : 'brak'
+  ])
+  const custom = Object.entries(scenario.deposits)
+    .map(([k, v]) => [Number(k), v] as const)
+    .sort((a, b) => a[0] - b[0])
+  rows.push(
+    ['Kapitał na start', fmtAmount(scenario.startCapital, cur)],
+    ['Dopłata co miesiąc', fmtAmount(scenario.monthlyDeposit, cur)],
+    ['Pierwszy miesiąc', monthLabel(1, ctx.input.m0, ctx.input.y0)],
+    ['Liczba miesięcy', String(scenario.months)],
+    ['Wpłaty niestandardowe', custom.length ? custom.map(([k, v]) => `mies. ${k}: ${fmtAmount(v)}`).join('; ') : 'brak'],
+    ['Podatek od zysków', scenario.tax.enabled ? `${scenario.tax.ratePercent}%, płatny w ${MONTHS_GENITIVE[scenario.tax.payMonth - 1]} następnego roku` : 'nie uwzględniony'],
+    ['Notatki', scenario.notes],
+    ['Wyeksportowano', ctx.exportedAt.toLocaleString('pl-PL')]
+  )
+  return rows
+}

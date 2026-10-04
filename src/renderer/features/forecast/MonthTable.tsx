@@ -8,10 +8,29 @@ import { toast } from '../../store/ui'
 import { Badge, Panel, cx } from '../../components/ui'
 import { updateScenario } from './actions'
 import { useForecastSession } from './session'
+import { exportForecastCsv, exportForecastXlsx } from './exportActions'
+import type { Instrument } from '@shared/schema'
+import type { PipValue } from '@shared/instruments'
 import { tableDescription } from './texts'
 
 /** "Miesiąc po miesiącu" (chapter 7). */
-export function MonthTable({ scenario, input, result, readOnly }: { scenario: Forecast; input: ForecastInput; result: ForecastResult; readOnly: boolean }) {
+export function MonthTable({
+  scenario,
+  input,
+  result,
+  cash,
+  instrument,
+  pip,
+  readOnly
+}: {
+  scenario: Forecast
+  input: ForecastInput
+  result: ForecastResult
+  cash: ForecastResult | null
+  instrument: Instrument | null
+  pip: PipValue | null
+  readOnly: boolean
+}) {
   const fund = scenario.keep === 'fund'
   const pipsMode = scenario.gain === 'pips'
   const visible = forecastColumnsVisible(scenario, input)
@@ -90,6 +109,16 @@ export function MonthTable({ scenario, input, result, readOnly }: { scenario: Fo
           </button>
           <button className="btn h-[22px] px-2 text-[11.5px]" onClick={copy} data-testid="fc-copy">
             Kopiuj tabelę
+          </button>
+          <button className="btn h-[22px] px-2 text-[11.5px]" onClick={() => void exportForecastCsv(scenario, input, result)} data-testid="fc-csv">
+            CSV
+          </button>
+          <button
+            className="btn h-[22px] px-2 text-[11.5px]"
+            onClick={() => void exportForecastXlsx({ scenario, input, result, cash, instrument, pip })}
+            data-testid="fc-xlsx"
+          >
+            XLSX
           </button>
         </div>
       }

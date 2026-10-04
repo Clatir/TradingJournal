@@ -2,6 +2,7 @@
 import type { Collection, FileKind } from './paths'
 import type { RecordTypes } from './records'
 import type { FxFetchResult } from './fx'
+import type { XlsxSheet } from './export/xlsx'
 import type { JournalFile } from './schema'
 import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
 
@@ -196,6 +197,8 @@ export interface JournalApi {
   exitSample(): Promise<OpenFolderResult | null>
   /** Save dialog + write a text file (CSV, markdown). Returns the path or null when cancelled. */
   saveTextFile(defaultName: string, content: string, filter: { name: string; extensions: string[] }): Promise<string | null>
+  /** Save dialog + write an XLSX workbook built from `sheets` (main process, yazl). Returns the path or null when cancelled. */
+  saveXlsx(defaultName: string, sheets: XlsxSheet[]): Promise<string | null>
   /** ZIP of the whole data folder (without backups). */
   exportZip(): Promise<string | null>
   copyText(text: string): Promise<void>

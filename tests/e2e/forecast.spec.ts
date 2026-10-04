@@ -1,7 +1,8 @@
 import { promises as fs } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { join } from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import { tmpdir } from 'node:os'
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { launch } from './app'
 
 const shots = (name: string) => join('test-results', 'screens', `${name}.png`)
@@ -576,6 +577,49 @@ test('prognoza: rozrzut wyników (200 przebiegów), wykres z legendą i porówna
     await page.getByTestId('fc-duplicate').click()
     await page.getByTestId('fc-compare').selectOption({ label: 'Scenariusz 1' })
     await expect(page.getByTestId('fc-legend-compare')).toHaveText('Scenariusz 1')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+/** Replace the "Zapisz jako" dialog (like tests/e2e/stage4.spec.ts). */
+async function stubSaveDialog(app: ElectronApplication, save: string): Promise<void> {
+  await app.evaluate(({ dialog }, path) => {
+    const d = dialog as unknown as Record<string, unknown>
+    d.showSaveDialog = async (_w: unknown, opts: { defaultPath?: string }) => ({ canceled: false, filePath: path.replace('{name}', opts?.defaultPath ?? 'plik') })
+  }, save)
+}
+
+test('prognoza: eksport CSV (zawartość) i XLSX (plik ZIP), kopiowanie tabeli', async () => {
+  const { app, page, errors } = await launch()
+  const out = await fs.mkdtemp(join(tmpdir(), 'ictj-fc-out-'))
+  try {
+    await firstScenarioLikeT1(page)
+    await stubSaveDialog(app, join(out, '{name}'))
+    // CSV: semicolons, BOM, CRLF, decimal comma; name prognoza-<slug>-<date>.csv
+    await page.getByTestId('fc-csv').click()
+    await expect.poll(async () => (await fs.readdir(out)).filter((n) => n.endsWith('.csv')).length, { timeout: 8000 }).toBe(1)
+    const csvName = (await fs.readdir(out)).find((n) => n.endsWith('.csv'))!
+    expect(csvName).toMatch(/^prognoza-scenariusz-1-\d{4}-\d{2}-\d{2}\.csv$/)
+    const csv = await fs.readFile(join(out, csvName), 'utf8')
+    expect(csv.charCodeAt(0)).toBe(0xfeff)
+    const lines = csv.slice(1).split('\r\n')
+    expect(lines[0]).toBe('Nr miesiąca;Miesiąc;Zwrot [%];Wpłata;Kapitał na początku;Zysk;Wypłata (10%);Odłożona gotówka;Cel zakupowy;Kwota na cel;Kapitał na koniec')
+    expect(lines[1]).toBe('1;11-2026;11,0000;0,00;10000,00;1100,00;110,00;110,00;;;10990,00')
+    expect(lines[6]).toBe('6;4-2027;11,0000;2000,00;28217,94;3103,97;310,40;0,00;Cel 1;1223,50;31011,52')
+    expect(lines[50]).toMatch(/;3365620,22$/)
+    // XLSX: a ZIP file with the workbook.
+    await page.getByTestId('fc-xlsx').click()
+    await expect.poll(async () => (await fs.readdir(out)).filter((n) => n.endsWith('.xlsx')).length, { timeout: 8000 }).toBe(1)
+    const xlsx = await fs.readFile(join(out, (await fs.readdir(out)).find((n) => n.endsWith('.xlsx'))!))
+    expect(xlsx.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]))
+    expect(xlsx.includes(Buffer.from('xl/worksheets/sheet4.xml'))).toBe(true)
+    // Copy: TSV in the clipboard.
+    await page.getByTestId('fc-copy').click()
+    await expect(page.getByText('Skopiowano. Wklej w Excelu (Ctrl+V).')).toBeVisible()
+    const text = await app.evaluate(({ clipboard }) => clipboard.readText())
+    expect(text.split('\r\n')[1]).toBe('1\t11-2026\t11,0000\t0,00\t10000,00\t1100,00\t110,00\t110,00\t\t\t10990,00')
     expect(errors).toEqual([])
   } finally {
     await app.close()
