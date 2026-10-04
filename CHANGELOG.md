@@ -3,6 +3,16 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.2.0
+
+### Nowe
+- **Kalkulator zysku / straty** (Kalkulator, Ctrl+6, albo paleta Ctrl+K → „Kalkulator zysku / straty”): wynik pozycji z wielkości w lotach, liczby pipsów i wartości pipsa dla najmniejszego lota.
+  - AUDUSD, EURGBP, EURUSD, EURAUD: wartość pipsa wyliczana sama (0.10 USD za pips przy 0.01 lota). Dla EURGBP i EURAUD według kursu GBP / AUD, wspólnego z kalkulatorem pozycji.
+  - WTI: 1 lot = 1000 baryłek, 1 pips = 0.01 USD. Jeśli u Twojego brokera jest inaczej, wpisz własną wartość pipsa.
+  - Instrument własny: nazwa, najmniejszy lot i wartość pipsa dla najmniejszego lota.
+- Wynik pokazuje kwotę zysku lub straty, wartość pipsa dla całej pozycji i dla 1 lota oraz wynik względem kapitału.
+- Wartości wpisane ręcznie zapisują się w ustawieniach dziennika, więc są takie same na każdym komputerze.
+
 ## 1.1.0
 
 ### Nowe

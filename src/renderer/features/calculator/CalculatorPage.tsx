@@ -5,8 +5,9 @@ import { metricsFor, useDailyLimits } from '../../store/derived'
 import { updateJournal, updateRecord, useJournal } from '../../store/journal'
 import { navigate, toast } from '../../store/ui'
 import { Field, NumberField, Panel, cx } from '../../components/ui'
+import { PnlCalculator } from './PnlCalculator'
 
-/** Position size calculator (lots from balance, risk % and stop in pips) plus daily limits. */
+/** Position size calculator (lots from balance, risk % and stop in pips), P/L calculator and daily limits. */
 export function CalculatorPage({ tradeId }: { tradeId?: string }) {
   const journal = useJournal((s) => s.journal)
   const trade = useJournal((s) => (tradeId ? s.trades[tradeId]?.record : undefined))
@@ -129,6 +130,8 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
             </div>
           )}
         </Panel>
+
+        <PnlCalculator settings={settings} />
 
         <Panel title="Limity dzienne" className="col-span-2">
           <div className="grid grid-cols-[1fr_1fr_1.4fr] items-start gap-4">

@@ -72,7 +72,19 @@ export const settingsSchema = z.looseObject({
       dailyLossLimitR: z.number().positive().nullable().default(2),
       dailyMaxTrades: z.number().int().positive().nullable().default(3),
       /** Manually entered conversion rates: 1 unit of the key currency = value in account currency. */
-      conversionRates: z.record(z.string(), z.number().positive()).default({})
+      conversionRates: z.record(z.string(), z.number().positive()).default({}),
+      /**
+       * P/L calculator: value of one pip for the smallest lot (account currency) entered by hand, per
+       * instrument (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, CUSTOM). Without an entry it is calculated.
+       */
+      pipValues: z.record(z.string(), z.number().positive()).default({}),
+      /** P/L calculator: own instrument (name, smallest lot; null = lotStep). */
+      customInstrument: z
+        .looseObject({
+          name: z.string().default(''),
+          minLot: z.number().positive().nullable().default(null)
+        })
+        .prefault({})
     })
     .prefault({}),
   stats: z

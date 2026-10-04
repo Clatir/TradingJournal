@@ -143,3 +143,12 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
    `Ctrl+Shift+D` w planie kopiuje na następny dzień.
 3. Ustawienia → Aktualizacje: wersja, tryb (portable / zainstalowana), „Sprawdź teraz”. Po wydaniu kolejnej wersji pojawi się
    pasek „Wersja … jest pobrana” → **Uruchom ponownie teraz**.
+
+**Wersja 1.2 – kalkulator zysku / straty**
+1. `Ctrl+6` → „Kalkulator zysku / straty”: wybierz instrument, wpisz loty i pipsy, przełącz Zysk / Strata
+   (albo wpisz ujemne pipsy).
+2. EURUSD/AUDUSD: 0.5 lota × 20 pipsów = 100 USD.
+3. EURGBP/EURAUD: wpisz kurs GBP→USD / AUD→USD (wspólny z kalkulatorem pozycji).
+4. WTI: 1 lot × 30 pipsów = 300 USD (1 lot = 1000 baryłek). Inny kontrakt u brokera → wpisz własną wartość pipsa,
+   „przywróć wyliczoną” wraca do domyślnej.
+5. „Własny”: nazwa, najmniejszy lot i wartość pipsa dla najmniejszego lota (z platformy brokera) – zapamiętywane.

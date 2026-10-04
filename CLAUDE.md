@@ -105,6 +105,13 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - BE: |R| ≤ 0.1 (edytowalne) – poza win rate, ale w expectancy/PF/equity. BE nie przerywa serii.
 - Missed trades: wynik hipotetyczny (TP1/TP2/SL/nic), poza statystykami wyniku.
 - Pozycja: loty = kapitał × % / (SL pips × contractSize × pipSize × kurs kwotowana→konto), w dół do kroku lota.
+- Zysk/strata (`calc/pnl.ts`, panel `features/calculator/PnlCalculator.tsx`):
+  P/L = pipsy × wartość pipsa najmniejszego lota × loty / najmniejszy lot.
+  - Presety AUDUSD/EURGBP/EURUSD/EURAUD: pips 0.0001, lot = `risk.contractSize`, przez kurs waluty kwotowanej.
+  - Preset WTI: pips 0.01, 1 lot = 1000 baryłek.
+  - Ręczne wartości pipsa: `risk.pipValues[id]` (także `CUSTOM`).
+  - Instrument własny: `risk.customInstrument {name, minLot}`; minLot null = `lotStep`.
+  - Pola pomocnicze (instrument, loty, pipsy) pamiętane tylko w sesji.
 
 ## Screeny (kalibracja)
 - Pipeline w rendererze: `createImageBitmap` → skalowanie w dół (połowienie + high quality) do max 2560 px →
@@ -189,6 +196,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 4. ✅ Biblioteka (adnotacje) + przegląd tygodnia (import OHLC CSV) + eksport/import/backup.
 5. ✅ Szlif wizualny, lightbox porównawczy, ściąga skrótów (`?`/F1), Ctrl+S, folder kopii per komputer, finalny build 1.0.0.
 6. ✅ 1.1.0: duplikowanie wpisów, aktualizacje z GitHub Releases (portable bez instalatora), wydania z CI.
+7. ✅ 1.2.0: kalkulator zysku / straty (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, instrument własny).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

@@ -50,6 +50,14 @@ export function CommandPalette() {
       { id: 'library', label: 'Biblioteka setupów', keys: 'Ctrl 4', run: () => navigate({ page: 'library' }) },
       { id: 'week', label: 'Przegląd tygodnia', keys: 'Ctrl 5', run: () => navigate({ page: 'week', week: currentWeek() }) },
       { id: 'calc', label: 'Kalkulator pozycji i limity dzienne', keys: 'Ctrl 6', run: () => navigate({ page: 'calculator' }) },
+      {
+        id: 'pnl',
+        label: 'Kalkulator zysku / straty (loty × pipsy × wartość pipsa)',
+        run: () => {
+          navigate({ page: 'calculator' })
+          requestAnimationFrame(() => document.getElementById('pnl')?.scrollIntoView({ block: 'start' }))
+        }
+      },
       { id: 'md', label: 'Kopiuj markdown bieżącej transakcji / planu dnia', keys: 'Ctrl Shift M', run: () => void copyMarkdownForRoute() },
       { id: 'csv', label: 'Eksport CSV wszystkich transakcji', run: () => void exportCsv() },
       { id: 'zip', label: 'Eksport ZIP całego folderu', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
