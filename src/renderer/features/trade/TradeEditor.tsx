@@ -10,7 +10,7 @@ import { deleteRecord, discardDraft, updateRecord, useJournal } from '../../stor
 import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
 import { IconBack, IconClose, IconCopy, IconExternal, IconFolder, IconPlus, IconTrash } from '../../components/icons'
-import { Badge, Chips, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
+import { Badge, Chips, CurrencyInput, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
 import { addTradeToLibrary } from '../library/LibraryPage'
@@ -80,6 +80,10 @@ export function TradeEditor({ id }: { id: string }) {
 
   const up = (fn: (t: Trade) => Trade) => updateRecord('trades', id, fn)
   const setField = <K extends keyof Trade>(k: K, v: Trade[K]) => up((r) => ({ ...r, [k]: v }))
+  // Amounts are typed in the account currency: the trade remembers it (shown converted after a currency change).
+  const amountCurrency = t.amountCurrency ?? (t.riskAmount != null || t.pnlAmountOverride != null ? (settings.risk.legacyAmountCurrency ?? currency) : currency)
+  // A typed amount is in the currency shown next to it (the trade keeps it explicitly from then on).
+  const setAmount = (k: 'riskAmount' | 'pnlAmountOverride', v: number | null) => up((r) => ({ ...r, [k]: v, amountCurrency }))
   const setPrice = (k: keyof Trade['prices'], v: number | null) => up((r) => ({ ...r, prices: { ...r.prices, [k]: v } }))
   const setPsy = (patch: Partial<Trade['psychology']>) => up((r) => ({ ...r, psychology: { ...r.psychology, ...patch } }))
   const setExits = (fn: (x: TradeExit[]) => TradeExit[]) => up((r) => ({ ...r, exits: fn(r.exits) }))
@@ -328,10 +332,17 @@ export function TradeEditor({ id }: { id: string }) {
               <ResultStrip
                 r={m.resultR}
                 pips={m.resultPips}
-                money={showMoney ? fmtMoney(m.pnlAmount, currency) : null}
+                money={
+                  showMoney
+                    ? m.amountCurrency && m.amountCurrency !== currency && m.pnlAmountOwn != null
+                      ? `${fmtMoney(m.pnlAmountOwn, m.amountCurrency)} ≈ ${m.pnlAmount != null ? fmtMoney(m.pnlAmount, currency) : `? ${currency}`}${m.amountRateDate ? ` (NBP ${m.amountRateDate})` : ''}${m.amountSource === 'lots' ? ' · z lotów' : ''}`
+                      : `${fmtMoney(m.pnlAmount, currency)}${m.amountSource === 'lots' ? ' · z lotów' : ''}`
+                    : null
+                }
                 be={be}
                 note={t.status === 'open' ? 'zrealizowane dotąd' : m.outcome === 'breakeven' ? 'break-even' : null}
               />
+              {t.broker && <BrokerLine broker={t.broker} />}
             </Section>
           ) : (
             <Section title="Missed trade – co by było">
@@ -393,17 +404,30 @@ export function TradeEditor({ id }: { id: string }) {
                 <NumberField
                   value={t.lots}
                   onChange={(v) => setField('lots', v)}
+                  data-testid="trade-lots"
                   decimals={shownDecimals(t.lots, lotDecimals(settings.risk.lotStep))}
                   step={settings.risk.lotStep}
                 />
               </Field>
               {showMoney && (
                 <>
-                  <Field label={`Ryzyko ${currency}`}>
-                    <NumberField value={t.riskAmount} onChange={(v) => setField('riskAmount', v)} decimals={2} />
+                  <Field label="Waluta kwot" hint={amountCurrency !== currency ? `przeliczane na ${currency} (waluta konta) – zmień, jeśli kwoty wpisano w innej walucie` : 'zmień, jeśli kwoty wpisano w innej walucie'}>
+                    <CurrencyInput
+                      className="w-[70px]"
+                      value={amountCurrency}
+                      onChange={(c) => up((r) => ({ ...r, amountCurrency: c }))}
+                      aria-label="Waluta kwot transakcji"
+                      data-testid="trade-amount-currency"
+                    />
                   </Field>
-                  <Field label={`Wynik ${currency}`} hint="puste = R × ryzyko">
-                    <NumberField value={t.pnlAmountOverride} onChange={(v) => setField('pnlAmountOverride', v)} decimals={2} placeholder="auto" />
+                  <Field label={`Ryzyko ${amountCurrency}`}>
+                    <NumberField value={t.riskAmount} onChange={(v) => setAmount('riskAmount', v)} decimals={2} data-testid="trade-risk-amount" />
+                  </Field>
+                  <Field
+                    label={`Wynik ${amountCurrency}`}
+                    hint="puste = R × ryzyko, a bez kwoty ryzyka – z lotów (pipsy × wartość pipsa × loty)"
+                  >
+                    <NumberField value={t.pnlAmountOverride} onChange={(v) => setAmount('pnlAmountOverride', v)} decimals={2} placeholder="auto" />
                   </Field>
                 </>
               )}
@@ -571,6 +595,23 @@ function Metric({ label, value, testId }: { label: string; value: string; testId
   )
 }
 
+/** The broker's numbers of an imported position (history import), for reconciliation. */
+function BrokerLine({ broker: b }: { broker: NonNullable<Trade['broker']> }) {
+  const cur = b.currency ?? ''
+  const costs = [b.commission ? `prowizja ${fmtMoney(b.commission, cur)}` : null, b.swap ? `swap ${fmtMoney(b.swap, cur)}` : null].filter(Boolean)
+  return (
+    <div className="mt-1 text-[11.5px] text-muted" data-testid="trade-broker">
+      Broker: <span className="num">#{b.tickets.join(', #')}</span>
+      {b.symbol ? ` · ${b.symbol}` : ''}
+      {b.volume != null ? <span className="num"> · {b.volume} lot</span> : null}
+      {b.net != null ? (
+        <span className={cx('num', toneClass[tone(b.net)])}> · netto {fmtMoney(b.net, cur)}</span>
+      ) : null}
+      {costs.length ? <span className="num"> ({costs.join(', ')})</span> : null}
+    </div>
+  )
+}
+
 function ResultStrip({ r, pips, money, be, note }: { r: number | null; pips: number | null; money: string | null; be: number; note: string | null }) {
   const cls = toneClass[tone(r, be)]
   return (
@@ -580,7 +621,11 @@ function ResultStrip({ r, pips, money, be, note }: { r: number | null; pips: num
         {fmtR(r)}
       </span>
       <span className={cx('num text-[13px]', cls)}>{pips != null ? `${fmtPips(pips)} pips` : ''}</span>
-      {money && <span className={cx('num text-[13px]', cls)}>{money}</span>}
+      {money && (
+        <span className={cx('num text-[13px]', cls)} data-testid="result-money">
+          {money}
+        </span>
+      )}
       {note && <span className="ml-auto text-[11px] text-muted">{note}</span>}
     </div>
   )

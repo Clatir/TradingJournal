@@ -8,6 +8,7 @@ import { SettingsPage } from '../features/settings/SettingsPage'
 import { SyncPage } from '../features/sync/SyncPage'
 import { DayPlanPage, todayNy } from '../features/day/DayPlanPage'
 import { CalculatorPage } from '../features/calculator/CalculatorPage'
+import { ForecastPage } from '../features/forecast/ForecastPage'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { LibraryPage } from '../features/library/LibraryPage'
 import { WeekPage, currentWeek } from '../features/week/WeekPage'
@@ -17,7 +18,7 @@ import { newTrade } from '../features/trade/actions'
 import { duplicateCurrent } from '../features/duplicate'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconBook, IconCalc, IconCalendar, IconChart, IconGear, IconList, IconPlus, IconSync, IconWeek } from '../components/icons'
+import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconSync, IconWeek } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -25,6 +26,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { ShortcutsHelp } from './ShortcutsHelp'
 import { flushSaves } from '../store/journal'
 import { initUpdates } from '../store/update'
+import { useFxAutoFetch } from '../store/fx'
 import { toast } from '../store/ui'
 
 function useGlobalHotkeys(): void {
@@ -54,7 +56,8 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '3') {
         e.preventDefault()
         navigate({ page: 'analytics' })
-      } else if (e.key === '4') {
+      } else if (e.key === '4' && !e.shiftKey) {
+        // Ctrl+Shift+4 (Ctrl+$ on some layouts reports the digit) toggles amounts, below.
         e.preventDefault()
         navigate({ page: 'library' })
       } else if (e.key === '5') {
@@ -66,6 +69,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '6') {
         e.preventDefault()
         navigate({ page: 'calculator' })
+      } else if (e.key === '7') {
+        e.preventDefault()
+        navigate({ page: 'forecast' })
       } else if (e.key === ',') {
         e.preventDefault()
         navigate({ page: 'settings' })
@@ -120,6 +126,8 @@ function Page({ route }: { route: Route }) {
       return <WeekPage key={route.week} week={route.week} />
     case 'calculator':
       return <CalculatorPage key={route.tradeId ?? 'calc'} tradeId={route.tradeId} />
+    case 'forecast':
+      return <ForecastPage id={route.id} />
     case 'settings':
       return <SettingsPage />
     case 'sync':
@@ -132,6 +140,7 @@ export function App() {
   const route = useUi((s) => s.route)
   const issues = useJournal((s) => s.conflicts.length + s.problems.filter((p) => p.kind !== 'unknown-file').length)
   useGlobalHotkeys()
+  useFxAutoFetch()
   useEffect(() => {
     void boot()
     initUpdates()
@@ -163,6 +172,9 @@ export function App() {
           </NavButton>
           <NavButton active={route.page === 'calculator'} onClick={() => navigate({ page: 'calculator' })} label="Kalkulator" keys="Ctrl+6" testId="nav-calc">
             <IconCalc size={17} />
+          </NavButton>
+          <NavButton active={route.page === 'forecast'} onClick={() => navigate({ page: 'forecast' })} label="Prognoza" keys="Ctrl+7" testId="nav-forecast">
+            <IconForecast size={17} />
           </NavButton>
           <NavButton active={false} onClick={() => newTrade()} label="Nowa" keys="Ctrl+N" testId="nav-new">
             <IconPlus size={17} />

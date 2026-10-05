@@ -7,7 +7,7 @@ import { DateTime } from 'luxon'
 import { createDayPlan, createDefaultJournal, createTrade } from '../defaults'
 import { newId } from '../ids'
 import { fromLocal, isoWeekOf } from '../calc/time'
-import { SCHEMA_VERSION, type BiasDirection, type DayPlan, type JournalFile, type LibraryItem, type Trade, type WeekReview } from '../schema'
+import { FORECAST_MAX_MONTHS, SCHEMA_VERSION, forecastSchema, type BiasDirection, type DayPlan, type Forecast, type JournalFile, type LibraryItem, type Trade, type WeekReview } from '../schema'
 import { libraryItemSchema } from '../schema/library'
 import { weekReviewSchema, WEEKDAYS } from '../schema/week'
 
@@ -34,6 +34,8 @@ export interface SampleData {
   days: DayPlan[]
   weeks: WeekReview[]
   library: LibraryItem[]
+  /** One payout forecast scenario with neutral numbers and fixed, deterministic draws. */
+  forecasts: Forecast[]
   screens: ScreenSpec[]
 }
 
@@ -277,6 +279,7 @@ export function generateSample(opts: { seed?: number; endDate: string; now?: str
         mfePips: missed ? null : mfe,
         riskPercent: 0.5,
         riskAmount: 50,
+        amountCurrency: journal.settings.risk.accountCurrency,
         lots: round(50 / (slPips * 10), 2),
         stopBeyondLiquidity: rnd() < 0.8 ? 'yes' : rnd() < 0.5 ? 'no' : 'unknown',
         psychology: {
@@ -401,5 +404,32 @@ export function generateSample(opts: { seed?: number; endDate: string; now?: str
     })
   }
 
-  return { journal, trades, days: [...plans.values()], weeks, library, screens }
+  return { journal, trades, days: [...plans.values()], weeks, library, forecasts: [sampleForecast(opts.seed ?? 1234, opts.endDate, now, journal.settings.risk.accountCurrency)], screens }
+}
+
+/** A neutral example scenario: random 3–6% a month, purpose fund, three goals; draws from the seed (same every time). */
+function sampleForecast(seed: number, endDate: string, now: string, currency: string): Forecast {
+  const rnd = mulberry32(seed ^ 0x5eed)
+  const table = () => Array.from({ length: FORECAST_MAX_MONTHS }, () => rnd())
+  const goal = (name: string, month: number, amount: number | null, flexible = false) => ({ id: newId(), name, month, amount, enabled: true, flexible })
+  const first = DateTime.fromISO(endDate).plus({ months: 1 })
+  return forecastSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    name: 'Scenariusz 1',
+    currency,
+    payoutPercent: 25,
+    gain: 'pct',
+    pct: { mode: 'random', fixed: 4, lo: 3, hi: 6 },
+    startCapital: 10000,
+    monthlyDeposit: 1000,
+    firstMonth: first.toFormat('yyyy-MM'),
+    months: 36,
+    keep: 'fund',
+    goals: [goal('Cel 1', 6, 2000), goal('Cel 2', 12, null), goal('Cel 3', 24, 5000, true)],
+    draws: { rate: table(), loss: table(), lossSize: table(), pips: table() },
+    notes: 'Przykładowy scenariusz z danymi demonstracyjnymi.'
+  })
 }

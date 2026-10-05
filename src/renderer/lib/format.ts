@@ -42,6 +42,50 @@ export function fmtMoneyGrouped(v: number | null | undefined, currency: string):
   return `${(int ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')}.${dec} ${currency}`
 }
 
+/**
+ * Polish plural form of the noun after a number: 1 → `one`, 2–4 (except 12–14) → `few`, otherwise `many`;
+ * a fractional number takes `fraction` (genitive singular: "2.5 pipsa"), by default the `few` form.
+ */
+export function plural(n: number, one: string, few: string, many: string, fraction = few): string {
+  if (!Number.isFinite(n)) return many
+  const abs = Math.abs(n)
+  if (!Number.isInteger(abs)) return fraction
+  if (abs === 1) return one
+  const last = abs % 10
+  const lastTwo = abs % 100
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? few : many
+}
+
+/** "3 cele", "5 miesięcy", "1 pips", "2.5 pipsa". */
+export function countLabel(n: number, one: string, few: string, many: string, fraction?: string): string {
+  return `${n} ${plural(n, one, few, many, fraction)}`
+}
+
+const groupThousands = (int: string) => int.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')
+
+/**
+ * Amount of the payout forecast: no plus sign, thousands grouped with U+00A0, minus U+2212, never "−0.00":
+ * 1 223.50 PLN. Without `currency` just the number.
+ */
+export function fmtAmount(v: number | null | undefined, currency?: string, decimals = 2): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  const abs = Math.abs(v).toFixed(decimals)
+  const negative = v < 0 && Number(abs) !== 0
+  const [int, dec] = abs.split('.')
+  return `${negative ? MINUS : ''}${groupThousands(int ?? '')}${dec != null ? `.${dec}` : ''}${currency ? ` ${currency}` : ''}`
+}
+
+/** A percentage value (11 → "11.00%"), minus U+2212, never "−0.00%". */
+export function fmtPct(v: number | null | undefined, decimals = 2): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return `${fmtAmount(v, undefined, decimals)}%`
+}
+
+/** Percentage without trailing zeros: 50 → "50%", 46.5 → "46.5%". */
+export function fmtPctShort(v: number): string {
+  return `${Number(v.toFixed(2))}%`
+}
+
 export function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`
@@ -59,11 +103,24 @@ export const toneClass = { up: 'text-up', down: 'text-down', flat: 'text-muted' 
 
 /** Parse user-typed numbers: accepts comma or dot, spaces. Returns undefined when invalid. */
 export function parseNumberInput(text: string): number | null | undefined {
-  const t = text.trim().replace(/\s/g, '').replace(',', '.')
+  // Minus "-" or U+2212 (shown by the forecast fields).
+  const t = text.trim().replace(/\s/g, '').replace(MINUS, '-').replace(',', '.')
   if (t === '') return null
   if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return undefined
   const n = Number(t)
   return Number.isFinite(n) ? n : undefined
+}
+
+/**
+ * An amount typed or shown with grouped thousands: spaces (also U+00A0) ignored, comma or dot, minus "-" or
+ * U+2212; a value beyond ±1e12 is clipped (appendix B); null = empty, undefined = invalid.
+ */
+export function parseAmountInput(text: string): number | null | undefined {
+  const t = text.replace(/\s/g, '').replace(MINUS, '-').replace(',', '.')
+  if (t === '') return null
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return undefined
+  const v = Number(t)
+  return Number.isFinite(v) ? Math.min(1e12, Math.max(-1e12, v)) : undefined
 }
 
 /** Parse "330", "3:30", "03.30", "0330" → "03:30". */

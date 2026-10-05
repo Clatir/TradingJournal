@@ -1,11 +1,19 @@
 import { useState } from 'react'
-import { lotDecimals, positionSize } from '@shared/calc/position'
-import { fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
+import { create } from 'zustand'
+import { lotDecimals, positionSize, takeProfitResult } from '@shared/calc/position'
+import { rateFor } from '@shared/fx'
+import { calculatorCurrency } from '@shared/risk'
+import { fmtAmount, fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
 import { metricsFor, useDailyLimits } from '../../store/derived'
 import { updateJournal, updateRecord, useJournal } from '../../store/journal'
 import { navigate, toast } from '../../store/ui'
-import { Field, NumberField, Panel, cx } from '../../components/ui'
+import { Cell, CurrencyInput, Field, NumberField, Panel, cx } from '../../components/ui'
+import { RateField } from '../../components/RateField'
 import { PnlCalculator } from './PnlCalculator'
+import { PartialsCalculator } from './PartialsCalculator'
+
+/** Take profit in pips, kept for the session (a trade opened in the calculator brings its own). */
+const useTakeProfit = create<{ tpPips: number | null }>(() => ({ tpPips: null }))
 
 /** Position size calculator (lots from balance, risk % and stop in pips), P/L calculator and daily limits. */
 export function CalculatorPage({ tradeId }: { tradeId?: string }) {
@@ -17,15 +25,33 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
   const [riskPercent, setRiskPercent] = useState<number | null>(trade?.riskPercent ?? settings?.risk.defaultRiskPercent ?? 0.5)
   const initialStop = trade && settings ? metricsFor(trade, settings).riskPips : null
   const [stopPips, setStopPips] = useState<number | null>(initialStop != null ? Number(initialStop.toFixed(1)) : 15)
+  const tradeTp =
+    trade && settings && trade.prices.entry != null && trade.prices.takeProfit1 != null
+      ? Number((Math.abs(trade.prices.takeProfit1 - trade.prices.entry) / metricsFor(trade, settings).pipSize).toFixed(1))
+      : null
+  const sessionTp = useTakeProfit((s) => s.tpPips)
+  const [tradeTpPips, setTradeTpPips] = useState<number | null>(tradeTp)
+  const tpPips = trade ? tradeTpPips : sessionTp
+  const setTpPips = (v: number | null) => {
+    const clean = v != null && v > 0 ? v : null
+    if (trade) setTradeTpPips(clean)
+    else useTakeProfit.setState({ tpPips: clean })
+  }
   const limits = useDailyLimits(new Date().toISOString())
 
   if (!journal || !settings) return null
   const pairCfg = settings.pairs.find((p) => p.symbol === pair)
   const account = settings.risk.accountCurrency
+  // Every amount of the page is in the calculator currency (PLN by default), converted from the account currency.
+  const cc = calculatorCurrency(settings)
+  const cur = cc.currency
   const quote = pairCfg?.quoteCurrency ?? 'USD'
-  const sameCurrency = quote === account
-  const rate = sameCurrency ? 1 : (settings.risk.conversionRates[quote] ?? null)
-  const balance = settings.risk.accountBalance
+  const sameCurrency = quote === cur
+  const rateInfo = rateFor(quote, cur, settings)
+  const rate = rateInfo?.rate ?? null
+  const accountBalance = settings.risk.accountBalance
+  const balance = accountBalance != null ? accountBalance * cc.fromAccount : null
+  const rateSource = rateInfo?.source === 'nbp' ? `NBP ${settings.fx.nbp?.effectiveDate ?? '?'}` : 'kurs ręczny'
 
   const result =
     balance != null && riskPercent != null && stopPips != null && rate != null
@@ -39,14 +65,15 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
           lotStep: settings.risk.lotStep
         })
       : null
+  const tp = result && stopPips != null ? takeProfitResult(result, tpPips, stopPips) : null
 
   const lotDec = lotDecimals(settings.risk.lotStep)
   const setRisk = (patch: Partial<typeof settings.risk>) => updateJournal((j) => ({ ...j, settings: { ...j.settings, risk: { ...j.settings.risk, ...patch } } }))
 
   const apply = () => {
     if (!tradeId || !result) return
-    updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)) }))
-    toast(`Zapisano w transakcji: ${result.lots.toFixed(lotDec)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${account}.`, 'success')
+    updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)), amountCurrency: cur }))
+    toast(`Zapisano w transakcji: ${result.lots.toFixed(lotDec)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${cur}.`, 'success')
     navigate({ page: 'trade', id: tradeId })
   }
 
@@ -55,8 +82,29 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
       <div className="mx-auto grid max-w-[1040px] grid-cols-[1fr_1fr] gap-3">
         <Panel title="Kalkulator pozycji">
           <div className="flex flex-col gap-2">
-            <Field label={`Kapitał (${account})`}>
-              <NumberField value={balance} onChange={(v) => setRisk({ accountBalance: v != null && v >= 0 ? v : null })} decimals={2} placeholder="np. 10000" data-testid="calc-balance" />
+            <Field
+              label="Kapitał"
+              hint={
+                <span data-testid="calc-currency-hint">
+                  {cc.fallback
+                    ? `brak kursu ${account} → ${cc.wanted} – wyniki w ${account}, dopóki nie pobierzesz kursów NBP albo nie wpiszesz kursu`
+                    : cur !== account
+                      ? `waluta kalkulatora; konto w ${account}${accountBalance != null ? `: ${fmtAmount(accountBalance, account)}` : ''} · kurs ${cc.fromAccount}${cc.rateSource === 'nbp' ? ` (NBP ${settings.fx.nbp?.effectiveDate ?? ''})` : ' (wpisany ręcznie)'}`
+                      : 'waluta kalkulatora = waluta konta'}
+                </span>
+              }
+            >
+              <div className="flex items-center gap-2">
+                <NumberField
+                  value={balance != null ? Number(balance.toFixed(2)) : null}
+                  // Stored in the account currency (other screens use it); typed in the calculator currency.
+                  onChange={(v) => setRisk({ accountBalance: v != null && v >= 0 ? Number((v / cc.fromAccount).toFixed(6)) : null })}
+                  decimals={2}
+                  placeholder="np. 10000"
+                  data-testid="calc-balance"
+                />
+                <CurrencyInput className="w-[60px] shrink-0" value={cc.wanted} onChange={(calcCurrency) => setRisk({ calcCurrency })} aria-label="Waluta kalkulatora" data-testid="calc-currency" />
+              </div>
             </Field>
             <Field label="Ryzyko %">
               <NumberField value={riskPercent} onChange={setRiskPercent} decimals={2} step={0.05} data-testid="calc-risk" />
@@ -75,28 +123,18 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
             <Field label="SL (pips)">
               <NumberField value={stopPips} onChange={setStopPips} decimals={1} step={0.5} data-testid="calc-sl" />
             </Field>
-            <Field
-              label="Kurs"
-              hint={sameCurrency ? 'waluta kwotowana = waluta konta, kurs 1' : `ile ${account} kosztuje 1 ${quote} – wpisz ręcznie (zapamiętywany)`}
-            >
-              {sameCurrency ? (
-                <span className="num text-muted">
-                  1 {quote} = 1 {account}
-                </span>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="num w-[54px] text-muted">1 {quote} =</span>
-                  <NumberField
-                    value={rate}
-                    onChange={(v) => v && v > 0 && setRisk({ conversionRates: { ...settings.risk.conversionRates, [quote]: v } })}
-                    decimals={4}
-                    step={0.0001}
-                    data-testid="calc-rate"
-                  />
-                  <span className="num text-muted">{account}</span>
-                </div>
-              )}
+            <Field label="TP (pips)" hint={trade ? 'z transakcji: odległość wejście – TP1' : 'opcjonalnie – zysk przy TP i zysk do ryzyka'}>
+              <NumberField value={tpPips} onChange={setTpPips} decimals={1} step={0.5} placeholder="—" data-testid="calc-tp" />
             </Field>
+            {sameCurrency ? (
+              <Field label="Kurs" hint="waluta kwotowana = waluta konta, kurs 1">
+                <span className="num text-muted">
+                  1 {quote} = 1 {cur}
+                </span>
+              </Field>
+            ) : (
+              <RateField from={quote} to={cur} settings={settings} noneHint={`ile ${cur} kosztuje 1 ${quote} – wpisz ręcznie (zapamiętywany)`} testId="calc-rate" />
+            )}
           </div>
         </Panel>
 
@@ -111,10 +149,17 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                 <span className="num ml-auto text-[12px] text-dim">dokładnie {result.lotsExact.toFixed(4)}</span>
               </div>
               <div className="grid grid-cols-2 border border-line">
-                <Cell label="Ryzyko docelowe" value={`${result.riskAmount.toFixed(2)} ${account}`} />
-                <Cell label="Ryzyko po zaokrągleniu" value={`${result.actualRiskAmount.toFixed(2)} ${account} (${result.actualRiskPercent.toFixed(2)}%)`} />
-                <Cell label="Wartość pipsa / 1 lot" value={`${result.pipValuePerLot.toFixed(2)} ${account}`} />
-                <Cell label="Wartość pipsa / pozycja" value={`${(result.pipValuePerLot * result.lots).toFixed(2)} ${account}`} />
+                <Cell label="Ryzyko docelowe" value={`${result.riskAmount.toFixed(2)} ${cur}`} />
+                <Cell label="Ryzyko po zaokrągleniu" value={`${result.actualRiskAmount.toFixed(2)} ${cur} (${result.actualRiskPercent.toFixed(2)}%)`} />
+                <Cell
+                  label="Wartość pipsa / 1 lot"
+                  value={`${result.pipValuePerLot.toFixed(2)} ${cur}`}
+                  sub={sameCurrency ? undefined : <span data-testid="calc-pip-value-source">{`kurs ${quote}/${cur} ${rate} (${rateSource})`}</span>}
+                  testId="calc-pip-value"
+                />
+                <Cell label="Wartość pipsa / pozycja" value={`${(result.pipValuePerLot * result.lots).toFixed(2)} ${cur}`} />
+                <Cell label="Zysk przy TP" value={tp ? `${tp.profit.toFixed(2)} ${cur}` : '—'} valueClassName={tp && tp.profit > 0 ? 'text-up' : undefined} testId="calc-tp-profit" />
+                <Cell label="Zysk do ryzyka" value={tp ? `1 : ${tp.ratio.toFixed(2)}` : '—'} testId="calc-rr" />
               </div>
               <p className="text-[11.5px] text-muted">
                 Loty zaokrąglane w dół do kroku {settings.risk.lotStep}, więc ryzyko nigdy nie przekracza zadanego. Lot = {settings.risk.contractSize.toLocaleString('pl-PL')} jednostek.
@@ -127,12 +172,17 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
             </div>
           ) : (
             <div className="text-muted">
-              {balance == null ? 'Wpisz kapitał konta.' : rate == null ? `Wpisz kurs ${quote} → ${account}.` : 'Uzupełnij ryzyko i SL.'}
+              {balance == null ? 'Wpisz kapitał konta.' : rate == null ? `Wpisz kurs ${quote} → ${cur}.` : 'Uzupełnij ryzyko i SL.'}
             </div>
           )}
         </Panel>
 
         <PnlCalculator settings={settings} />
+
+        <PartialsCalculator
+          settings={settings}
+          from={trade && tradeId ? { key: tradeId, instrument: trade.pair, lots: trade.lots, stopPips: initialStop != null ? Number(initialStop.toFixed(1)) : null } : undefined}
+        />
 
         <Panel title="Limity dzienne" className="col-span-2">
           <div className="grid grid-cols-[1fr_1fr_1.4fr] items-start gap-4">
@@ -173,22 +223,13 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                   </span>
                 )}
                 {settings.display.showMoney && limits.trades > 0 && balance != null && (
-                  <span className="text-dim">≈ {fmtMoney((limits.totalR * balance * (settings.risk.defaultRiskPercent / 100)), account)} przy ryzyku domyślnym</span>
+                  <span className="text-dim">≈ {fmtMoney(limits.totalR * balance * (settings.risk.defaultRiskPercent / 100), cur)} przy ryzyku domyślnym</span>
                 )}
               </div>
             )}
           </div>
         </Panel>
       </div>
-    </div>
-  )
-}
-
-function Cell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 border-r border-b border-line px-2 py-1.5 [&:nth-child(2n)]:border-r-0 [&:nth-last-child(-n+2)]:border-b-0">
-      <span className="label">{label}</span>
-      <span className="num text-[13px] text-fg-strong">{value}</span>
     </div>
   )
 }

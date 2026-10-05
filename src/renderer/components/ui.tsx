@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react'
 import { parseNumberInput } from '../lib/format'
+import { toast } from '../store/ui'
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
@@ -33,9 +34,22 @@ export function Panel({
   )
 }
 
-export function Field({ label, children, hint, className }: { label: ReactNode; children: ReactNode; hint?: ReactNode; className?: string }) {
+export function Field({
+  label,
+  children,
+  hint,
+  className,
+  labelWidth = 104
+}: {
+  label: ReactNode
+  children: ReactNode
+  hint?: ReactNode
+  className?: string
+  /** Width of the label column in px. */
+  labelWidth?: number
+}) {
   return (
-    <div className={cx('grid grid-cols-[104px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5', className)}>
+    <div className={cx('grid items-center gap-x-2 gap-y-0.5', className)} style={{ gridTemplateColumns: `${labelWidth}px minmax(0,1fr)` }}>
       <span className="truncate text-[11.5px] text-muted">{label}</span>
       <div className="min-w-0">{children}</div>
       {hint && <div className="col-start-2 text-[11px] text-muted">{hint}</div>}
@@ -58,17 +72,29 @@ interface NumberFieldProps {
   readOnly?: boolean
   id?: string
   autoFocus?: boolean
+  /** A parsed number this returns false for is refused like unparsable text (error border, state unchanged). */
+  isValid?: (v: number | null) => boolean
+  /** Show negatives with U+2212 (typing accepts both minus signs anyway). */
+  typographicMinus?: boolean
   'aria-label'?: string
   'data-testid'?: string
 }
 
+/** Places of a step like 0.25 or 0.01 (at most 10). */
+const stepPlaces = (step: number) => Math.min(10, (String(step).split('.')[1] ?? '').length)
+
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(function NumberField(
-  { value, onChange, decimals, step, placeholder, className, readOnly, id, autoFocus, ...aria },
+  { value, onChange, decimals, step, placeholder, className, readOnly, id, autoFocus, isValid, typographicMinus, ...aria },
   ref
 ) {
   const [draft, setDraft] = useState<string | null>(null)
-  const shown = draft ?? (value == null ? '' : decimals != null ? value.toFixed(decimals) : String(value))
-  const invalid = draft != null && parseNumberInput(draft) === undefined
+  const formatted = value == null ? '' : decimals != null ? value.toFixed(decimals) : String(value)
+  const shown = draft ?? (typographicMinus ? formatted.replace('-', '\u2212') : formatted)
+  const accepts = (t: string) => {
+    const parsed = parseNumberInput(t)
+    return parsed !== undefined && (!isValid || isValid(parsed))
+  }
+  const invalid = draft != null && !accepts(draft)
   return (
     <input
       ref={ref}
@@ -88,7 +114,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
         const t = e.currentTarget.value
         setDraft(t)
         const parsed = parseNumberInput(t)
-        if (parsed !== undefined) onChange(parsed)
+        if (parsed !== undefined && (!isValid || isValid(parsed))) onChange(parsed)
       }}
       onBlur={() => setDraft(null)}
       onKeyDown={(e) => {
@@ -98,8 +124,12 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
         }
         e.preventDefault()
         const delta = (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1)
-        const next = (value ?? 0) + delta
-        onChange(decimals != null ? Number(next.toFixed(decimals)) : next)
+        const raw = (value ?? 0) + delta
+        // Clean numbers after repeated steps (0.1 + 0.2). Never fewer places than the step has: a value shown as
+        // "0.1" stepped by 0.01 must become 0.11, not round back to 0.1.
+        const next = decimals != null ? Number(raw.toFixed(Math.max(decimals, stepPlaces(step)))) : Number(raw.toFixed(10))
+        if (isValid && !isValid(next)) return
+        onChange(next)
         setDraft(null)
       }}
     />
@@ -182,7 +212,7 @@ export function Segmented<T extends string>({
   ...rest
 }: {
   value: T | null
-  options: Array<{ value: T; label: ReactNode; title?: string; className?: string }>
+  options: Array<{ value: T; label: ReactNode; title?: string; className?: string; disabled?: boolean }>
   onChange: (v: T) => void
   className?: string
   size?: 'sm' | 'md'
@@ -199,12 +229,17 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={active}
             title={o.title}
+            disabled={o.disabled}
             onClick={() => onChange(o.value)}
             className={cx(
               'px-2.5 transition-colors duration-100',
               size === 'sm' ? 'h-[22px] text-[11.5px]' : 'h-[24px]',
               i > 0 && 'border-l border-line-strong',
-              active ? (o.className ?? 'bg-accent-soft text-accent') : 'text-muted hover:bg-hover hover:text-fg-strong'
+              active
+                ? (o.className ?? 'bg-accent-soft text-accent')
+                : o.disabled
+                  ? 'cursor-not-allowed text-dim'
+                  : 'text-muted hover:bg-hover hover:text-fg-strong'
             )}
           >
             {o.label}
@@ -262,13 +297,26 @@ export function Stat({ label, value, className, valueClassName }: { label: React
   )
 }
 
-export function Toggle({ checked, onChange, label, ...rest }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode; 'data-testid'?: string }) {
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  disabled,
+  ...rest
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: ReactNode
+  disabled?: boolean
+  'data-testid'?: string
+}) {
   return (
-    <label className="inline-flex cursor-default items-center gap-2" data-testid={rest['data-testid']}>
+    <label className={cx('inline-flex cursor-default items-center gap-2', disabled && 'opacity-40')} data-testid={rest['data-testid']}>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cx(
           'relative h-[16px] w-[28px] border transition-colors duration-150',
@@ -289,4 +337,131 @@ export function Toggle({ checked, onChange, label, ...rest }: { checked: boolean
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="flex h-full items-center justify-center p-6 text-center text-muted">{children}</div>
+}
+
+/**
+ * Three-letter currency code. Edited as a draft and applied on blur/Enter: applying every keystroke
+ * would reject the intermediate one- and two-letter states and snap the field back.
+ */
+export function CurrencyInput({
+  value,
+  onChange,
+  className,
+  allowEmpty,
+  placeholder,
+  ...rest
+}: {
+  value: string
+  onChange: (v: string) => void
+  className?: string
+  /** An emptied field applies '' (e.g. "account currency"). */
+  allowEmpty?: boolean
+  placeholder?: string
+  'aria-label'?: string
+  'data-testid'?: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const valid = (t: string) => /^[A-Z]{3}$/.test(t) || (!!allowEmpty && t === '')
+  return (
+    <input
+      className={cx('input num', className)}
+      value={draft ?? value}
+      placeholder={placeholder}
+      spellCheck={false}
+      aria-label={rest['aria-label']}
+      data-testid={rest['data-testid']}
+      aria-invalid={draft != null && !valid(draft)}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.currentTarget.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3))}
+      onBlur={() => {
+        if (draft != null && valid(draft) && draft !== value) onChange(draft)
+        setDraft(null)
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
+  )
+}
+
+/**
+ * A name edited as a draft and applied on blur/Enter: it can be cleared and retyped, an empty name keeps
+ * the old one and `validate` can refuse a name (e.g. a duplicate) with a message.
+ */
+export const NameInput = forwardRef<
+  HTMLInputElement,
+  {
+    value: string
+    onChange: (v: string) => void
+    validate?: (v: string) => string | null
+    /** Shown when the field is left empty (the old name stays); without it an empty name is ignored silently. */
+    emptyMessage?: string
+    className?: string
+    maxLength?: number
+    placeholder?: string
+    'aria-label'?: string
+    'data-testid'?: string
+  }
+>(function NameInput({ value, onChange, validate, emptyMessage, className, maxLength, placeholder, ...rest }, ref) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const apply = () => {
+    const next = draft?.trim()
+    setDraft(null)
+    if (draft != null && !next && emptyMessage) return toast(emptyMessage, 'error')
+    if (!next || next === value) return
+    const problem = validate?.(next) ?? null
+    if (problem) return toast(problem, 'error')
+    onChange(next)
+  }
+  return (
+    <input
+      ref={ref}
+      className={cx('input', className)}
+      value={draft ?? value}
+      spellCheck={false}
+      maxLength={maxLength}
+      placeholder={placeholder}
+      aria-label={rest['aria-label']}
+      data-testid={rest['data-testid']}
+      onChange={(e) => setDraft(e.currentTarget.value)}
+      onBlur={apply}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setDraft(null)
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+})
+
+/** One cell of a result grid (label, value, optional caption); borders fit a two-column grid by default. */
+export function Cell({
+  label,
+  value,
+  sub,
+  testId,
+  className,
+  valueClassName
+}: {
+  label: ReactNode
+  value: ReactNode
+  sub?: ReactNode
+  testId?: string
+  className?: string
+  valueClassName?: string
+}) {
+  return (
+    <div
+      className={cx(
+        'flex min-w-0 flex-col gap-0.5 px-2 py-1.5',
+        className ?? 'border-r border-b border-line [&:nth-child(2n)]:border-r-0 [&:nth-last-child(-n+2)]:border-b-0'
+      )}
+    >
+      <span className="label truncate">{label}</span>
+      <span className={cx('num text-[13px] text-fg-strong', valueClassName)} data-testid={testId}>
+        {value}
+      </span>
+      {sub != null && sub !== false && <span className="text-[11px] text-muted">{sub}</span>}
+    </div>
+  )
 }

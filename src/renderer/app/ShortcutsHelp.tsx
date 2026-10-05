@@ -25,6 +25,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl 4', 'biblioteka setupów'],
       ['Ctrl 5', 'przegląd tygodnia'],
       ['Ctrl 6', 'kalkulator pozycji'],
+      ['Ctrl 7', 'prognoza wypłat'],
       ['Ctrl ,', 'ustawienia']
     ]
   },
@@ -44,6 +45,14 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl V', 'wklej screen do aktywnej fazy'],
       ['1 – 7', 'interwał ostatniego screena (W, D, H4…)'],
       ['Esc', 'wróć']
+    ]
+  },
+  {
+    title: 'Prognoza wypłat',
+    items: [
+      ['Enter / ↑ ↓ w kolumnie Wpłata', 'następny / poprzedni miesiąc'],
+      ['Ctrl Shift D', 'duplikuj scenariusz'],
+      ['↑ ↓ w polu liczby', '± krok (Shift: × 10)']
     ]
   },
   {

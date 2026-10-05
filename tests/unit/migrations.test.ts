@@ -34,6 +34,20 @@ describe('migracje schematu', () => {
     expect('entry' in r.value).toBe(false)
   })
 
+  it('scenariusz prognozy bez schemaVersion (v0) → bieżący, z id i czasami', () => {
+    const id = '01K6H3Z0W8Q4M2N5P7R9S1T3V5'
+    const r = parseRecordText('forecasts', JSON.stringify({ id, name: 'Scenariusz 1', currency: 'PLN', firstMonth: '2026-11', months: 24 }))
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.migrated).toBe(true)
+    expect(r.fromVersion).toBe(0)
+    expect(r.value).toMatchObject({ schemaVersion: SCHEMA_VERSION, id, name: 'Scenariusz 1', months: 24, keep: 'fund', payoutPercent: 50 })
+    expect(r.value.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(r.value.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    const bad = parseRecordText('forecasts', JSON.stringify({ ...r.value, months: 0 }))
+    expect(bad.ok).toBe(false)
+  })
+
   it('nowszy format → błąd z numerem wersji', () => {
     expect(() => migrateRaw('trades', { ...legacyTrade, schemaVersion: SCHEMA_VERSION + 1 })).toThrow(SchemaTooNewError)
     const r = parseRecordText('trades', JSON.stringify({ schemaVersion: SCHEMA_VERSION + 1 }))

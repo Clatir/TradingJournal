@@ -32,6 +32,7 @@ describe('CSV dla Excela (PL)', () => {
     expect(lines[1]).toContain(';2026-03-16;03:30;2026-03-16;08:30;2026-03-16T07:30:00.000Z;EURUSD;long;zamknięta;London + SB London;')
     expect(lines[1]).toContain(';1,08500;1,08350;1,08800;;')
     expect(lines[1]).toContain(';15,0;2,00;2,00;30,0;')
+    expect(lines[0]).toContain(';Wynik kwota (waluta konta);Ryzyko %;Ryzyko kwota;Waluta kwot;Loty;')
   })
 
   it('cudzysłowy, nowe linie i neutralizacja formuł', () => {

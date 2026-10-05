@@ -1,8 +1,18 @@
 /** Contract between the main process (data folder owner) and the renderer. */
 import type { Collection, FileKind } from './paths'
 import type { RecordTypes } from './records'
+import type { FxFetchResult } from './fx'
+import type { FxHistoryResult } from './fxHistory'
+import type { XlsxSheet } from './export/xlsx'
 import type { JournalFile } from './schema'
 import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
+
+/** A broker's history file: worksheets of an XLSX, or the bytes of a text / HTML file. */
+export interface BrokerFile {
+  name: string
+  sheets: Array<{ name: string; rows: string[][] }> | null
+  bytes: Uint8Array | null
+}
 
 export interface RecordEntry<T> {
   record: T
@@ -59,6 +69,7 @@ export interface Snapshot {
   days: RecordEntry<RecordTypes['days']>[]
   weeks: RecordEntry<RecordTypes['weeks']>[]
   library: RecordEntry<RecordTypes['library']>[]
+  forecasts: RecordEntry<RecordTypes['forecasts']>[]
   problems: Problem[]
   conflicts: ConflictEntry[]
   status: FolderStatus
@@ -159,6 +170,8 @@ export interface AppInfo {
   userDataDir: string
   sampleDir: string
   isPortable: boolean
+  /** Delay of the automatic NBP fetch after start (ICTJ_NBP_FETCH_DELAY_MS in test runs). */
+  fxFetchDelayMs: number
 }
 
 export type OpenFolderResult =
@@ -192,6 +205,12 @@ export interface JournalApi {
   exitSample(): Promise<OpenFolderResult | null>
   /** Save dialog + write a text file (CSV, markdown). Returns the path or null when cancelled. */
   saveTextFile(defaultName: string, content: string, filter: { name: string; extensions: string[] }): Promise<string | null>
+  /** Save dialog + write an XLSX workbook built from `sheets` (main process, yazl). Returns the path or null when cancelled. */
+  saveXlsx(defaultName: string, sheets: XlsxSheet[]): Promise<string | null>
+  /** Save dialog + an A4 PDF printed from a self-contained HTML document (hidden window, no JavaScript). */
+  savePdf(defaultName: string, html: string): Promise<string | null>
+  /** Open dialog for a broker's history (CSV, HTML report, XLSX); null when cancelled. */
+  pickBrokerFile(): Promise<BrokerFile | null>
   /** ZIP of the whole data folder (without backups). */
   exportZip(): Promise<string | null>
   copyText(text: string): Promise<void>
@@ -217,6 +236,10 @@ export interface JournalApi {
   setUpdatePrefs(prefs: Partial<UpdatePrefs>): Promise<UpdateState>
   dismissUpdateNotice(): Promise<UpdateState>
   onUpdateState(cb: (state: UpdateState) => void): () => void
+  /** Fetch the latest NBP table A (main process, net.fetch, 10 s limit). Nothing is saved. */
+  fetchFxRates(): Promise<FxFetchResult>
+  /** Archive NBP mid rates of one currency for start…end (at most 367 days). Nothing is saved. */
+  fetchFxHistory(code: string, start: string, end: string): Promise<FxHistoryResult>
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes (false = something stayed unsaved). */
   onFlushRequest(cb: () => Promise<boolean>): () => void

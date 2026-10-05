@@ -129,6 +129,10 @@ describe('applying updates', () => {
     // The old exe is restored when the new one cannot be moved in.
     expect(script).toMatch(/Move-Item -LiteralPath \$backup -Destination \$target/)
     expect(portableSwapScript({ target: 'a', staged: 'b', waitPids: [1], restart: false, logFile: 'l' })).not.toContain('Start-Process')
+    // A briefly locked log file (antivirus, a reader) must not drop lines: errors stop Add-Content and are retried.
+    const helper = portableSwapScript({ target: 'a', staged: 'b', waitPids: [1], restart: false, logFile: 'l' })
+    expect(helper).toContain('Add-Content -LiteralPath $log -Value $line -Encoding UTF8 -ErrorAction Stop')
+    expect(helper).toMatch(/for \(\$t = 0; \$t -lt 20; \$t\+\+\)/)
   })
 
   it('runs the installer silently into the existing installation', () => {

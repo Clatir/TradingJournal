@@ -26,6 +26,9 @@ const api: JournalApi = {
   exitSample: () => invoke('exitSample'),
   saveTextFile: (name, content, filter) => invoke('saveTextFile', name, content, filter),
   exportZip: () => invoke('exportZip'),
+  saveXlsx: (name, sheets) => invoke('saveXlsx', name, sheets),
+  savePdf: (name, html) => invoke('savePdf', name, html),
+  pickBrokerFile: () => invoke('pickBrokerFile'),
   copyText: (text) => invoke('copyText', text),
   copyImage: (png) => invoke('copyImage', png),
   inspectImport: (kind) => invoke('inspectImport', kind),
@@ -42,6 +45,8 @@ const api: JournalApi = {
   installUpdateNow: () => invoke('installUpdateNow'),
   setUpdatePrefs: (prefs) => invoke('setUpdatePrefs', prefs),
   dismissUpdateNotice: () => invoke('dismissUpdateNotice'),
+  fetchFxRates: () => invoke('fetchFxRates'),
+  fetchFxHistory: (code, start, end) => invoke('fetchFxHistory', code, start, end),
   onUpdateState: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, state: UpdateState) => cb(state)
     ipcRenderer.on('journal:update', listener)

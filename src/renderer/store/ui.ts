@@ -9,10 +9,11 @@ export type Route =
   | { page: 'library'; id?: string }
   | { page: 'week'; week: string }
   | { page: 'calculator'; tradeId?: string }
+  | { page: 'forecast'; id?: string }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 
-export type SettingsTab = 'folder' | 'pairs' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer' | 'updates'
+export type SettingsTab = 'folder' | 'pairs' | 'instruments' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer' | 'updates'
 
 export interface Toast {
   id: number

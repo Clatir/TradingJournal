@@ -37,12 +37,16 @@ function round(value: number, decimals = 6): number {
   return Number(value.toFixed(decimals))
 }
 
-/** Value of one pip for the smallest lot in account currency; null without the conversion rate. */
+/**
+ * Value of one pip for the smallest lot, converted with `quoteToAccountRate` (1 quote currency = rate target
+ * currency); null without the rate or without a pip size. Works for a preset and for any instrument.
+ */
 export function presetPipValue(
-  preset: PnlPreset,
+  preset: { pipSize: number | null; contractSize: number | null },
   opts: { minLot: number; fxContractSize: number; quoteToAccountRate: number | null }
 ): number | null {
   const rate = opts.quoteToAccountRate
+  if (preset.pipSize == null || !(preset.pipSize > 0)) return null
   if (rate == null || !(rate > 0) || !(opts.minLot > 0) || !(opts.fxContractSize > 0)) return null
   return round(preset.pipSize * (preset.contractSize ?? opts.fxContractSize) * opts.minLot * rate)
 }

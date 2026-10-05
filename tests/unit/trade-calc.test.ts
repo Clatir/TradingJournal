@@ -146,3 +146,36 @@ describe('killzone w transakcji', () => {
     expect(tradeMetrics({ ...t, killzoneOverride: ny.id }, ctx).killzoneNames).toEqual(['New York'])
   })
 })
+
+describe('kwoty w walucie konta', () => {
+  // EURUSD long, 1R win: entry 1.0850, SL 1.0835, exit 1.0865.
+  const win = (over: Partial<Trade> = {}) => ({ ...trade({ prices: { entry: 1.085, stopLoss: 1.0835 } }, [[1.0865, 100]]), status: 'closed' as const, riskAmount: 50, ...over })
+  const withAmounts = (defaultCurrency: string, rates: Record<string, number>): MetricsContext => ({
+    ...ctx,
+    amounts: { accountCurrency: 'PLN', defaultCurrency, rate: (from) => (rates[from] != null ? { rate: rates[from]!, tableDate: null } : null) }
+  })
+
+  it('kwota w walucie konta bez przeliczenia', () => {
+    const m = tradeMetrics(win({ amountCurrency: 'PLN' }), withAmounts('USD', { USD: 3.8881 }))
+    expect(m.pnlAmount).toBeCloseTo(50, 9)
+    expect(m.pnlAmountOwn).toBeCloseTo(50, 9)
+    expect(m.amountCurrency).toBe('PLN')
+  })
+
+  it('kwota w innej walucie (wpisana przed zmianą waluty konta) przeliczona kursem', () => {
+    const typed = tradeMetrics(win({ amountCurrency: 'USD' }), withAmounts('PLN', { USD: 3.8881 }))
+    expect(typed.pnlAmountOwn).toBeCloseTo(50, 9)
+    expect(typed.pnlAmount).toBeCloseTo(194.405, 9)
+    // Without its own currency: the remembered first account currency.
+    const legacy = tradeMetrics(win(), withAmounts('USD', { USD: 3.8881 }))
+    expect(legacy.amountCurrency).toBe('USD')
+    expect(legacy.pnlAmount).toBeCloseTo(194.405, 9)
+    // No rate: unknown in the account currency (not shown as if it were PLN).
+    expect(tradeMetrics(win({ amountCurrency: 'GBP' }), withAmounts('USD', {})).pnlAmount).toBeNull()
+    // A trade without amounts has no amount currency.
+    expect(tradeMetrics(win({ riskAmount: null }), withAmounts('USD', {})).amountCurrency).toBeNull()
+    // Without the context nothing is converted (old callers).
+    expect(tradeMetrics(win({ amountCurrency: 'USD' }), ctx).pnlAmount).toBeCloseTo(50, 9)
+  })
+})
+

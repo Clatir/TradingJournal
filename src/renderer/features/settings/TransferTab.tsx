@@ -7,6 +7,7 @@ import { toast } from '../../store/ui'
 import { IconFolder } from '../../components/icons'
 import { Badge, Panel, Segmented, cx } from '../../components/ui'
 import { exportCsv } from '../export/markdownActions'
+import { BrokerImport } from './BrokerImport'
 
 const KIND = { daily: 'dzienna (JSON)', weekly: 'tygodniowa (pełna)', manual: 'ręczna (pełna)', 'pre-migration': 'przed migracją' } as const
 
@@ -97,6 +98,7 @@ export function TransferTab() {
                 <span>plany dni <b className="num text-fg-strong">{report.valid.days}</b></span>
                 <span>tygodnie <b className="num text-fg-strong">{report.valid.weeks}</b></span>
                 <span>biblioteka <b className="num text-fg-strong">{report.valid.library}</b></span>
+                <span>scenariusze prognozy <b className="num text-fg-strong">{report.valid.forecasts}</b></span>
                 <span>screeny <b className="num text-fg-strong">{report.screens}</b></span>
                 {!report.hasJournal && <Badge tone="warn">brak journal.json</Badge>}
                 {report.tooNew && <Badge tone="warn">część plików w nowszym formacie</Badge>}
@@ -169,6 +171,8 @@ export function TransferTab() {
           )}
         </div>
       </Panel>
+
+      <BrokerImport />
 
       <Panel
         title="Kopie zapasowe"

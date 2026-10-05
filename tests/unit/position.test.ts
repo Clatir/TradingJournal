@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { positionSize } from '@shared/calc/position'
+import { positionSize, takeProfitResult } from '@shared/calc/position'
 
 const base = { pipSize: 0.0001, contractSize: 100000, lotStep: 0.01 }
 
@@ -40,5 +40,23 @@ describe('kalkulator pozycji', () => {
   it('niepoprawne dane → null', () => {
     expect(positionSize({ ...base, balance: 10000, riskPercent: 1, stopPips: 0, quoteToAccountRate: 1 })).toBeNull()
     expect(positionSize({ ...base, balance: Number.NaN, riskPercent: 1, stopPips: 10, quoteToAccountRate: 1 })).toBeNull()
+  })
+})
+
+describe('kalkulator pozycji: TP i zysk do ryzyka', () => {
+  it('zysk przy TP = loty × pipsy TP × wartość pipsa 1 lota; zysk do ryzyka = TP / SL', () => {
+    const r = positionSize({ ...base, balance: 10000, riskPercent: 1, stopPips: 20, quoteToAccountRate: 1 })!
+    expect(takeProfitResult(r, 40, 20)).toEqual({ profit: 200, ratio: 2 })
+    // the rounded position counts: 0.37% of 10 000 with SL 13 → 0.28 lota
+    const rounded = positionSize({ ...base, balance: 10000, riskPercent: 0.37, stopPips: 13, quoteToAccountRate: 1 })!
+    expect(takeProfitResult(rounded, 26, 13)?.profit).toBeCloseTo(0.28 * 26 * 10, 8)
+    expect(takeProfitResult(rounded, 26, 13)?.ratio).toBe(2)
+  })
+
+  it('bez TP (albo TP ≤ 0) nie ma wyniku', () => {
+    const r = positionSize({ ...base, balance: 10000, riskPercent: 1, stopPips: 20, quoteToAccountRate: 1 })!
+    expect(takeProfitResult(r, null, 20)).toBeNull()
+    expect(takeProfitResult(r, 0, 20)).toBeNull()
+    expect(takeProfitResult(r, -5, 20)).toBeNull()
   })
 })

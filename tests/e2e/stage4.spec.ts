@@ -47,6 +47,8 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     await expect(page.getByTestId('library-detail')).toBeVisible()
     await page.getByTestId('library-detail').getByTestId('annotate').click()
     await expect(page.getByTestId('annotator')).toBeVisible()
+    // The drawing area is measured only once it is laid out (it is hidden until the image is fitted).
+    await expect(page.getByTestId('annotator-canvas')).toBeVisible()
     const box = (await page.getByTestId('annotator-canvas').boundingBox())!
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.6)
     await page.mouse.down()
@@ -60,14 +62,38 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     await page.getByTestId('annotator-done').click()
     await page.getByTestId('library-title').fill('London sweep → MSS → FVG')
     const libDir = join(dataDir, 'library')
-    await expect
-      .poll(async () => {
-        const files = await fs.readdir(libDir).catch(() => [] as string[])
-        if (!files[0]) return 0
+    /**
+     * Annotations of the saved library item. Only canonical files: NTFS lists names sorted, so the temporary file of an
+     * atomic save (".<id>.json.tmp-…") can come first and be read half-written; -1 = keep polling.
+     */
+    const savedAnnotations = async (): Promise<number> => {
+      const files = (await fs.readdir(libDir).catch(() => [] as string[])).filter((n) => n.endsWith('.json') && !n.startsWith('.'))
+      if (!files[0]) return 0
+      try {
         return JSON.parse(await fs.readFile(join(libDir, files[0]), 'utf8')).screens[0]?.annotations.length ?? 0
-      }, { timeout: 8000 })
-      .toBe(2)
+      } catch {
+        return -1
+      }
+    }
+    await expect.poll(savedAnnotations, { timeout: 8000 }).toBe(2)
     await page.screenshot({ path: shots('32-biblioteka') })
+
+    // A very fast drag (down, move, up in one task, before React renders the move) still draws the shape.
+    await page.getByTestId('library-detail').getByTestId('annotate').click()
+    await page.getByTestId('tool-rect').click()
+    await expect(page.getByTestId('annotator-canvas')).toBeVisible()
+    const canvas = (await page.getByTestId('annotator-canvas').boundingBox())!
+    await page.getByTestId('annotator-canvas').evaluate((el, b) => {
+      // Runs in the page; the test tsconfig has no DOM lib.
+      const Mouse = (globalThis as unknown as { MouseEvent: new (type: string, init: Record<string, unknown>) => Event }).MouseEvent
+      const at = (type: string, fx: number, fy: number) =>
+        el.dispatchEvent(new Mouse(type, { bubbles: true, button: 0, clientX: b.x + b.width * fx, clientY: b.y + b.height * fy }))
+      at('mousedown', 0.2, 0.2)
+      at('mousemove', 0.4, 0.5)
+      at('mouseup', 0.4, 0.5)
+    }, canvas)
+    await page.getByTestId('annotator-done').click()
+    await expect.poll(savedAnnotations, { timeout: 8000 }).toBe(3)
 
     // Weekly review: import OHLC CSV generated for the current ISO week (NY dates).
     const nowNy = DateTime.now().setZone('America/New_York')

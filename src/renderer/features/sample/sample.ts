@@ -49,6 +49,7 @@ async function populate(): Promise<void> {
     l.screens = (refs.get(l.id) ?? []).map((x) => x.ref)
     await api.saveRecord('library', l)
   }
+  for (const f of data.forecasts) await api.saveRecord('forecasts', f)
 }
 
 /** Switch to the separate demo folder (generated on first use). Real data is never touched. */

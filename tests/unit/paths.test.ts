@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   classifyCanonical,
+  COLLECTIONS,
   detectConflictName,
+  forecastRelPath,
   isIgnoredPath,
+  kindOfDir,
+  recordRelPath,
   sanitizeRelPath,
   screenRelPaths,
   slugLabel,
@@ -24,7 +28,18 @@ describe('nazwy plików', () => {
     expect(classifyCanonical('days/2026/2026-10-01.json')).toBe('days')
     expect(classifyCanonical('weeks/2026-W40.json')).toBe('weeks')
     expect(classifyCanonical(`library/${ID}.json`)).toBe('library')
+    expect(classifyCanonical(`forecasts/${ID}.json`)).toBe('forecasts')
     expect(classifyCanonical('days/2026/notes.json')).toBeNull()
+    expect(classifyCanonical('forecasts/scenariusz.json')).toBeNull()
+    expect(classifyCanonical(`forecasts/2026/${ID}.json`)).toBeNull()
+  })
+
+  it('scenariusze prognozy: forecasts/<ULID>.json', () => {
+    expect(COLLECTIONS).toContain('forecasts')
+    expect(forecastRelPath(ID)).toBe(`forecasts/${ID}.json`)
+    expect(recordRelPath('forecasts', { id: ID, name: 'Scenariusz 1' })).toBe(`forecasts/${ID}.json`)
+    expect(kindOfDir(`forecasts/${ID}.json`)).toBe('forecasts')
+    expect(isIgnoredPath(`forecasts/.${ID}.json.tmp-abc`)).toBe(true)
   })
 
   it('screeny: ścieżki względne, etykieta bez polskich znaków', () => {
@@ -34,6 +49,7 @@ describe('nazwy plików', () => {
     })
     expect(slugLabel('W trakcie – M15 żółć')).toBe('W-trakcie-M15-zolc')
     expect(slugLabel('///')).toBe('screen')
+    expect(slugLabel('Сценарий', 'scenariusz')).toBe('scenariusz') // export file name of a scenario
   })
 
   it('pomijane ścieżki', () => {
@@ -71,6 +87,8 @@ describe('pliki konfliktów synchronizacji', () => {
     expect(detectConflictName('days/2026/2026-10-01-PC.json')?.canonicalPath).toBe('days/2026/2026-10-01.json')
     expect(detectConflictName('weeks/2026-W40 (1).json')?.canonicalPath).toBe('weeks/2026-W40.json')
     expect(detectConflictName(`library/${ID}-PC.json`)?.canonicalPath).toBe(`library/${ID}.json`)
+    expect(detectConflictName(`forecasts/${ID}-LAPTOP.json`)).toEqual({ kind: 'forecasts', canonicalPath: `forecasts/${ID}.json`, source: 'OneDrive' })
+    expect(detectConflictName(`forecasts/${ID} (1).json`)?.canonicalPath).toBe(`forecasts/${ID}.json`)
     expect(detectConflictName('journal-DESKTOP-1.json')?.canonicalPath).toBe('journal.json')
   })
 

@@ -1,7 +1,8 @@
 # ICT Trade Journal – ustalenia projektu
 
-Osobisty dziennik day tradera forex (metodologia ICT). Aplikacja desktopowa Electron dla Windows, w pełni offline,
-używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, terminy ICT po angielsku.
+Osobisty dziennik day tradera forex (metodologia ICT). Aplikacja desktopowa Electron dla Windows, działa offline,
+używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, terminy ICT po angielsku. Z siecią łączy się
+tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba można wyłączyć, nic nie jest wysyłane.
 
 ## Stack
 - Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4.
@@ -38,6 +39,7 @@ npx playwright test  # E2E (po npm run build); Linux: xvfb-run -a npx playwright
 npm run dist:win     # release/*.exe (na Windows natywnie; na Linuksie potrzebny wine64 + wine32 dla NSIS)
 build-windows.cmd    # Windows bez wymagań co do Node: pobiera Node z .node-version do .tools\ (SHA-256), npm ci/test/dist:win
 node scripts/calibrate-webp.mjs [plik.png]   # kalibracja jakości WebP (CHROMIUM_PATH=... jeśli trzeba)
+node scripts/forecast-vectors.mjs            # model referencyjny prognozy → tests/fixtures/forecast-vectors.json (sprawdza sumę SHA-256)
 ```
 E2E przeciw spakowanej aplikacji: `ICTJ_E2E_EXECUTABLE=<ścieżka exe> npx playwright test`.
 Zmienne testowe:
@@ -45,15 +47,19 @@ Zmienne testowe:
 - `ICTJ_DATA_DIR`: folder danych bez okna wyboru;
 - `ICTJ_MACHINE_NAME`;
 - `ICTJ_UPDATE_URL`: lokalny serwer zamiast api.github.com, dopuszcza http i sprawdzanie także w kopii „ręcznej”;
-- `ICTJ_UPDATE_CHECK_DELAY_MS`: opóźnienie pierwszego sprawdzenia, domyślnie 15 s.
+- `ICTJ_UPDATE_CHECK_DELAY_MS`: opóźnienie pierwszego sprawdzenia, domyślnie 15 s;
+- `ICTJ_NBP_URL`: adres bazowy lokalnego serwera kursów zamiast api.nbp.pl (dopuszcza http; aplikacja dopisuje
+  `/api/exchangerates/tables/A?format=json`), `off` = bez łączenia. `launch()` w `tests/e2e/app.ts` ustawia domyślnie `off`;
+- `ICTJ_NBP_FETCH_DELAY_MS`: opóźnienie automatycznego pobrania kursów po otwarciu folderu, domyślnie 20 s.
 
 Test aktualizacji na Windows: `playwright.update.config.ts` (`tests/update`) z `ICTJ_UPDATE_FROM`/`ICTJ_UPDATE_TO`
 (foldery z exe obu wersji) i `ICTJ_UPDATE_TO_VERSION`.
 
 ## Architektura
 - `src/shared` – czyste TS używane przez main i renderer: `schema/` (zod = źródło typów), `calc/` (pipsy, R,
-  statystyki, czas/killzone, pozycja), `migrations/`, `paths.ts` (układ folderu, nazwy, wzorce konfliktów),
-  `records.ts` (parse/serialize), `api.ts` (kontrakt IPC).
+  statystyki, czas/killzone, pozycja, `forecast.ts`, `montecarlo.ts`), `migrations/`, `paths.ts` (układ folderu, nazwy,
+  wzorce konfliktów), `records.ts` (parse/serialize), `api.ts` (kontrakt IPC), `fx.ts` (kursy), `instruments.ts`,
+  `forecast-input.ts` (scenariusz + ustawienia → wejście obliczeń), `export/` (CSV, markdown, prognoza, XLSX).
 - `src/main` – jedyny właściciel folderu danych: `datastore/store.ts` (skan, indeks plików, zapis atomowy,
   migracje, konflikty, screeny), `watch.ts` (Windows/macOS: natywny fs.watch rekursywny; Linux: watcher na każdy
   katalog, bo emulacja rekursji w Node gubi zmiany po rename/nowym inode; + skan kontrolny co 30 s), `presence.ts`
@@ -75,6 +81,7 @@ trades/RRRR/RRRR-MM-DD_PARA_ULID.json  data = data NY wejścia
 days/RRRR/RRRR-MM-DD.json            plan dnia (sekcje per para)
 weeks/RRRR-Wnn.json                  przegląd tygodnia (tydzień ISO)
 library/ULID.json                    biblioteka setupów
+forecasts/ULID.json                  scenariusz prognozy wypłat (z zapisanymi losowaniami)
 screens/RRRR/MM/ULID_etykieta.webp  (+ .thumb.webp)
 backups/                             kopie ZIP (wyłączone ze skanu)
 .presence/                           heartbeat komputerów (ignorowany przez skan)
@@ -112,12 +119,36 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   - Ręczne wartości pipsa: `risk.pipValuesPerLot[id]` (także `CUSTOM`). Są zapisane **na 1 lot**, a pokazywane na
     najmniejszy lot, więc zmiana kroku lota nie zmienia ich znaczenia. Wartości z 1.2.0 (`risk.pipValues`, na najmniejszy
     lot) przelicza transform schematu przy wczytaniu.
-  - Instrument własny: `risk.customInstrument {name, minLot}`; minLot null = `lotStep`.
+  - Instrumenty: `settings.instruments` (Ustawienia → Instrumenty). Pusta lista (dziennik z 1.2.x) jest zasiewana przy
+    wczytaniu presetami i dawnym instrumentem własnym (`risk.customInstrument` → `CUSTOM`); identyfikatory presetów
+    zostają, więc `pipValuesPerLot` działa bez zmian. Import (scal) dołącza brakujące instrumenty.
   - Pola pomocnicze (instrument, loty, pipsy) pamiętane tylko w sesji.
+  - Partiale (`calc/partials.ts`, panel `features/calculator/PartialsCalculator.tsx`): zamknięcie całości teraz albo
+    1–4 części („teraz” albo cel w pipsach, ostatnia bierze resztę %, loty w dół do kroku), opcjonalnie SL reszty na BE
+    po pierwszym partialu w zysku. Scenariusze: osiągnięte 0…N celów (w kolejności odległości), reszta na SL/BE;
+    `beatsNowAfter` = od którego celu podział daje co najmniej tyle, co zamknięcie teraz. Pola w sesji.
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do
-  `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta.
+  `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta. Zmiana z kalkulatora
+  pozycji (pole obok „Kapitał”) albo z ustawień idzie przez `changeAccountCurrency` (+ `setAccountCurrency` w
+  `renderer/store/fx.ts`): saldo przeliczane kursem stara → nowa (`fx.manual` albo NBP); bez kursu zostaje i jest komunikat.
+- Waluta kalkulatora: `risk.calcCurrency` (domyślnie PLN), `calculatorCurrency()` w `src/shared/risk.ts`. Cała strona
+  kalkulatorów (pozycja, zysk / strata, partiale) liczy i pokazuje kwoty w tej walucie: kapitał = saldo konta × kurs
+  konto → waluta kalkulatora (wpisany kapitał jest zapisywany z powrotem w walucie konta), kursy kwotowana → waluta
+  kalkulatora, ręczne wartości pipsa przeliczane. Loty nie zależą od waluty. Bez kursu strona wraca do waluty konta.
+- Kwoty transakcji (`riskAmount`, `pnlAmountOverride`) mają walutę `amountCurrency` (waluta konta przy wpisie). Pliki
+  sprzed 1.3.0 jej nie mają: obowiązuje `risk.legacyAmountCurrency` (pierwsza waluta konta, zapamiętana przy pierwszej
+  zmianie). `tradeMetrics` przelicza wynik na walutę konta kursem NBP z tabeli z ostatniego dnia publikacji przed dniem
+  zamknięcia (`src/shared/fxHistory.ts`: `historicalRate`, `transactionDate`; `amountRateDate`), a gdy archiwum nie ma
+  tego dnia – dzisiejszym kursem (`pnlAmount`, oryginał: `pnlAmountOwn`). Archiwum: `settings.fx.history`
+  (waluta → zakres dat + kursy, w journal.json, więc także offline i na innych komputerach), pobierane przez main
+  (`fetchFxHistory`, `rates/A/{kod}/{od}/{do}`, ≤ 367 dni) tylko dla brakujących zakresów (`historyNeeds`, `historyUses`)
+  – po starcie, co godzinę i przy „Odśwież kursy NBP”;
+  wynik w kwocie: wpisany → R × kwota ryzyka → z lotów (`amountSource` 'lots': pipsy × pipSize × kontrakt × loty
+  w walucie kwotowanej; kontrakt z instrumentu o tym samym id albo `risk.contractSize`, `lotValueFor` w instruments.ts);
+  bez kursu `pnlAmount` = null (nie udaje kwoty w walucie konta). CSV: „Wynik kwota (waluta konta)” i „Waluta kwot”.
+  Edytor: pole „Waluta kwot” (poprawka waluty bez przeliczania); wpisana kwota jest w walucie pokazanej obok.
 
 ## Screeny (kalibracja)
 - Pipeline w rendererze: `createImageBitmap` → skalowanie w dół (połowienie + high quality) do max 2560 px →
@@ -144,13 +175,57 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Przegląd tygodnia: tydzień ISO, dni pon–pt wg daty NY; import CSV z TradingView („Export chart data”, czas UNIX lub ISO,
   separator `,` lub `;`) → `src/shared/calc/ohlc.ts`.
 - Eksport: CSV (`src/shared/export/csv.ts`), markdown (`export/markdown.ts`, Ctrl+Shift+M), ZIP folderu bez `backups/`.
+- Raport miesięczny (`src/shared/export/monthlyReport.ts`, pasek w Analityce, akcje `features/export/reportActions.ts`):
+  cały miesiąc NY, wszystkie pary, bez szkiców. PLN = `pnlAmountOwn` × `historicalRate(waluta kwot, PLN, transactionDate)`,
+  inaczej `rateFor` (dzisiejszy); dopisek mówi, ile transakcji przeliczono i jak. Markdown albo PDF: `monthlyReportHtml`
+  (bez skryptów, CSP `default-src 'none'`) → IPC `savePdf` → `main/export/pdf.ts` (ukryte okno, JS wyłączony, osobna
+  sesja w pamięci blokująca wszystko poza `data:`, `printToPDF` A4).
 - Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
   potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
+- Import historii od brokera (Ustawienia → Eksport, import, kopie; `renderer/features/settings/BrokerImport.tsx`):
+  - plik: main `import/broker.ts` (`pickBrokerFile`: XLSX → arkusze przez yauzl, reszta → bajty), renderer dekoduje
+    (`decodeText`: BOM UTF-8/16, UTF-8, Windows-1250) i dzieli na wiersze (`shared/import/tables.ts`: CSV/TSV, tabele HTML
+    z raportów MT4/MT5 z rozwinięciem colspan, arkusze XLSX z datami ze stylów);
+  - `shared/import/broker.ts`: nagłówek rozpoznawany po nazwach kolumn (EN/PL; „Time”/„Price” dwa razy = otwarcie,
+    zamknięcie), koniec tabeli na wierszu-tytule albo kolejnym nagłówku, partiale (ten sam symbol, strona, czas i cena
+    otwarcia) scalane w jedną pozycję z kilkoma wyjściami; netto = kolumna netto albo zysk + prowizja (+ podatki) + swap
+    (+ rollover);
+  - `shared/import/match.ts`: czas pliku: serwer MT = NY + 7 h, Warszawa (XTB), UTC; para z symbolu bez końcówek;
+    ta sama para i kierunek, wejście w tolerancji, najbliższe najpierw, jeden do jednego; ticket zapisany w `trade.broker`
+    = „już zaimportowana”, chyba że pozycja zmieniła się u brokera (zamknięta później, kolejny partial) – wtedy znów
+    „dopasowana”, a wartości wpisane poprzednim importem liczą się jak puste. `applyBrokerMatch` uzupełnia puste pola (albo nadpisuje), SL tylko po stronie straty, wynik =
+    netto w walucie konta brokera (nie, gdy kwota ryzyka wpisu jest w innej walucie); `tradeFromBroker` = nowy wpis.
+  - `trade.broker` (addytywne, `SCHEMA_VERSION` bez zmian): tickety, liczby brokera, czasy UTC; duplikat wpisu go nie ma.
 - Kopie przy starcie (`main/datastore/backup.ts`): `backups/daily/RRRR-MM-DD_json.zip` (14), `backups/weekly/RRRR-Wnn_full.zip`
   gdy najnowsza ≥ 7 dni (4), ręczne `backups/manual/` (5), przed migracją `backups/pre-migration/`. Demo nie ma kopii.
 
+## Prognoza wypłat (1.3.0)
+- Obliczenia: `simulateForecast` (`src/shared/calc/forecast.ts`) – czysta funkcja; wykonywalny wzorzec to `simulate()`
+  w `scripts/forecast-vectors.mjs`. Plik `tests/fixtures/forecast-vectors.json` (T1–T10 prototyp, E1–E20 usprawnienia)
+  generuje skrypt – nigdy nie poprawiaj go ręcznie; gdy test nie przechodzi, błąd jest w `forecast.ts`.
+- Kwoty jako `number` (IEEE double, jak w prototypie), zaokrąglenie tylko przy wyświetlaniu; porównanie „czy starcza na cel”
+  w groszach. Losowania (`drawUniforms`, `crypto.getRandomValues`) zapisane w scenariuszu: 4 × 240 liczb, ten sam wynik
+  na każdym komputerze; krótsze tablice (plik edytowany ręcznie) są dolosowywane przy otwarciu.
+- Strona: `renderer/features/forecast/` (pasek scenariusza, wypłata, panele, podsumowanie, porównanie, wykres, rozrzut,
+  tabela z wpłatami i latami, eksport). Stan sesji (ostatni scenariusz, porównanie, zwinięte lata, skala, rozrzut)
+  w `session.ts`, nie w plikach. Teksty statusów/podsumowania: czyste `texts.ts` (testowane; w `tsconfig.node.json`).
+- Tryb pipsowy: instrument z `settings.instruments`, wartość pipsa najmniejszego lota (ręczna z `risk.pipValuesPerLot`
+  albo wyliczona) przeliczona `rateFor` na walutę scenariusza (`forecastInputFrom`).
+- Kursy (`src/shared/fx.ts`): kolejność: ta sama waluta → ręczny kurs konta (`risk.conversionRates`) → `fx.manual`
+  („USD>PLN”) → tabela NBP (`fx.nbp`, mid/mid, PLN = 1). Pobiera proces główny (`src/main/fx/nbp.ts`, IPC
+  `fetchFxRates`); zapis do ustawień tylko przy nowym numerze tabeli. Pobranie: 20 s po otwarciu folderu, gdy tabela
+  ma ponad 12 h (`nbpFetchDue`), potem co godzinę, gdy brakuje tabeli z ostatniego dnia roboczego od 12:30 czasu
+  warszawskiego (`nbpRecheckDue`, `expectedNbpDate`). Bez sieci kalkulatory liczą z ostatniej zapisanej tabeli.
+  Kurs ręczny odbiegający od NBP o > 3% (`manualRateDeviation`, `MANUAL_RATE_WARN`) jest oznaczany przy polu i w ustawieniach.
+- „Weź z moich wyników” (`FromJournal.tsx`, `calc/journalReturns.ts`): zwroty miesięczne dziennika (Σ R × ryzyko %
+  zamkniętych transakcji wg miesiąca NY, miesiące bez transakcji = 0%), z nich zwrot losowy (p10–p90 miesięcy ≥ 0),
+  szansa na miesiąc stratny i jego wielkość (p10–p90); min. 3 miesiące; podgląd przed ustawieniem.
+- Eksport: `forecastTable` → TSV (schowek), CSV, XLSX (generator XML w `shared/export/xlsx.ts`, ZIP w `main/export/xlsx.ts`).
+- `SCHEMA_VERSION` bez zmian (kolekcja addytywna): 1.2.x pomija `forecasts/` (kopia dzienna i import 1.2.x ich nie zawierają).
+
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
+- Scenariusz prognozy: nowe `id` (także celów), nazwa „(kopia)”, „(kopia 2)”…, te same losowania; zapisany od razu.
 - Transakcja / przykład z biblioteki: nowe `id` i czasy, screeny współdzielone (te same pliki).
 - Plan dnia → inna data (domyślnie następny dzień handlowy, `shiftTradingDay`): pary (nowe id poziomów, bez screenów),
   intermarket i notatki; bez newsów, podsumowania i screenów. Istniejący plan w dniu docelowym nie jest nadpisywany.
@@ -206,6 +281,10 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 6. ✅ 1.1.0: duplikowanie wpisów, aktualizacje z GitHub Releases (portable bez instalatora), wydania z CI.
 7. ✅ 1.2.0: kalkulator zysku / straty (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, instrument własny).
 8. ✅ 1.2.1: przegląd opcji – poprawki kalkulatorów, waluty konta, kroku lota, słowników i killzone'ów (`tests/e2e/settings.spec.ts`).
+9. ✅ 1.3.0: prognoza wypłat (scenariusze, cele, fundusz celowy, rozrzut, wykres, eksport CSV/XLSX), kursy NBP,
+   lista instrumentów, TP i zysk do ryzyka w kalkulatorze pozycji (`tests/e2e/forecast.spec.ts`); kalkulatory w PLN,
+   partiale, kurs z dnia transakcji, wynik z lotów, prognoza z wyników, raport miesięczny, import historii od brokera
+   (`tests/e2e/journal-tools.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

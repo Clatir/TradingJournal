@@ -13,6 +13,7 @@ import {
   type ComplianceRow
 } from '@shared/calc/analytics'
 import type { Outcome } from '@shared/calc/trade'
+import { buildMonthlyReport, reportLead, reportMonthLabel, reportMonths } from '@shared/export/monthlyReport'
 import { fmtMoney, fmtNum, fmtPercent, fmtR, parseDateInput, tone, toneClass } from '../../lib/format'
 import { useTradeRows } from '../../store/derived'
 import { useJournal } from '../../store/journal'
@@ -23,6 +24,7 @@ import { GroupTable } from '../../components/charts/GroupTable'
 import { HourBars } from '../../components/charts/HourBars'
 import { Panel, Segmented, cx } from '../../components/ui'
 import { todayNy } from '../day/DayPlanPage'
+import { deliverMonthlyReport } from '../export/reportActions'
 
 type Preset = 'all' | '30' | '90' | 'ytd' | '365'
 
@@ -121,6 +123,8 @@ export function AnalyticsPage() {
           <Kpi label="MFE wygr. / MAE strat" value={`${fmtNum(extra.avgMfeWinnersR, 1)} / ${fmtNum(extra.avgMaeLosersR, 1)}R`} />
         </div>
 
+        <ReportBar />
+
         <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
           <Section title="Krzywa equity (R) i drawdown" className="border-r">
             {data.equity.length ? <EquityChart points={data.equity} /> : <EmptyNote>Brak zamkniętych transakcji w wybranym zakresie.</EmptyNote>}
@@ -181,6 +185,62 @@ export function AnalyticsPage() {
           <CalendarHeatmap days={data.calendar} from={calFrom} to={calTo} onPick={(date) => navigate({ page: 'day', date })} />
         </Section>
       </div>
+    </div>
+  )
+}
+
+/** Monthly report of the whole journal (all pairs, regardless of the filters above): markdown or PDF. */
+function ReportBar() {
+  const rows = useTradeRows()
+  const journal = useJournal((s) => s.journal)
+  const days = useJournal((s) => s.days)
+  const drafts = useJournal((s) => s.drafts)
+  const kept = useMemo(() => rows.filter((r) => !drafts[r.trade.id]), [rows, drafts])
+  const months = useMemo(() => reportMonths(kept), [kept])
+  const [picked, setPicked] = useState<string | null>(null)
+  const month = picked && months.includes(picked) ? picked : (months[0] ?? null)
+  const lead = useMemo(
+    () =>
+      journal && month
+        ? reportLead(
+            buildMonthlyReport(
+              kept,
+              Object.values(days).map((e) => e.record),
+              journal,
+              month
+            )
+          )
+        : null,
+    [kept, days, journal, month]
+  )
+  return (
+    <div className="flex h-[34px] items-center gap-2 border-b border-line bg-panel px-3 text-[12px]" data-testid="monthly-report">
+      <span className="label">Raport miesięczny</span>
+      {month ? (
+        <>
+          <select className="input h-[24px] w-[150px]" value={month} onChange={(e) => setPicked(e.currentTarget.value)} aria-label="Miesiąc raportu" data-testid="report-month">
+            {months.map((m) => (
+              <option key={m} value={m}>
+                {reportMonthLabel(m)}
+              </option>
+            ))}
+          </select>
+          <span className="num min-w-0 flex-1 truncate text-muted" title={lead ?? undefined} data-testid="report-lead">
+            {lead}
+          </span>
+          <button className="btn h-[24px]" onClick={() => void deliverMonthlyReport(month, 'copy')} data-testid="report-copy">
+            Kopiuj markdown
+          </button>
+          <button className="btn h-[24px]" onClick={() => void deliverMonthlyReport(month, 'md')} data-testid="report-md">
+            Zapisz .md
+          </button>
+          <button className="btn h-[24px]" onClick={() => void deliverMonthlyReport(month, 'pdf')} data-testid="report-pdf">
+            Zapisz PDF
+          </button>
+        </>
+      ) : (
+        <span className="text-dim">brak transakcji</span>
+      )}
     </div>
   )
 }

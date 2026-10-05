@@ -1,8 +1,10 @@
 import { newId } from './ids'
 import { SCHEMA_VERSION } from './schema/common'
-import { journalSchema, type DictItem, type JournalFile, type Killzone, type PairConfig } from './schema/journal'
+import { journalSchema, type DictItem, type JournalFile, type Killzone, type PairConfig, type Settings } from './schema/journal'
 import { tradeSchema, type Trade } from './schema/trade'
 import { dayPlanSchema, type DayPlan } from './schema/day'
+import { FORECAST_MAX_MONTHS, forecastSchema, type Forecast, type ForecastDraws } from './schema/forecast'
+import { drawUniforms } from './random'
 
 const dict = (names: string[]): DictItem[] => names.map((name) => ({ id: newId(), name, archived: false }))
 
@@ -96,5 +98,56 @@ export function createDayPlan(date: string, pairs: string[], instruments: string
     date,
     pairs: pairs.map((pair) => ({ pair })),
     intermarket: instruments.map((instrument) => ({ instrument }))
+  })
+}
+
+/** "<prefix> N" with the first N that is not taken yet. */
+export function firstFreeName(prefix: string, taken: Iterable<string>): string {
+  // Case-insensitive, like the duplicate check of the name field.
+  const names = new Set([...taken].map((t) => t.toLowerCase()))
+  let n = 1
+  while (names.has(`${prefix} ${n}`.toLowerCase())) n++
+  return `${prefix} ${n}`
+}
+
+/** Four fresh tables of random numbers, one per month of the longest forecast. */
+export function freshForecastDraws(): ForecastDraws {
+  return {
+    rate: drawUniforms(FORECAST_MAX_MONTHS),
+    loss: drawUniforms(FORECAST_MAX_MONTHS),
+    lossSize: drawUniforms(FORECAST_MAX_MONTHS),
+    pips: drawUniforms(FORECAST_MAX_MONTHS)
+  }
+}
+
+/** A table shorter than 240 numbers (file edited by hand) gets the missing ones drawn; null when nothing is missing. */
+export function completedDraws(draws: ForecastDraws): ForecastDraws | null {
+  const keys = ['rate', 'loss', 'lossSize', 'pips'] as const
+  if (keys.every((k) => draws[k].length >= FORECAST_MAX_MONTHS)) return null
+  const out = { ...draws }
+  for (const k of keys) if (draws[k].length < FORECAST_MAX_MONTHS) out[k] = [...draws[k], ...drawUniforms(FORECAST_MAX_MONTHS - draws[k].length)]
+  return out
+}
+
+/**
+ * New payout forecast scenario: "Scenariusz N", account currency, start capital = account balance (or 10000),
+ * first month = the current month on this computer, fresh random numbers; everything else from the schema.
+ */
+export function createForecast(
+  risk: Pick<Settings['risk'], 'accountCurrency' | 'accountBalance'>,
+  takenNames: Iterable<string>,
+  now = new Date().toISOString()
+): Forecast {
+  const d = new Date(now)
+  return forecastSchema.parse({
+    schemaVersion: SCHEMA_VERSION,
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    name: firstFreeName('Scenariusz', takenNames),
+    currency: risk.accountCurrency,
+    startCapital: Math.min(risk.accountBalance ?? 10000, 1e12),
+    firstMonth: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+    draws: freshForecastDraws()
   })
 }

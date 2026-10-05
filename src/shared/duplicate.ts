@@ -4,7 +4,7 @@
  */
 import { newId } from './ids'
 import { SCHEMA_VERSION } from './schema/common'
-import type { DayPlan, LibraryItem, Trade } from './schema'
+import type { DayPlan, Forecast, LibraryItem, Trade } from './schema'
 
 /** Exact copy of a trade (setup, prices, exits, psychology, notes, screenshots) as a new entry. */
 export function duplicateTrade(trade: Trade, now: string): Trade {
@@ -15,7 +15,9 @@ export function duplicateTrade(trade: Trade, now: string): Trade {
     id: newId(),
     createdAt: now,
     updatedAt: now,
-    exits: copy.exits.map((x) => ({ ...x, id: newId() }))
+    exits: copy.exits.map((x) => ({ ...x, id: newId() })),
+    // The copy is not the broker's position: a later history import must not see one ticket twice.
+    broker: null
   }
 }
 
@@ -50,5 +52,33 @@ export function copyDayPlanTo(plan: DayPlan, date: string, now: string): DayPlan
     news: [],
     review: { ...copy.review, whatHappened: '', vsPlan: null, notes: '' },
     screens: []
+  }
+}
+
+/** "<name> (kopia)", then "(kopia 2)", "(kopia 3)"… – the first one not taken; the name is shortened to fit `max`. */
+export function copyName(name: string, taken: Iterable<string>, max = 60): string {
+  // Case-insensitive, like the duplicate check of the name field.
+  const names = new Set([...taken].map((t) => t.toLowerCase()))
+  for (let n = 1; ; n++) {
+    const suffix = n === 1 ? ' (kopia)' : ` (kopia ${n})`
+    const candidate = `${name.slice(0, Math.max(0, max - suffix.length)).trimEnd()}${suffix}`
+    if (!names.has(candidate.toLowerCase())) return candidate
+  }
+}
+
+/**
+ * Copy of a payout forecast scenario under a new identity and a "(kopia)" name. The stored random numbers
+ * are kept, so the copy shows the same table until something is changed.
+ */
+export function duplicateForecast(forecast: Forecast, takenNames: Iterable<string>, now: string): Forecast {
+  const copy = structuredClone(forecast)
+  return {
+    ...copy,
+    schemaVersion: SCHEMA_VERSION,
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    name: copyName(copy.name, takenNames),
+    goals: copy.goals.map((g) => ({ ...g, id: newId() }))
   }
 }

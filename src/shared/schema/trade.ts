@@ -29,6 +29,24 @@ export const psychologySchema = z.looseObject({
   nextTime: text
 })
 
+/** The broker's position (history import), kept for reconciliation; amounts in `currency`, times UTC. */
+export const brokerFillSchema = z.looseObject({
+  tickets: z.array(z.string()).default([]),
+  symbol: text,
+  volume: nullableNumber,
+  openTime: isoDateTime.nullable().default(null),
+  closeTime: isoDateTime.nullable().default(null),
+  openPrice: nullableNumber,
+  closePrice: nullableNumber,
+  profit: nullableNumber,
+  commission: nullableNumber,
+  swap: nullableNumber,
+  net: nullableNumber,
+  currency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
+  importedAt: isoDateTime.nullable().default(null)
+})
+export type BrokerFill = z.infer<typeof brokerFillSchema>
+
 export const tradeSchema = z.looseObject({
   ...recordBase,
   status: tradeStatusSchema.default('closed'),
@@ -56,6 +74,8 @@ export const tradeSchema = z.looseObject({
   riskAmount: nullableNumber,
   lots: nullableNumber,
   pnlAmountOverride: nullableNumber,
+  /** Currency of `riskAmount` and `pnlAmountOverride` (the account currency when typed); null = before 1.3.0. */
+  amountCurrency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
   tradingViewUrl: text,
   stopBeyondLiquidity: z.enum(['yes', 'no', 'unknown']).default('unknown'),
   psychology: psychologySchema.prefault({}),
@@ -66,6 +86,8 @@ export const tradeSchema = z.looseObject({
     })
     .prefault({}),
   notes: text,
-  screens: z.array(screenRefSchema).default([])
+  screens: z.array(screenRefSchema).default([]),
+  /** Since 1.3.0; null = not imported from a broker's history. */
+  broker: brokerFillSchema.nullable().default(null)
 })
 export type Trade = z.infer<typeof tradeSchema>

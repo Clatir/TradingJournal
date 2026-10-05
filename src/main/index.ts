@@ -20,6 +20,11 @@ import { writeFileAtomic } from './datastore/atomic'
 import { GITHUB_API, detectInstallMode, type UpdatePrefs } from '@shared/update'
 import { Updater } from './update/updater'
 import { startPortableSwap, startSilentInstaller } from './update/apply'
+import { fetchNbpHistory, fetchNbpTable, nbpSource } from './fx/nbp'
+import { writeXlsx } from './export/xlsx'
+import { htmlToPdf } from './export/pdf'
+import { readBrokerFile } from './import/broker'
+import type { XlsxSheet } from '@shared/export/xlsx'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
 if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DATA)
@@ -41,6 +46,8 @@ let updater: Updater | null = null
 const imports = new Map<string, Inspected>()
 /** First automatic update check after start (test runs shorten it). */
 const updateCheckDelayMs = (): number => Number(process.env.ICTJ_UPDATE_CHECK_DELAY_MS) || 15_000
+/** First automatic NBP fetch after start (done by the renderer, which knows the journal settings). */
+const fxFetchDelayMs = (): number => Number(process.env.ICTJ_NBP_FETCH_DELAY_MS) || 20_000
 
 function requireUpdater(): Updater {
   if (!updater) throw new Error('Moduł aktualizacji nie jest gotowy.')
@@ -214,7 +221,8 @@ function registerIpc(): void {
     platform: process.platform,
     userDataDir: app.getPath('userData'),
     sampleDir: sampleDir(),
-    isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR
+    isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR,
+    fxFetchDelayMs: fxFetchDelayMs()
   }))
   handle('journal:getConfig', () => config.get())
   handle('journal:loadCurrent', async () => {
@@ -259,6 +267,16 @@ function registerIpc(): void {
     }
     shell.showItemInFolder(s.abs(rel))
   })
+  handle('journal:fetchFxRates', async () => {
+    const result = await fetchNbpTable((url, init) => net.fetch(url, init), nbpSource(process.env.ICTJ_NBP_URL))
+    log(result.ok ? 'info' : 'warn', result.ok ? `NBP table ${result.table.no} (${result.table.effectiveDate})` : `NBP fetch failed: ${result.message}`)
+    return result
+  })
+  handle('journal:fetchFxHistory', async (code: string, start: string, end: string) => {
+    const result = await fetchNbpHistory((url, init) => net.fetch(url, init), nbpSource(process.env.ICTJ_NBP_URL), code, start, end)
+    log(result.ok ? 'info' : 'warn', result.ok ? `NBP history ${code} ${start}…${end}: ${Object.keys(result.rates).length} tables` : `NBP history ${code} failed: ${result.message}`)
+    return result
+  })
   handle('journal:openExternal', async (url: string) => {
     if (!/^https:\/\//i.test(url)) throw new Error('Można otwierać tylko adresy https://')
     await shell.openExternal(url)
@@ -270,6 +288,18 @@ function registerIpc(): void {
     const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [filter] })
     if (res.canceled || !res.filePath) return null
     await writeFileAtomic(res.filePath, content)
+    return res.filePath
+  })
+  handle('journal:saveXlsx', async (name: string, sheets: XlsxSheet[]) => {
+    const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
+    if (res.canceled || !res.filePath) return null
+    await writeXlsx(res.filePath, sheets)
+    return res.filePath
+  })
+  handle('journal:savePdf', async (name: string, html: string) => {
+    const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [{ name: 'PDF', extensions: ['pdf'] }] })
+    if (res.canceled || !res.filePath) return null
+    await writeFileAtomic(res.filePath, await htmlToPdf(html))
     return res.filePath
   })
   handle('journal:exportZip', async () => {
@@ -355,6 +385,15 @@ function registerIpc(): void {
     const st = await fs.stat(file)
     if (st.size > 50 * 1024 * 1024) throw new Error('Plik jest za duży (limit 50 MB).')
     return { name: basename(file), text: await fs.readFile(file, 'utf8') }
+  })
+  handle('journal:pickBrokerFile', async () => {
+    const res = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openFile'],
+      filters: [{ name: 'Historia od brokera (CSV, HTML, XLSX)', extensions: ['csv', 'txt', 'tsv', 'htm', 'html', 'xlsx'] }]
+    })
+    const file = res.filePaths[0]
+    if (res.canceled || !file) return null
+    return readBrokerFile(file)
   })
   handle('journal:showPath', async (abs: string) => {
     shell.showItemInFolder(abs)

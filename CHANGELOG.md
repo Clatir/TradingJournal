@@ -3,6 +3,63 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.3.0
+
+### Nowe
+- **Prognoza wypłat** (`Ctrl+7`, przycisk „Prognoza”): ile zarobisz i wypłacisz miesiąc po miesiącu, kiedy kupisz cele
+  zakupowe i jak działa fundusz celowy (odkładana wypłata pracuje razem z kapitałem).
+  - Zysk procentowy (stały albo losowy z zakresu) albo z pipsów (instrument, pipsy stałe lub losowe, lot stały, na kwotę
+    kapitału albo z ryzyka), miesiące stratne, podatek roczny, wpłaty i wypłaty z kapitału w wybranych miesiącach.
+  - Do 10 celów zakupowych z kwotą albo „cała pula”, „może poczekać”, statusy i opóźnienia.
+  - Podsumowanie, tabela miesięcy z podsumowaniami lat, wykres, rozrzut wyników (wiele przebiegów z percentylami).
+  - Scenariusze zapisane w folderze danych (`forecasts/`), porównanie dwóch scenariuszy, duplikowanie.
+  - Eksport tabeli: schowek (Excel), CSV i XLSX (arkusze: Prognoza, Lata, Cele, Ustawienia).
+  - „Weź z moich wyników”: zwrot losowy i miesiące stratne ustawione z miesięcznych wyników dziennika (R × ryzyko %),
+    z podglądem przed zmianą scenariusza.
+- **Kursy walut z NBP**: tabela A pobierana automatycznie (20 s po starcie, gdy ostatnia ma ponad 12 h) albo przyciskiem.
+  Bez internetu zostaje ostatnia pobrana tabela. Kursy wpisane ręcznie mają pierwszeństwo i można wrócić do kursu NBP.
+- **Instrumenty**: lista w ustawieniach (dodawanie, archiwizacja, „Przywróć domyślne”), wspólna dla kalkulatora zysku /
+  straty i prognozy. Dotychczasowe instrumenty i ręczne wartości pipsa przechodzą bez zmian.
+- **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka.
+- **Kalkulatory w PLN**: kalkulator pozycji, zysku / straty i partiali liczą i pokazują kwoty w walucie kalkulatora
+  (domyślnie PLN, pole obok „Kapitał”), także gdy konto jest w USD – po kursie NBP; wartość pipsa z kursu NBP (widać
+  tabelę, z której pochodzi). Liczba lotów się nie zmienia.
+- **Partiale w kalkulatorze**: porównanie „zamknij całość teraz” z podziałem na 1–4 części (teraz albo na celu w pipsach,
+  opcjonalnie SL reszty na BE). Wynik każdej części, najlepszy i najgorszy przypadek, każdy scenariusz (osiągnięte cele,
+  reszta na SL/BE) i różnica względem zamknięcia teraz.
+- Kurs wpisany ręcznie, który odbiega od kursu NBP o ponad 3%, jest oznaczony („odbiega od NBP (3.8881) o +8.0%”)
+  przy polu kursu i na liście kursów w ustawieniach.
+- **Kurs z dnia transakcji**: kwoty transakcji w innej walucie niż konto są przeliczane po kursie NBP z ostatniej
+  tabeli przed dniem zamknięcia (jak przy rozliczeniu podatku), np. „+100.00 USD ≈ +385.00 PLN (NBP 2026-10-01)”.
+  Archiwum kursów pobiera się samo (tylko brakujące dni) i jest zapisane w folderze danych – działa też offline.
+- **Wynik z lotów**: transakcja bez wpisanej kwoty ryzyka ma wynik w pieniądzu z lotów (pipsy × wartość pipsa × loty,
+  w walucie kwotowanej, przeliczony po kursie z dnia) – w edytorze, analityce i CSV („· z lotów”).
+- **Import historii od brokera** (Ustawienia → Eksport, import, kopie): raport HTML z MetaTrader 4/5, XLSX z XTB
+  xStation albo CSV z tych plików. Pozycje są dopasowywane do wpisów (para, kierunek, czas wejścia w tolerancji) i mogą
+  uzupełnić puste pola: cenę wejścia, TP, SL, wyjścia z czasem (partiale), loty i wynik netto (zysk + prowizja + swap).
+  Pozycje bez wpisu mogą stać się nowymi wpisami. Numer pozycji zostaje we wpisie (widać go w edytorze), więc ponowny
+  import nic nie dubluje; lista wpisów bez pozycji u brokera.
+- **Raport miesięczny** (Analityka, pasek pod wskaźnikami, albo paleta `Ctrl+K`): wynik w R i w PLN (kwoty po kursie
+  NBP z dnia przed zamknięciem), tygodnie, pary, najczęstsze błędy z kosztem, zgodność z zasadami, plan dnia, najlepsza
+  i najgorsza transakcja. Do schowka jako markdown, do pliku `.md` albo PDF (A4).
+- Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
+  Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
+
+### Poprawki
+- Adnotacje: bardzo szybko narysowany kształt (krótkie przeciągnięcie) nie znika.
+- Strzałki ↑/↓ w polach liczb nie zaokrąglają poniżej kroku (np. lot 0.1 → 0.11).
+- Kalkulator zysku / straty nie proponuje zarchiwizowanych instrumentów.
+- Sprawdzanie aktualizacji i pobieranie kursów nie zawiesza się, gdy serwer przestaje odpowiadać w trakcie odpowiedzi.
+- Aktualizacja wersji przenośnej: wpisy dziennika `update.log` nie giną przy chwilowej blokadzie pliku.
+- Kwoty transakcji pamiętają swoją walutę: po zmianie waluty konta (np. USD → PLN) dawne kwoty są pokazywane w swojej
+  walucie i przeliczone na nową („+100.00 USD ≈ +388.81 PLN”), zamiast udawać kwoty w PLN. CSV ma kolumnę „Waluta kwot”.
+  W edytorze transakcji pole „Waluta kwot” pozwala poprawić walutę, gdy kwoty wpisano w innej.
+- `Ctrl+Shift+4` (`Ctrl+$`) zawsze przełącza kwoty – nie otwiera Biblioteki, gdy system podaje cyfrę zamiast „$”.
+
+### Ważne przy pracy na kilku komputerach
+- Format danych się nie zmienia (wersja 1.2.x otwiera folder normalnie), ale **kopia dzienna zrobiona wersją 1.2.x nie
+  zawiera scenariuszy prognozy, a import w wersji 1.2.x je pomija**. Zaktualizuj aplikację na wszystkich komputerach.
+
 ## 1.2.1
 
 ### Poprawki
