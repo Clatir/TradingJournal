@@ -74,8 +74,10 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     await page.getByTestId('tool-rect').click()
     const canvas = (await page.getByTestId('annotator-canvas').boundingBox())!
     await page.getByTestId('annotator-canvas').evaluate((el, b) => {
+      // Runs in the page; the test tsconfig has no DOM lib.
+      const Mouse = (globalThis as unknown as { MouseEvent: new (type: string, init: Record<string, unknown>) => Event }).MouseEvent
       const at = (type: string, fx: number, fy: number) =>
-        el.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: b.x + b.width * fx, clientY: b.y + b.height * fy }))
+        el.dispatchEvent(new Mouse(type, { bubbles: true, button: 0, clientX: b.x + b.width * fx, clientY: b.y + b.height * fy }))
       at('mousedown', 0.2, 0.2)
       at('mousemove', 0.4, 0.5)
       at('mouseup', 0.4, 0.5)
