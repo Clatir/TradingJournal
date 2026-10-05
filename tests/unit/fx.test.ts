@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expectedNbpDate, manualRates, nbpFetchDue, nbpRate, nbpRecheckDue, parseNbpResponse, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
+import { deviationText, expectedNbpDate, manualRateDeviation, manualRates, nbpFetchDue, nbpRate, nbpRecheckDue, parseNbpResponse, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
 import { calculatorCurrency, changeAccountCurrency } from '@shared/risk'
 import { settingsSchema, type Settings } from '@shared/schema'
 
@@ -187,6 +187,19 @@ describe('calculatorCurrency (kalkulator w PLN)', () => {
     expect(calculatorCurrency(settings({ accountCurrency: 'PLN', nbp: null }))).toMatchObject({ currency: 'PLN', fromAccount: 1, fallback: false })
     // A typed USD → PLN rate counts too.
     expect(calculatorCurrency(settings({ accountCurrency: 'USD', nbp: null, manual: { 'USD>PLN': 4 } }))).toMatchObject({ currency: 'PLN', fromAccount: 4, rateSource: 'manual' })
+  })
+})
+
+describe('kurs ręczny odbiegający od NBP', () => {
+  it('ostrzeżenie powyżej 3% różnicy', () => {
+    const s = settings()
+    expect(manualRateDeviation(3.95, 'USD', 'PLN', s)).toEqual({ nbp: 3.8881, deviation: 3.95 / 3.8881 - 1, warn: false }) // +1.6%
+    const far = manualRateDeviation(4.2, 'USD', 'PLN', s)!
+    expect(far.warn).toBe(true)
+    expect(deviationText(far)).toBe('odbiega od NBP (3.8881) o +8.0%')
+    expect(deviationText(manualRateDeviation(3.6, 'USD', 'PLN', s)!)).toBe('odbiega od NBP (3.8881) o \u22127.4%')
+    expect(manualRateDeviation(4.2, 'USD', 'PLN', settings({ nbp: null }))).toBeNull()
+    expect(manualRateDeviation(4.2, 'CHF', 'PLN', s)).toBeNull() // no CHF in the table
   })
 })
 

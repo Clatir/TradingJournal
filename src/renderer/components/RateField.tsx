@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { shownDecimals } from '@shared/calc/position'
-import { nbpRate, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
+import { deviationText, manualRateDeviation, nbpRate, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
 import type { Settings } from '@shared/schema'
 import { updateJournal } from '../store/journal'
 import { Field, NumberField } from './ui'
@@ -11,10 +11,17 @@ const setSettings = (fn: (s: Settings) => Settings) => updateJournal((j) => ({ .
 export function rateHint(from: string, to: string, settings: Settings, noneHint: ReactNode, testId?: string): ReactNode {
   const r = rateFor(from, to, settings)
   if (r?.source === 'nbp') return `kurs NBP z dnia ${settings.fx.nbp?.effectiveDate ?? '—'} — możesz wpisać własny`
-  if (r?.source === 'manual')
+  if (r?.source === 'manual') {
+    const dev = manualRateDeviation(r.rate, from, to, settings)
     return (
       <span>
         kurs wpisany ręcznie
+        {dev?.warn && (
+          <span className="text-accent" data-testid={testId ? `${testId}-stale` : undefined}>
+            {' '}
+            – {deviationText(dev)}, sprawdź, czy jest aktualny
+          </span>
+        )}
         {nbpRate(from, to, settings) != null && (
           <>
             {' · '}
@@ -29,6 +36,7 @@ export function rateHint(from: string, to: string, settings: Settings, noneHint:
         )}
       </span>
     )
+  }
   return noneHint
 }
 

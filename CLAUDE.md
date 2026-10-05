@@ -189,6 +189,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   `fetchFxRates`); zapis do ustawień tylko przy nowym numerze tabeli. Pobranie: 20 s po otwarciu folderu, gdy tabela
   ma ponad 12 h (`nbpFetchDue`), potem co godzinę, gdy brakuje tabeli z ostatniego dnia roboczego od 12:30 czasu
   warszawskiego (`nbpRecheckDue`, `expectedNbpDate`). Bez sieci kalkulatory liczą z ostatniej zapisanej tabeli.
+  Kurs ręczny odbiegający od NBP o > 3% (`manualRateDeviation`, `MANUAL_RATE_WARN`) jest oznaczany przy polu i w ustawieniach.
 - Eksport: `forecastTable` → TSV (schowek), CSV, XLSX (generator XML w `shared/export/xlsx.ts`, ZIP w `main/export/xlsx.ts`).
 - `SCHEMA_VERSION` bez zmian (kolekcja addytywna): 1.2.x pomija `forecasts/` (kopia dzienna i import 1.2.x ich nie zawierają).
 

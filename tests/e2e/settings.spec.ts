@@ -317,6 +317,13 @@ test('kalkulator w PLN: kwoty po kursie NBP (konto w USD), wartość pipsa z tab
     await page.getByTestId('calc-balance').press('Tab')
     await expect(page.getByTestId('calc-currency-hint')).toHaveText('waluta kalkulatora; konto w USD: 10\u00a0000.00 USD · kurs 3.8881 (NBP 2026-10-02)')
     await expectPlnResult(page)
+    // A typed rate far from NBP is flagged (and can be put back).
+    await page.getByTestId('calc-rate').fill('4.2')
+    await page.getByTestId('calc-rate').press('Tab')
+    await expect(page.getByTestId('calc-rate-stale')).toContainText('odbiega od NBP (3.8881) o +8.0%')
+    await page.getByTestId('calc-rate-nbp').click()
+    await expect(page.getByTestId('calc-rate')).toHaveValue('3.8881')
+    await expect(page.getByTestId('calc-rate-stale')).toHaveCount(0)
     // The P/L calculator and the partials are in PLN as well (EURUSD: 0.10 USD × 3.8881 per pip of 0.01 lota).
     await page.getByTestId('pnl').getByRole('radio', { name: 'EURUSD', exact: true }).click()
     await page.getByTestId('pnl-lots').fill('0.5')

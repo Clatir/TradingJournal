@@ -25,6 +25,8 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 - **Partiale w kalkulatorze**: porównanie „zamknij całość teraz” z podziałem na 1–4 części (teraz albo na celu w pipsach,
   opcjonalnie SL reszty na BE). Wynik każdej części, najlepszy i najgorszy przypadek, każdy scenariusz (osiągnięte cele,
   reszta na SL/BE) i różnica względem zamknięcia teraz.
+- Kurs wpisany ręcznie, który odbiega od kursu NBP o ponad 3%, jest oznaczony („odbiega od NBP (3.8881) o +8.0%”)
+  przy polu kursu i na liście kursów w ustawieniach.
 - Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
   Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
 

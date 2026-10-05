@@ -45,6 +45,23 @@ export function rateFor(from: string, to: string, settings: Pick<Settings, 'risk
   return nbp != null ? { rate: nbp, source: 'nbp' } : null
 }
 
+/** A hand-entered rate further than this from the NBP one (as a fraction) is flagged as possibly out of date. */
+export const MANUAL_RATE_WARN = 0.03
+
+/** A hand-entered rate compared with the NBP table: NBP rate and the difference as a signed fraction; null without NBP. */
+export function manualRateDeviation(manual: number, from: string, to: string, settings: Pick<Settings, 'fx'>): { nbp: number; deviation: number; warn: boolean } | null {
+  const nbp = nbpRate(from, to, settings)
+  if (nbp == null || !(manual > 0)) return null
+  const deviation = manual / nbp - 1
+  return { nbp, deviation, warn: Math.abs(deviation) > MANUAL_RATE_WARN }
+}
+
+/** "odbiega od NBP (3.8881) o +8.0%" */
+export function deviationText(d: { nbp: number; deviation: number }): string {
+  const pct = d.deviation * 100
+  return `odbiega od NBP (${d.nbp}) o ${pct > 0 ? '+' : '\u2212'}${Math.abs(pct).toFixed(1)}%`
+}
+
 /** A typed rate is stored where it always was for the account currency (risk.conversionRates), otherwise in fx.manual. */
 export function withManualRate<S extends Pick<Settings, 'risk' | 'fx'>>(settings: S, from: string, to: string, rate: number): S {
   if (!(rate > 0) || from === to) return settings

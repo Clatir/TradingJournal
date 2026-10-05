@@ -1,10 +1,10 @@
-import { manualRates, withoutManualRate } from '@shared/fx'
+import { deviationText, manualRateDeviation, manualRates, withoutManualRate } from '@shared/fx'
 import type { Settings } from '@shared/schema'
 import { countLabel } from '../../lib/format'
 import { refreshFxRates, useFxFetch } from '../../store/fx'
 import { updateJournal, useJournal } from '../../store/journal'
 import { IconSync, IconTrash } from '../../components/icons'
-import { Panel, Toggle } from '../../components/ui'
+import { Panel, Toggle, cx } from '../../components/ui'
 
 const setSettings = (fn: (s: Settings) => Settings) => updateJournal((j) => ({ ...j, settings: fn(j.settings) }))
 
@@ -47,11 +47,18 @@ export function FxPanel({ settings }: { settings: Settings }) {
           <span className="text-[11.5px] text-dim">Brak – wszystkie kursy pochodzą z tabeli NBP.</span>
         ) : (
           <div className="flex flex-col">
-            {manual.map((r) => (
+            {manual.map((r) => {
+              const dev = manualRateDeviation(r.rate, r.from, r.to, settings)
+              return (
               <div key={`${r.from}>${r.to}`} className="flex items-center gap-3 border-b border-line/70 py-1 text-[12px]" data-testid={`fx-manual-${r.from}-${r.to}`}>
                 <span className="num w-[220px] text-fg-strong">
                   1 {r.from} = {r.rate} {r.to}
                 </span>
+                {dev && (
+                  <span className={cx('num text-[11.5px]', dev.warn ? 'text-accent' : 'text-dim')} data-testid={`fx-manual-${r.from}-${r.to}-dev`}>
+                    {deviationText(dev)}
+                  </span>
+                )}
                 <button
                   className="btn btn-ghost h-[22px] px-1.5"
                   title="Usuń kurs wpisany ręcznie"
@@ -61,7 +68,8 @@ export function FxPanel({ settings }: { settings: Settings }) {
                   <IconTrash size={13} />
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
