@@ -6,8 +6,8 @@ import { api, errorMessage } from '../../lib/api'
 import { fmtBytes, parseClockInput } from '../../lib/format'
 import { flushSaves, openResult, updateJournal, useJournal } from '../../store/journal'
 import { navigate, toast, useUi, type SettingsTab } from '../../store/ui'
+import { setAccountCurrency } from '../../store/fx'
 import { enterSample, exitSample } from '../sample/sample'
-import { switchAccountCurrency } from '@shared/risk'
 import { TransferTab } from './TransferTab'
 import { UpdatesTab } from './UpdatesTab'
 import { InstrumentsTab } from './InstrumentsTab'
@@ -662,10 +662,7 @@ function DisplayTab({ settings }: { settings: Settings }) {
             <CurrencyInput
               className="w-[80px]"
               value={settings.risk.accountCurrency}
-              onChange={(accountCurrency) => {
-                setSettings((s) => ({ ...s, risk: switchAccountCurrency(s.risk, accountCurrency) }))
-                toast(`Waluta konta: ${accountCurrency}. Kursy przeliczeniowe i ręczne wartości pipsa są pamiętane osobno dla każdej waluty konta.`, 'info', 6000)
-              }}
+              onChange={setAccountCurrency}
               data-testid="risk-currency"
             />
           </Field>

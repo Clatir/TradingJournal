@@ -18,7 +18,10 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   Bez internetu zostaje ostatnia pobrana tabela. Kursy wpisane ręcznie mają pierwszeństwo i można wrócić do kursu NBP.
 - **Instrumenty**: lista w ustawieniach (dodawanie, archiwizacja, „Przywróć domyślne”), wspólna dla kalkulatora zysku /
   straty i prognozy. Dotychczasowe instrumenty i ręczne wartości pipsa przechodzą bez zmian.
-- **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka.
+- **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka. Waluta konta (np. PLN) wybierana obok
+  pola „Kapitał” – kapitał przeliczany po kursie NBP; wartość pipsa liczona z kursu NBP (widać tabelę, z której pochodzi).
+- Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
+  Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
 
 ### Poprawki
 - Adnotacje: bardzo szybko narysowany kształt (krótkie przeciągnięcie) nie znika.

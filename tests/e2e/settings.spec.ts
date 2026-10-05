@@ -273,3 +273,66 @@ test('kursy NBP: pobieranie z lokalnego serwera, kurs w kalkulatorach, kurs ręc
     server.close()
   }
 })
+
+test('kalkulator pozycji w PLN: kapitał przeliczony po kursie NBP, wartość pipsa z tabeli; bez sieci ostatnia tabela', async () => {
+  test.setTimeout(120_000)
+  const { createServer } = await import('node:http')
+  let mode: 'ok' | 'error' = 'ok'
+  const table = [
+    { table: 'A', no: '192/A/NBP/2026', effectiveDate: '2026-10-02', rates: [{ currency: 'dolar amerykański', code: 'USD', mid: 3.8881 }, { currency: 'euro', code: 'EUR', mid: 4.3745 }] }
+  ]
+  const server = createServer((_req, res) => {
+    if (mode === 'error') res.writeHead(500).end()
+    else res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(table))
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+  const env = { ICTJ_NBP_URL: `http://127.0.0.1:${(server.address() as { port: number }).port}`, ICTJ_NBP_FETCH_DELAY_MS: '300' }
+  const first = await launch({ env })
+  const journal = async () => JSON.parse(await fs.readFile(join(first.dataDir, 'journal.json'), 'utf8')) as any
+  /** 1 % of 38 881 PLN with SL 20 pips: pip of 1 lot = 10 USD × 3.8881 = 38.88 PLN → 388.81 / 777.62 = 0.50 lota. */
+  const expectPlnResult = async (page: Page) => {
+    await page.getByTestId('calc-risk').fill('1')
+    await page.getByTestId('calc-sl').fill('20')
+    await expect(page.getByTestId('calc-lots')).toHaveText('0.50')
+    await expect(page.getByTestId('calc-pip-value')).toContainText('38.88 PLN')
+    await expect(page.getByTestId('calc-pip-value-source')).toHaveText('10 USD × 3.8881 (NBP 2026-10-02)')
+  }
+  try {
+    const page = first.page
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    await expect.poll(async () => (await journal()).settings.fx.nbp?.no ?? null, { timeout: 15_000 }).toBe('192/A/NBP/2026')
+    await page.keyboard.press('Control+6')
+    await page.getByTestId('calc-balance').fill('10000')
+    await page.getByTestId('calc-balance').press('Tab')
+    // The account currency is changed right in the calculator; the balance follows at the NBP rate.
+    await expect(page.getByTestId('calc-currency')).toHaveValue('USD')
+    await page.getByTestId('calc-currency').fill('PLN')
+    await page.getByTestId('calc-currency').press('Tab')
+    await expect(page.getByText(/Kapitał przeliczony: 10\s000\.00 USD → 38\s881\.00 PLN \(kurs 3\.8881 NBP\)/)).toBeVisible()
+    await expect(page.getByTestId('calc-balance')).toHaveValue('38881.00')
+    await expectPlnResult(page)
+    await page.screenshot({ path: join('test-results', 'screens', '48-kalkulator-pln.png') })
+    await expect.poll(async () => (await journal()).settings.risk).toMatchObject({ accountCurrency: 'PLN', accountBalance: 38881 })
+    expect(first.errors).toEqual([])
+  } finally {
+    await first.app.close()
+  }
+  // Offline: the server fails, the calculator keeps computing with the last fetched table.
+  mode = 'error'
+  const second = await launch({ dataDir: first.dataDir, userData: first.userData, env })
+  try {
+    const page = second.page
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    await page.keyboard.press('Control+,')
+    await page.getByTestId('settings-tab-display').click()
+    await page.getByTestId('fx-refresh').click()
+    await expect(page.getByText('Nie udało się pobrać kursów NBP: serwer NBP odpowiedział błędem 500. Zostają kursy z dnia 2026-10-02.')).toBeVisible()
+    await page.keyboard.press('Control+6')
+    await expect(page.getByTestId('calc-currency')).toHaveValue('PLN')
+    await expectPlnResult(page)
+    expect(second.errors).toEqual([])
+  } finally {
+    await second.app.close()
+    server.close()
+  }
+})

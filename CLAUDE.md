@@ -126,7 +126,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do
-  `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta.
+  `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta. Zmiana z kalkulatora
+  pozycji (pole obok „Kapitał”) albo z ustawień idzie przez `changeAccountCurrency` (+ `setAccountCurrency` w
+  `renderer/store/fx.ts`): saldo przeliczane kursem stara → nowa (`fx.manual` albo NBP); bez kursu zostaje i jest komunikat.
 
 ## Screeny (kalibracja)
 - Pipeline w rendererze: `createImageBitmap` → skalowanie w dół (połowienie + high quality) do max 2560 px →
@@ -172,7 +174,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   albo wyliczona) przeliczona `rateFor` na walutę scenariusza (`forecastInputFrom`).
 - Kursy (`src/shared/fx.ts`): kolejność: ta sama waluta → ręczny kurs konta (`risk.conversionRates`) → `fx.manual`
   („USD>PLN”) → tabela NBP (`fx.nbp`, mid/mid, PLN = 1). Pobiera proces główny (`src/main/fx/nbp.ts`, IPC
-  `fetchFxRates`); zapis do ustawień tylko przy nowym numerze tabeli.
+  `fetchFxRates`); zapis do ustawień tylko przy nowym numerze tabeli. Pobranie: 20 s po otwarciu folderu, gdy tabela
+  ma ponad 12 h (`nbpFetchDue`), potem co godzinę, gdy brakuje tabeli z ostatniego dnia roboczego od 12:30 czasu
+  warszawskiego (`nbpRecheckDue`, `expectedNbpDate`). Bez sieci kalkulatory liczą z ostatniej zapisanej tabeli.
 - Eksport: `forecastTable` → TSV (schowek), CSV, XLSX (generator XML w `shared/export/xlsx.ts`, ZIP w `main/export/xlsx.ts`).
 - `SCHEMA_VERSION` bez zmian (kolekcja addytywna): 1.2.x pomija `forecasts/` (kopia dzienna i import 1.2.x ich nie zawierają).
 

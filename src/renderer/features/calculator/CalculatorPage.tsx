@@ -6,7 +6,8 @@ import { fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
 import { metricsFor, useDailyLimits } from '../../store/derived'
 import { updateJournal, updateRecord, useJournal } from '../../store/journal'
 import { navigate, toast } from '../../store/ui'
-import { Cell, Field, NumberField, Panel, cx } from '../../components/ui'
+import { setAccountCurrency } from '../../store/fx'
+import { Cell, CurrencyInput, Field, NumberField, Panel, cx } from '../../components/ui'
 import { RateField } from '../../components/RateField'
 import { PnlCalculator } from './PnlCalculator'
 
@@ -42,8 +43,12 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
   const account = settings.risk.accountCurrency
   const quote = pairCfg?.quoteCurrency ?? 'USD'
   const sameCurrency = quote === account
-  const rate = rateFor(quote, account, settings)?.rate ?? null
+  const rateInfo = rateFor(quote, account, settings)
+  const rate = rateInfo?.rate ?? null
   const balance = settings.risk.accountBalance
+  // Where the pip value comes from: one lot's pip in the quote currency × the rate (NBP of a date or typed).
+  const pipInQuote = settings.risk.contractSize * (pairCfg?.pipSize ?? 0.0001)
+  const rateSource = rateInfo?.source === 'nbp' ? `NBP ${settings.fx.nbp?.effectiveDate ?? '?'}` : 'kurs ręczny'
 
   const result =
     balance != null && riskPercent != null && stopPips != null && rate != null
@@ -74,8 +79,11 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
       <div className="mx-auto grid max-w-[1040px] grid-cols-[1fr_1fr] gap-3">
         <Panel title="Kalkulator pozycji">
           <div className="flex flex-col gap-2">
-            <Field label={`Kapitał (${account})`}>
-              <NumberField value={balance} onChange={(v) => setRisk({ accountBalance: v != null && v >= 0 ? v : null })} decimals={2} placeholder="np. 10000" data-testid="calc-balance" />
+            <Field label="Kapitał" hint="waluta konta – po zmianie kapitał jest przeliczany po kursie NBP">
+              <div className="flex items-center gap-2">
+                <NumberField value={balance} onChange={(v) => setRisk({ accountBalance: v != null && v >= 0 ? v : null })} decimals={2} placeholder="np. 10000" data-testid="calc-balance" />
+                <CurrencyInput className="w-[60px] shrink-0" value={account} onChange={setAccountCurrency} aria-label="Waluta konta" data-testid="calc-currency" />
+              </div>
             </Field>
             <Field label="Ryzyko %">
               <NumberField value={riskPercent} onChange={setRiskPercent} decimals={2} step={0.05} data-testid="calc-risk" />
@@ -122,7 +130,12 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
               <div className="grid grid-cols-2 border border-line">
                 <Cell label="Ryzyko docelowe" value={`${result.riskAmount.toFixed(2)} ${account}`} />
                 <Cell label="Ryzyko po zaokrągleniu" value={`${result.actualRiskAmount.toFixed(2)} ${account} (${result.actualRiskPercent.toFixed(2)}%)`} />
-                <Cell label="Wartość pipsa / 1 lot" value={`${result.pipValuePerLot.toFixed(2)} ${account}`} />
+                <Cell
+                  label="Wartość pipsa / 1 lot"
+                  value={`${result.pipValuePerLot.toFixed(2)} ${account}`}
+                  sub={sameCurrency ? undefined : <span data-testid="calc-pip-value-source">{`${Number(pipInQuote.toFixed(6))} ${quote} × ${rate} (${rateSource})`}</span>}
+                  testId="calc-pip-value"
+                />
                 <Cell label="Wartość pipsa / pozycja" value={`${(result.pipValuePerLot * result.lots).toFixed(2)} ${account}`} />
                 <Cell label="Zysk przy TP" value={tp ? `${tp.profit.toFixed(2)} ${account}` : '—'} valueClassName={tp && tp.profit > 0 ? 'text-up' : undefined} testId="calc-tp-profit" />
                 <Cell label="Zysk do ryzyka" value={tp ? `1 : ${tp.ratio.toFixed(2)}` : '—'} testId="calc-rr" />

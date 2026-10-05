@@ -2,6 +2,7 @@
  * Currency conversion rates: hand-entered rates win over the last fetched NBP table (table A, mid rates).
  * Pure functions shared by the main process (fetch, validation) and the renderer (calculators, forecast).
  */
+import { DateTime } from 'luxon'
 import { z } from 'zod'
 import { isoDate, type NbpTable, type Settings } from './schema'
 
@@ -99,6 +100,28 @@ export function nbpFetchDue(settings: Pick<Settings, 'fx'>, opts: { readOnly: bo
   if (!settings.fx.autoFetch || opts.readOnly || opts.isSample) return false
   const last = settings.fx.nbp ? Date.parse(settings.fx.nbp.fetchedAt) : Number.NaN
   return !Number.isFinite(last) || opts.now.getTime() - last > NBP_REFRESH_AFTER_MS
+}
+
+/** While the app is open the table is checked again this often (NBP publishes table A once per working day). */
+export const NBP_RECHECK_MS = 60 * 60 * 1000
+
+/**
+ * Date of the newest table A that should already exist: today (Warsaw) on a working day from 12:30 (NBP publishes
+ * around 11:45–12:15), otherwise the previous working day. Polish holidays are not known – on such a day the check
+ * just finds no newer table.
+ */
+export function expectedNbpDate(now: Date): string {
+  let d = DateTime.fromJSDate(now).setZone('Europe/Warsaw')
+  if (d.hour * 60 + d.minute < 12 * 60 + 30) d = d.minus({ days: 1 })
+  while (d.weekday > 5) d = d.minus({ days: 1 })
+  return d.toISODate()!
+}
+
+/** The hourly check while the app is open: same conditions as at start, and the stored table is older than expected. */
+export function nbpRecheckDue(settings: Pick<Settings, 'fx'>, opts: { readOnly: boolean; isSample: boolean; now: Date }): boolean {
+  if (!settings.fx.autoFetch || opts.readOnly || opts.isSample) return false
+  const table = settings.fx.nbp
+  return !table || table.effectiveDate < expectedNbpDate(opts.now)
 }
 
 /** Result of the fetchFxRates IPC channel. */

@@ -168,5 +168,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 7. „Rozrzut wyników” (200 / 1000 / 5000 przebiegów) i wykres z „Pokaż rozrzut”; „Kopiuj tabelę”, „CSV”, „XLSX” – otwórz w Excelu.
 8. Ustawienia → Wyświetlanie i ryzyko → „Kursy walut”: „Odśwież kursy NBP” (bez internetu zostaje ostatnia tabela),
    kursy wpisane ręcznie. Ustawienia → Instrumenty: dodaj instrument, zarchiwizuj, „Przywróć domyślne”.
-9. Kalkulator pozycji: pole „TP (pips)” – zysk przy TP i zysk do ryzyka (1 : 2.00).
+9. Kalkulator pozycji: pole „TP (pips)” – zysk przy TP i zysk do ryzyka (1 : 2.00). Obok „Kapitał” wpisz `PLN` – kapitał
+   przelicza się po kursie NBP, a „Wartość pipsa / 1 lot” pokazuje kurs i datę tabeli NBP.
 10. Ten sam folder na drugim komputerze: scenariusz pokazuje identyczne liczby (losowania są zapisane w pliku).

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { manualRates, nbpFetchDue, nbpRate, parseNbpResponse, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
+import { expectedNbpDate, manualRates, nbpFetchDue, nbpRate, nbpRecheckDue, parseNbpResponse, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
+import { changeAccountCurrency } from '@shared/risk'
 import { settingsSchema, type Settings } from '@shared/schema'
 
 const TABLE = { no: '192/A/NBP/2026', effectiveDate: '2026-10-02', fetchedAt: '2026-10-02T12:15:00.000Z', rates: { USD: 3.8881, EUR: 4.3745, GBP: 5.1353, AUD: 2.699 } }
@@ -123,3 +124,57 @@ describe('tabela NBP', () => {
     expect(nbpFetchDue(settings(), { ...ok, isSample: true })).toBe(false)
   })
 })
+
+describe('kursy na bieżąco (sprawdzanie co godzinę)', () => {
+  it('oczekiwana tabela: dziś od 12:30 w Warszawie w dzień roboczy, inaczej poprzedni dzień roboczy', () => {
+    expect(expectedNbpDate(new Date('2026-10-05T10:29:00.000Z'))).toBe('2026-10-02') // Mon 12:29 CEST → Friday
+    expect(expectedNbpDate(new Date('2026-10-05T10:30:00.000Z'))).toBe('2026-10-05') // Mon 12:30 CEST
+    expect(expectedNbpDate(new Date('2026-10-04T18:00:00.000Z'))).toBe('2026-10-02') // Sunday
+    expect(expectedNbpDate(new Date('2026-10-06T23:30:00.000Z'))).toBe('2026-10-06') // Wed 01:30 CEST → Tuesday
+    expect(expectedNbpDate(new Date('2026-12-07T11:31:00.000Z'))).toBe('2026-12-07') // CET (UTC+1): 12:31
+  })
+
+  it('sprawdzenie tylko gdy brakuje nowszej tabeli; te same warunki co przy starcie', () => {
+    const ok = { readOnly: false, isSample: false }
+    const friday = settings() // table of 2026-10-02 (Friday)
+    expect(nbpRecheckDue(friday, { ...ok, now: new Date('2026-10-04T12:00:00.000Z') })).toBe(false) // weekend: nothing newer
+    expect(nbpRecheckDue(friday, { ...ok, now: new Date('2026-10-05T09:00:00.000Z') })).toBe(false) // Monday morning
+    expect(nbpRecheckDue(friday, { ...ok, now: new Date('2026-10-05T11:00:00.000Z') })).toBe(true) // Monday after 12:30
+    expect(nbpRecheckDue(settings({ nbp: null }), { ...ok, now: new Date('2026-10-04T12:00:00.000Z') })).toBe(true)
+    expect(nbpRecheckDue(friday, { ...ok, readOnly: true, now: new Date('2026-10-05T11:00:00.000Z') })).toBe(false)
+    expect(nbpRecheckDue(friday, { ...ok, isSample: true, now: new Date('2026-10-05T11:00:00.000Z') })).toBe(false)
+    expect(nbpRecheckDue(settings({ autoFetch: false }), { ...ok, now: new Date('2026-10-05T11:00:00.000Z') })).toBe(false)
+  })
+})
+
+describe('changeAccountCurrency (kapitał w nowej walucie konta)', () => {
+  const withBalance = (s: Settings, accountBalance: number | null): Settings => ({ ...s, risk: { ...s.risk, accountBalance } })
+
+  it('USD → PLN: kapitał przeliczony po kursie NBP, ręczne kursy zostają przy swojej walucie', () => {
+    const s = withBalance(settings({ accountCurrency: 'USD', conversionRates: { GBP: 1.3 } }), 10000)
+    const { risk, balance } = changeAccountCurrency(s, 'PLN')
+    expect(risk.accountCurrency).toBe('PLN')
+    expect(risk.accountBalance).toBe(38881)
+    expect(balance).toEqual({ before: 10000, after: 38881, rate: { rate: 3.8881, source: 'nbp' } })
+    expect(risk.conversionRates).toEqual({})
+    expect(risk.byAccountCurrency.USD?.conversionRates).toEqual({ GBP: 1.3 })
+    // the typed "USD per GBP" rate is not used for USD → PLN
+    const back = changeAccountCurrency({ ...s, risk }, 'USD')
+    expect(back.risk.accountBalance).toBe(10000) // 38881 × 0.257195 = 9999.99… → 10000.00
+    expect(back.risk.conversionRates).toEqual({ GBP: 1.3 })
+  })
+
+  it('kurs wpisany ręcznie (fx.manual) ma pierwszeństwo; bez kursu kapitał zostaje bez zmian', () => {
+    const typed = withBalance(settings({ accountCurrency: 'USD', manual: { 'USD>PLN': 4 } }), 1000)
+    expect(changeAccountCurrency(typed, 'PLN').balance).toEqual({ before: 1000, after: 4000, rate: { rate: 4, source: 'manual' } })
+    const none = withBalance(settings({ accountCurrency: 'USD', nbp: null }), 1000)
+    const r = changeAccountCurrency(none, 'PLN')
+    expect(r.balance).toBeNull()
+    expect(r.risk.accountBalance).toBe(1000)
+    expect(r.risk.accountCurrency).toBe('PLN')
+    expect(changeAccountCurrency(withBalance(settings({ accountCurrency: 'USD' }), null), 'PLN').balance).toBeNull()
+    const same = withBalance(settings({ accountCurrency: 'PLN' }), 5)
+    expect(changeAccountCurrency(same, 'PLN').risk).toBe(same.risk)
+  })
+})
+

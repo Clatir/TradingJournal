@@ -1,3 +1,4 @@
+import { rateFor, type Rate } from './fx'
 import type { Settings } from './schema'
 
 type Risk = Settings['risk']
@@ -24,3 +25,28 @@ export function switchAccountCurrency(risk: Risk, next: string): Risk {
     byAccountCurrency
   }
 }
+
+/** Balance of the account before and after a currency change, with the rate used. */
+export interface BalanceConversion {
+  before: number
+  after: number
+  rate: Rate
+}
+
+/**
+ * Account currency change as done from the calculator and the settings: `switchAccountCurrency`, plus the balance
+ * converted at the rate old → new (hand-entered "OLD>NEW" or NBP), so the position size keeps its meaning. Without a
+ * rate the balance stays as it was (`balance: null`) and the caller says so.
+ */
+export function changeAccountCurrency(settings: Pick<Settings, 'risk' | 'fx'>, next: string): { risk: Risk; balance: BalanceConversion | null } {
+  const risk = settings.risk
+  if (risk.accountCurrency === next) return { risk, balance: null }
+  const before = risk.accountBalance
+  // Before the switch: the rates typed for the old account currency are "X → old", never "old → new".
+  const rate = before != null && before > 0 ? rateFor(risk.accountCurrency, next, settings) : null
+  const switched = switchAccountCurrency(risk, next)
+  if (before == null || !rate) return { risk: switched, balance: null }
+  const after = Number((before * rate.rate).toFixed(2))
+  return { risk: { ...switched, accountBalance: after }, balance: { before, after, rate } }
+}
+
