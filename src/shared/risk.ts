@@ -19,6 +19,8 @@ export function switchAccountCurrency(risk: Risk, next: string): Risk {
   delete byAccountCurrency[next]
   return {
     ...risk,
+    // Trade amounts saved without a currency were in the first account currency.
+    legacyAmountCurrency: risk.legacyAmountCurrency ?? prev,
     accountCurrency: next,
     conversionRates: restored?.conversionRates ?? {},
     pipValuesPerLot: restored?.pipValuesPerLot ?? {},

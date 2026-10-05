@@ -279,6 +279,7 @@ export function generateSample(opts: { seed?: number; endDate: string; now?: str
         mfePips: missed ? null : mfe,
         riskPercent: 0.5,
         riskAmount: 50,
+        amountCurrency: journal.settings.risk.accountCurrency,
         lots: round(50 / (slPips * 10), 2),
         stopBeyondLiquidity: rnd() < 0.8 ? 'yes' : rnd() < 0.5 ? 'no' : 'unknown',
         psychology: {

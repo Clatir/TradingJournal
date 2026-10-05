@@ -56,7 +56,8 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '3') {
         e.preventDefault()
         navigate({ page: 'analytics' })
-      } else if (e.key === '4') {
+      } else if (e.key === '4' && !e.shiftKey) {
+        // Ctrl+Shift+4 (Ctrl+$ on some layouts reports the digit) toggles amounts, below.
         e.preventDefault()
         navigate({ page: 'library' })
       } else if (e.key === '5') {

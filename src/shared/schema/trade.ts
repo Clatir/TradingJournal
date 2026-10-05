@@ -56,6 +56,8 @@ export const tradeSchema = z.looseObject({
   riskAmount: nullableNumber,
   lots: nullableNumber,
   pnlAmountOverride: nullableNumber,
+  /** Currency of `riskAmount` and `pnlAmountOverride` (the account currency when typed); null = before 1.3.0. */
+  amountCurrency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
   tradingViewUrl: text,
   stopBeyondLiquidity: z.enum(['yes', 'no', 'unknown']).default('unknown'),
   psychology: psychologySchema.prefault({}),

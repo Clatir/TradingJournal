@@ -151,6 +151,11 @@ export const settingsSchema = z.looseObject({
     .looseObject({
       accountCurrency: z.string().regex(/^[A-Z]{3}$/).default('USD'),
       accountBalance: z.number().nonnegative().nullable().default(null),
+      /**
+       * Currency of trade amounts (risk, result) saved without their own `amountCurrency` (before 1.3.0): the account
+       * currency of that time. Set once, on the first account currency change; null = the account currency.
+       */
+      legacyAmountCurrency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
       defaultRiskPercent: z.number().positive().default(0.5),
       contractSize: z.number().positive().default(100000),
       lotStep: z.number().positive().default(0.01),

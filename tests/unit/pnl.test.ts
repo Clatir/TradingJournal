@@ -132,4 +132,12 @@ describe('zmiana waluty konta', () => {
     expect(switchAccountCurrency(back, 'USD')).toBe(back)
     expect(settingsSchema.parse({ risk: back }).risk).toEqual(back)
   })
+
+  it('kwoty transakcji zapisane bez waluty należą do pierwszej waluty konta (zapamiętanej raz)', () => {
+    const usd = settingsSchema.parse({ risk: { accountCurrency: 'USD' } }).risk
+    expect(usd.legacyAmountCurrency).toBeNull()
+    const pln = switchAccountCurrency(usd, 'PLN')
+    expect(pln.legacyAmountCurrency).toBe('USD')
+    expect(switchAccountCurrency(switchAccountCurrency(pln, 'EUR'), 'USD').legacyAmountCurrency).toBe('USD')
+  })
 })

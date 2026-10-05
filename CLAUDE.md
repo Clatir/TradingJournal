@@ -129,6 +129,10 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta. Zmiana z kalkulatora
   pozycji (pole obok „Kapitał”) albo z ustawień idzie przez `changeAccountCurrency` (+ `setAccountCurrency` w
   `renderer/store/fx.ts`): saldo przeliczane kursem stara → nowa (`fx.manual` albo NBP); bez kursu zostaje i jest komunikat.
+- Kwoty transakcji (`riskAmount`, `pnlAmountOverride`) mają walutę `amountCurrency` (waluta konta przy wpisie). Pliki
+  sprzed 1.3.0 jej nie mają: obowiązuje `risk.legacyAmountCurrency` (pierwsza waluta konta, zapamiętana przy pierwszej
+  zmianie). `tradeMetrics` przelicza wynik na walutę konta dzisiejszym kursem (`pnlAmount`, oryginał: `pnlAmountOwn`);
+  bez kursu `pnlAmount` = null (nie udaje kwoty w walucie konta). CSV: „Wynik kwota (waluta konta)” i „Waluta kwot”.
 
 ## Screeny (kalibracja)
 - Pipeline w rendererze: `createImageBitmap` → skalowanie w dół (połowienie + high quality) do max 2560 px →

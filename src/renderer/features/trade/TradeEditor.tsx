@@ -80,6 +80,9 @@ export function TradeEditor({ id }: { id: string }) {
 
   const up = (fn: (t: Trade) => Trade) => updateRecord('trades', id, fn)
   const setField = <K extends keyof Trade>(k: K, v: Trade[K]) => up((r) => ({ ...r, [k]: v }))
+  // Amounts are typed in the account currency: the trade remembers it (shown converted after a currency change).
+  const amountCurrency = t.amountCurrency ?? (t.riskAmount != null || t.pnlAmountOverride != null ? (settings.risk.legacyAmountCurrency ?? currency) : currency)
+  const setAmount = (k: 'riskAmount' | 'pnlAmountOverride', v: number | null) => up((r) => ({ ...r, [k]: v, amountCurrency: currency }))
   const setPrice = (k: keyof Trade['prices'], v: number | null) => up((r) => ({ ...r, prices: { ...r.prices, [k]: v } }))
   const setPsy = (patch: Partial<Trade['psychology']>) => up((r) => ({ ...r, psychology: { ...r.psychology, ...patch } }))
   const setExits = (fn: (x: TradeExit[]) => TradeExit[]) => up((r) => ({ ...r, exits: fn(r.exits) }))
@@ -328,7 +331,13 @@ export function TradeEditor({ id }: { id: string }) {
               <ResultStrip
                 r={m.resultR}
                 pips={m.resultPips}
-                money={showMoney ? fmtMoney(m.pnlAmount, currency) : null}
+                money={
+                  showMoney
+                    ? m.amountCurrency && m.amountCurrency !== currency && m.pnlAmountOwn != null
+                      ? `${fmtMoney(m.pnlAmountOwn, m.amountCurrency)} ≈ ${m.pnlAmount != null ? fmtMoney(m.pnlAmount, currency) : `? ${currency}`}`
+                      : fmtMoney(m.pnlAmount, currency)
+                    : null
+                }
                 be={be}
                 note={t.status === 'open' ? 'zrealizowane dotąd' : m.outcome === 'breakeven' ? 'break-even' : null}
               />
@@ -399,11 +408,14 @@ export function TradeEditor({ id }: { id: string }) {
               </Field>
               {showMoney && (
                 <>
-                  <Field label={`Ryzyko ${currency}`}>
-                    <NumberField value={t.riskAmount} onChange={(v) => setField('riskAmount', v)} decimals={2} />
+                  <Field label={`Ryzyko ${amountCurrency}`}>
+                    <NumberField value={t.riskAmount} onChange={(v) => setAmount('riskAmount', v)} decimals={2} data-testid="trade-risk-amount" />
                   </Field>
-                  <Field label={`Wynik ${currency}`} hint="puste = R × ryzyko">
-                    <NumberField value={t.pnlAmountOverride} onChange={(v) => setField('pnlAmountOverride', v)} decimals={2} placeholder="auto" />
+                  <Field
+                    label={`Wynik ${amountCurrency}`}
+                    hint={amountCurrency !== currency ? `kwoty w ${amountCurrency} (waluta konta przy wpisie); nowy wpis zapisze je w ${currency}` : 'puste = R × ryzyko'}
+                  >
+                    <NumberField value={t.pnlAmountOverride} onChange={(v) => setAmount('pnlAmountOverride', v)} decimals={2} placeholder="auto" />
                   </Field>
                 </>
               )}
@@ -580,7 +592,11 @@ function ResultStrip({ r, pips, money, be, note }: { r: number | null; pips: num
         {fmtR(r)}
       </span>
       <span className={cx('num text-[13px]', cls)}>{pips != null ? `${fmtPips(pips)} pips` : ''}</span>
-      {money && <span className={cx('num text-[13px]', cls)}>{money}</span>}
+      {money && (
+        <span className={cx('num text-[13px]', cls)} data-testid="result-money">
+          {money}
+        </span>
+      )}
       {note && <span className="ml-auto text-[11px] text-muted">{note}</span>}
     </div>
   )

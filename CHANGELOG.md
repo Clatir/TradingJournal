@@ -29,6 +29,9 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 - Kalkulator zysku / straty nie proponuje zarchiwizowanych instrumentów.
 - Sprawdzanie aktualizacji i pobieranie kursów nie zawiesza się, gdy serwer przestaje odpowiadać w trakcie odpowiedzi.
 - Aktualizacja wersji przenośnej: wpisy dziennika `update.log` nie giną przy chwilowej blokadzie pliku.
+- Kwoty transakcji pamiętają swoją walutę: po zmianie waluty konta (np. USD → PLN) dawne kwoty są pokazywane w swojej
+  walucie i przeliczone na nową („+100.00 USD ≈ +388.81 PLN”), zamiast udawać kwoty w PLN. CSV ma kolumnę „Waluta kwot”.
+- `Ctrl+Shift+4` (`Ctrl+$`) zawsze przełącza kwoty – nie otwiera Biblioteki, gdy system podaje cyfrę zamiast „$”.
 
 ### Ważne przy pracy na kilku komputerach
 - Format danych się nie zmienia (wersja 1.2.x otwiera folder normalnie), ale **kopia dzienna zrobiona wersją 1.2.x nie

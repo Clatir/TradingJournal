@@ -1,5 +1,6 @@
 import type { Killzone, PairConfig, Settings } from '../schema/journal'
 import type { Trade } from '../schema/trade'
+import { rateFor } from '../fx'
 import { killzonesAt, primaryKillzone, tradingDateNy } from './time'
 
 export const DEFAULT_PIP_SIZE = 0.0001
@@ -68,21 +69,39 @@ export interface TradeMetrics {
   killzoneNames: string[]
   /** Last exit time, if any. */
   exitTime: string | null
-  /** Amount in account currency (override or R x riskAmount). */
+  /** Amount in account currency (override or R x riskAmount, converted from `amountCurrency` when it differs). */
   pnlAmount: number | null
+  /** The same amount in the trade's own currency (as typed). */
+  pnlAmountOwn: number | null
+  /** Currency of the trade's amounts (risk, override); null without amounts or without the conversion context. */
+  amountCurrency: string | null
 }
 
 export interface MetricsContext {
   pairs: readonly PairConfig[]
   killzones: readonly Killzone[]
   breakevenThresholdR: number
+  /** Without it amounts are not converted (they are taken as in the account currency). */
+  amounts?: {
+    accountCurrency: string
+    /** Currency of amounts saved without one (risk.legacyAmountCurrency, else the account currency). */
+    defaultCurrency: string
+    /** Units of the account currency per 1 unit of `from` (hand-entered or NBP), null when unknown. */
+    rate: (from: string) => number | null
+  }
 }
 
 export function metricsContext(settings: Settings): MetricsContext {
+  const account = settings.risk.accountCurrency
   return {
     pairs: settings.pairs,
     killzones: settings.killzones,
-    breakevenThresholdR: settings.stats.breakevenThresholdR
+    breakevenThresholdR: settings.stats.breakevenThresholdR,
+    amounts: {
+      accountCurrency: account,
+      defaultCurrency: settings.risk.legacyAmountCurrency ?? account,
+      rate: (from) => rateFor(from, account, settings)?.rate ?? null
+    }
   }
 }
 
@@ -134,8 +153,16 @@ export function tradeMetrics(trade: Trade, ctx: MetricsContext): TradeMetrics {
   const outcome = resultR != null && trade.status !== 'open' ? classifyOutcome(resultR, ctx.breakevenThresholdR) : null
   const kzs = resolveKillzones(trade, ctx.killzones)
   const exitTimes = trade.exits.map((x) => x.time).filter((t): t is string => !!t).sort()
-  const pnlAmount =
+  const pnlAmountOwn =
     trade.pnlAmountOverride ?? (resultR != null && trade.riskAmount != null && countsInStats ? resultR * trade.riskAmount : null)
+  // Amounts typed in another account currency (before a currency change) are converted at today's rate.
+  const hasAmounts = trade.riskAmount != null || trade.pnlAmountOverride != null
+  const amountCurrency = trade.amountCurrency ?? (hasAmounts ? (ctx.amounts?.defaultCurrency ?? null) : null)
+  let pnlAmount = pnlAmountOwn
+  if (pnlAmountOwn != null && ctx.amounts && amountCurrency && amountCurrency !== ctx.amounts.accountCurrency) {
+    const rate = ctx.amounts.rate(amountCurrency)
+    pnlAmount = rate != null ? pnlAmountOwn * rate : null
+  }
 
   return {
     pipSize,
@@ -154,7 +181,9 @@ export function tradeMetrics(trade: Trade, ctx: MetricsContext): TradeMetrics {
     killzoneIds: kzs.map((k) => k.id),
     killzoneNames: kzs.map((k) => k.name),
     exitTime: exitTimes.at(-1) ?? null,
-    pnlAmount
+    pnlAmount,
+    pnlAmountOwn,
+    amountCurrency
   }
 }
 

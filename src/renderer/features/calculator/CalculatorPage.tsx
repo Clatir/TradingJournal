@@ -69,7 +69,7 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
 
   const apply = () => {
     if (!tradeId || !result) return
-    updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)) }))
+    updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)), amountCurrency: account }))
     toast(`Zapisano w transakcji: ${result.lots.toFixed(lotDec)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${account}.`, 'success')
     navigate({ page: 'trade', id: tradeId })
   }

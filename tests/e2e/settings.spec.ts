@@ -301,6 +301,15 @@ test('kalkulator pozycji w PLN: kapitał przeliczony po kursie NBP, wartość pi
     const page = first.page
     await expect(page.getByTestId('journal-table')).toBeVisible()
     await expect.poll(async () => (await journal()).settings.fx.nbp?.no ?? null, { timeout: 15_000 }).toBe('192/A/NBP/2026')
+    // A trade with a risk of 50 USD while the account is still in USD: 2R at TP1 = +100 USD.
+    await page.keyboard.press('Control+n')
+    await page.getByTestId('price-entry').fill('1.0850')
+    await page.getByTestId('price-sl').fill('1.0835')
+    await page.getByTestId('price-tp1').fill('1.0880')
+    await page.getByTestId('quick-TP1').click()
+    await page.keyboard.press('Control+Shift+4') // amounts visible
+    await page.getByTestId('trade-risk-amount').fill('50')
+    await expect(page.getByTestId('result-money')).toHaveText('+100.00 USD')
     await page.keyboard.press('Control+6')
     await page.getByTestId('calc-balance').fill('10000')
     await page.getByTestId('calc-balance').press('Tab')
@@ -312,7 +321,11 @@ test('kalkulator pozycji w PLN: kapitał przeliczony po kursie NBP, wartość pi
     await expect(page.getByTestId('calc-balance')).toHaveValue('38881.00')
     await expectPlnResult(page)
     await page.screenshot({ path: join('test-results', 'screens', '48-kalkulator-pln.png') })
-    await expect.poll(async () => (await journal()).settings.risk).toMatchObject({ accountCurrency: 'PLN', accountBalance: 38881 })
+    await expect.poll(async () => (await journal()).settings.risk).toMatchObject({ accountCurrency: 'PLN', accountBalance: 38881, legacyAmountCurrency: 'USD' })
+    // The trade keeps its amounts in USD and shows them converted to the new account currency.
+    await page.keyboard.press('Control+1')
+    await page.getByTestId('journal-row').first().dblclick()
+    await expect(page.getByTestId('result-money')).toHaveText('+100.00 USD ≈ +388.81 PLN')
     expect(first.errors).toEqual([])
   } finally {
     await first.app.close()
