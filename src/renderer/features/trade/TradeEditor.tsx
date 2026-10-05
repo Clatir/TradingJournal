@@ -342,6 +342,7 @@ export function TradeEditor({ id }: { id: string }) {
                 be={be}
                 note={t.status === 'open' ? 'zrealizowane dotąd' : m.outcome === 'breakeven' ? 'break-even' : null}
               />
+              {t.broker && <BrokerLine broker={t.broker} />}
             </Section>
           ) : (
             <Section title="Missed trade – co by było">
@@ -590,6 +591,23 @@ function Metric({ label, value, testId }: { label: string; value: string; testId
       <span className="num text-[13px] text-fg-strong" data-testid={testId}>
         {value}
       </span>
+    </div>
+  )
+}
+
+/** The broker's numbers of an imported position (history import), for reconciliation. */
+function BrokerLine({ broker: b }: { broker: NonNullable<Trade['broker']> }) {
+  const cur = b.currency ?? ''
+  const costs = [b.commission ? `prowizja ${fmtMoney(b.commission, cur)}` : null, b.swap ? `swap ${fmtMoney(b.swap, cur)}` : null].filter(Boolean)
+  return (
+    <div className="mt-1 text-[11.5px] text-muted" data-testid="trade-broker">
+      Broker: <span className="num">#{b.tickets.join(', #')}</span>
+      {b.symbol ? ` · ${b.symbol}` : ''}
+      {b.volume != null ? <span className="num"> · {b.volume} lot</span> : null}
+      {b.net != null ? (
+        <span className={cx('num', toneClass[tone(b.net)])}> · netto {fmtMoney(b.net, cur)}</span>
+      ) : null}
+      {costs.length ? <span className="num"> ({costs.join(', ')})</span> : null}
     </div>
   )
 }

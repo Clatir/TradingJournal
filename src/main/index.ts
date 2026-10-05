@@ -23,6 +23,7 @@ import { startPortableSwap, startSilentInstaller } from './update/apply'
 import { fetchNbpHistory, fetchNbpTable, nbpSource } from './fx/nbp'
 import { writeXlsx } from './export/xlsx'
 import { htmlToPdf } from './export/pdf'
+import { readBrokerFile } from './import/broker'
 import type { XlsxSheet } from '@shared/export/xlsx'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
@@ -384,6 +385,15 @@ function registerIpc(): void {
     const st = await fs.stat(file)
     if (st.size > 50 * 1024 * 1024) throw new Error('Plik jest za duży (limit 50 MB).')
     return { name: basename(file), text: await fs.readFile(file, 'utf8') }
+  })
+  handle('journal:pickBrokerFile', async () => {
+    const res = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openFile'],
+      filters: [{ name: 'Historia od brokera (CSV, HTML, XLSX)', extensions: ['csv', 'txt', 'tsv', 'htm', 'html', 'xlsx'] }]
+    })
+    const file = res.filePaths[0]
+    if (res.canceled || !file) return null
+    return readBrokerFile(file)
   })
   handle('journal:showPath', async (abs: string) => {
     shell.showItemInFolder(abs)

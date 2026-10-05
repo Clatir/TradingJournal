@@ -77,6 +77,7 @@ export function CommandPalette() {
       { id: 'report-pdf', label: 'Raport miesięczny (ostatni miesiąc) – zapisz PDF', run: () => void deliverMonthlyReport(latestReportMonth(), 'pdf') },
       { id: 'zip', label: 'Eksport ZIP całego folderu', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
       { id: 'import', label: 'Import / kopie zapasowe', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
+      { id: 'broker', label: 'Import historii od brokera (MT4, MT5, XTB)', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
       {
         id: 'sample',
         label: 'Dane przykładowe (demo) – włącz / wyłącz',

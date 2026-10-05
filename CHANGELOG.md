@@ -34,6 +34,11 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   Archiwum kursów pobiera się samo (tylko brakujące dni) i jest zapisane w folderze danych – działa też offline.
 - **Wynik z lotów**: transakcja bez wpisanej kwoty ryzyka ma wynik w pieniądzu z lotów (pipsy × wartość pipsa × loty,
   w walucie kwotowanej, przeliczony po kursie z dnia) – w edytorze, analityce i CSV („· z lotów”).
+- **Import historii od brokera** (Ustawienia → Eksport, import, kopie): raport HTML z MetaTrader 4/5, XLSX z XTB
+  xStation albo CSV z tych plików. Pozycje są dopasowywane do wpisów (para, kierunek, czas wejścia w tolerancji) i mogą
+  uzupełnić puste pola: cenę wejścia, TP, SL, wyjścia z czasem (partiale), loty i wynik netto (zysk + prowizja + swap).
+  Pozycje bez wpisu mogą stać się nowymi wpisami. Numer pozycji zostaje we wpisie (widać go w edytorze), więc ponowny
+  import nic nie dubluje; lista wpisów bez pozycji u brokera.
 - **Raport miesięczny** (Analityka, pasek pod wskaźnikami, albo paleta `Ctrl+K`): wynik w R i w PLN (kwoty po kursie
   NBP z dnia przed zamknięciem), tygodnie, pary, najczęstsze błędy z kosztem, zgodność z zasadami, plan dnia, najlepsza
   i najgorsza transakcja. Do schowka jako markdown, do pliku `.md` albo PDF (A4).

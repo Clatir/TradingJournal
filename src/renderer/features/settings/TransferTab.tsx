@@ -7,6 +7,7 @@ import { toast } from '../../store/ui'
 import { IconFolder } from '../../components/icons'
 import { Badge, Panel, Segmented, cx } from '../../components/ui'
 import { exportCsv } from '../export/markdownActions'
+import { BrokerImport } from './BrokerImport'
 
 const KIND = { daily: 'dzienna (JSON)', weekly: 'tygodniowa (pełna)', manual: 'ręczna (pełna)', 'pre-migration': 'przed migracją' } as const
 
@@ -170,6 +171,8 @@ export function TransferTab() {
           )}
         </div>
       </Panel>
+
+      <BrokerImport />
 
       <Panel
         title="Kopie zapasowe"

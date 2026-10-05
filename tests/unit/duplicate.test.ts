@@ -55,6 +55,21 @@ describe('duplikowanie wpisów', () => {
     expect(t.screens[0]!.annotations).toHaveLength(0)
   })
 
+  it('transakcja z importu od brokera: kopia nie ma powiązania z pozycją (ticketem)', () => {
+    const t = tradeSchema.parse({
+      schemaVersion: 1,
+      id: newId(),
+      createdAt: NOW,
+      updatedAt: NOW,
+      pair: 'EURUSD',
+      direction: 'long',
+      entryTime: '2026-10-01T07:30:00.000Z',
+      broker: { tickets: ['123'], net: 10, currency: 'USD' }
+    })
+    expect(t.broker?.tickets).toEqual(['123'])
+    expect(duplicateTrade(t, NOW).broker).toBeNull()
+  })
+
   it('przykład z biblioteki: tytuł oznaczony jako kopia', () => {
     const item = libraryItemSchema.parse({ schemaVersion: 1, id: newId(), createdAt: NOW, updatedAt: NOW, title: 'London sweep', screens: [screen()] })
     const copy = duplicateLibraryItem(item, NOW)

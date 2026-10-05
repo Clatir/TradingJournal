@@ -7,6 +7,13 @@ import type { XlsxSheet } from './export/xlsx'
 import type { JournalFile } from './schema'
 import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
 
+/** A broker's history file: worksheets of an XLSX, or the bytes of a text / HTML file. */
+export interface BrokerFile {
+  name: string
+  sheets: Array<{ name: string; rows: string[][] }> | null
+  bytes: Uint8Array | null
+}
+
 export interface RecordEntry<T> {
   record: T
   relPath: string
@@ -202,6 +209,8 @@ export interface JournalApi {
   saveXlsx(defaultName: string, sheets: XlsxSheet[]): Promise<string | null>
   /** Save dialog + an A4 PDF printed from a self-contained HTML document (hidden window, no JavaScript). */
   savePdf(defaultName: string, html: string): Promise<string | null>
+  /** Open dialog for a broker's history (CSV, HTML report, XLSX); null when cancelled. */
+  pickBrokerFile(): Promise<BrokerFile | null>
   /** ZIP of the whole data folder (without backups). */
   exportZip(): Promise<string | null>
   copyText(text: string): Promise<void>

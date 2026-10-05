@@ -1,5 +1,5 @@
-import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { promises as fs, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { DataStore } from '../../src/main/datastore/store'
@@ -120,6 +120,93 @@ test('raport miesięczny: wynik w R i PLN, wybór miesiąca, markdown do schowka
     expect(pdf.length).toBeGreaterThan(5000)
     // The hidden PDF window is gone; only the main window is left.
     await expect.poll(async () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+async function readTrades(root: string): Promise<Trade[]> {
+  const out: Trade[] = []
+  const year = join(root, 'trades', '2026')
+  for (const name of await fs.readdir(year).catch(() => [])) if (name.endsWith('.json') && !name.startsWith('.')) out.push(JSON.parse(await fs.readFile(join(year, name), 'utf8')))
+  return out
+}
+
+test('import historii od brokera (raport MT4, UTF-16): dopasowanie, uzupełnienie wpisu, nowy wpis, ponowny import bez dubli', async () => {
+  const journal = createDefaultJournal()
+  journal.settings.pairs = [...journal.settings.pairs, { ...journal.settings.pairs.find((p) => p.symbol === 'EURUSD')!, symbol: 'GBPUSD', tvSymbol: 'FX:GBPUSD' }]
+  const open = createTrade({
+    pair: 'EURUSD',
+    direction: 'long',
+    status: 'open',
+    entryTime: '2026-10-01T11:31:00.000Z', // the broker: 14:30 server time = 07:30 NY = 11:30 UTC
+    prices: { entry: 1.085, stopLoss: 1.0835, takeProfit1: null, takeProfit2: null }
+  })
+  const other = createTrade({ pair: 'AUDUSD', direction: 'long', entryTime: '2026-10-02T09:00:00.000Z' })
+  const dataDir = await seed([open, other], journal)
+  // MetaTrader 5 saves reports in UTF-16 LE with a BOM; the statement is the MT4 one from the unit tests.
+  const html = readFileSync(resolve('tests/fixtures/broker-mt4-statement.htm'), 'utf8')
+  const file = join(await fs.mkdtemp(join(tmpdir(), 'ictj-broker-')), 'Statement.htm')
+  await fs.writeFile(file, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(html, 'utf16le')]))
+
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(2)
+    await app.evaluate(({ dialog }, path) => {
+      ;(dialog as unknown as Record<string, unknown>).showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+    }, file)
+    await page.getByTestId('nav-settings').click()
+    await page.getByTestId('settings-tab-transfer').click()
+    const panel = page.getByTestId('broker-import')
+    await panel.getByTestId('broker-pick').click()
+    await expect(panel.getByTestId('broker-summary')).toContainText('Statement.htm')
+    await expect(panel.getByTestId('broker-summary')).toContainText('MetaTrader 4')
+    await expect(panel.getByTestId('broker-summary')).toContainText('2 pozycje (1 partial scalony)')
+    await expect(panel.getByTestId('broker-summary')).toContainText('pominięte wiersze: 2')
+    await expect(panel.getByTestId('broker-currency')).toHaveValue('USD')
+    const rows = panel.getByTestId('broker-row')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.nth(0)).toHaveAttribute('data-status', 'matched')
+    await expect(rows.nth(0)).toContainText('2026-10-01 07:31 · Δ +1 min')
+    await expect(rows.nth(0)).toContainText('+146.50 USD')
+    await expect(rows.nth(1)).toHaveAttribute('data-status', 'new')
+    await expect(rows.nth(1)).toContainText('(2 części)')
+    await expect(panel.getByTestId('broker-journal-only')).toContainText('1')
+
+    // Matched positions are selected by default; new entries on request.
+    await expect(panel.getByTestId('broker-apply')).toHaveText('Zastosuj: uzupełnij 1, utwórz 0')
+    await panel.getByTestId('broker-select-new').click()
+    await expect(panel.getByTestId('broker-apply')).toHaveText('Zastosuj: uzupełnij 1, utwórz 1')
+    await panel.getByTestId('broker-apply').click()
+    await expect(rows.nth(0)).toHaveAttribute('data-status', 'imported')
+    await expect(rows.nth(1)).toHaveAttribute('data-status', 'imported')
+    await expect(panel.getByTestId('broker-apply')).toBeDisabled()
+
+    // On disk: the open entry is closed and filled, the GBPUSD position became a new entry.
+    await expect.poll(async () => (await readTrades(dataDir)).filter((t) => t.broker).length, { timeout: 8000 }).toBe(2)
+    const saved = await readTrades(dataDir)
+    const filled = saved.find((t) => t.id === open.id)!
+    expect(filled).toMatchObject({ status: 'closed', lots: 0.5, pnlAmountOverride: 146.5, amountCurrency: 'USD' })
+    expect(filled.prices).toMatchObject({ entry: 1.085, stopLoss: 1.0835, takeProfit1: 1.088 })
+    expect(filled.exits.map((x) => [x.time, x.price, x.percent])).toEqual([['2026-10-01T14:45:10.000Z', 1.088, 100]])
+    expect(filled.broker).toMatchObject({ tickets: ['50001'], net: 146.5, commission: -3.5, currency: 'USD' })
+    const created = saved.find((t) => t.pair === 'GBPUSD')!
+    expect(created).toMatchObject({ direction: 'short', status: 'closed', entryTime: '2026-10-02T12:00:00.000Z', lots: 1, pnlAmountOverride: 256.1 })
+    expect(created.exits.map((x) => x.percent)).toEqual([50, 50])
+    expect(saved.find((t) => t.id === other.id)!.broker ?? null).toBeNull()
+
+    // The entry shows the broker's numbers.
+    await rows.nth(0).getByTestId('broker-linked').click()
+    await expect(page.getByTestId('trade-broker')).toContainText('#50001')
+    await expect(page.getByTestId('trade-broker')).toContainText('netto +146.50 USD (prowizja −3.50 USD)')
+
+    // A second import of the same file finds both positions already imported.
+    await page.getByTestId('nav-settings').click()
+    await page.getByTestId('settings-tab-transfer').click()
+    await page.getByTestId('broker-pick').click()
+    await expect(page.getByTestId('broker-row')).toHaveCount(2)
+    await expect(page.locator('[data-testid="broker-row"][data-status="imported"]')).toHaveCount(2)
     expect(errors).toEqual([])
   } finally {
     await app.close()

@@ -182,6 +182,20 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   sesja w pamięci blokująca wszystko poza `data:`, `printToPDF` A4).
 - Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
   potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
+- Import historii od brokera (Ustawienia → Eksport, import, kopie; `renderer/features/settings/BrokerImport.tsx`):
+  - plik: main `import/broker.ts` (`pickBrokerFile`: XLSX → arkusze przez yauzl, reszta → bajty), renderer dekoduje
+    (`decodeText`: BOM UTF-8/16, UTF-8, Windows-1250) i dzieli na wiersze (`shared/import/tables.ts`: CSV/TSV, tabele HTML
+    z raportów MT4/MT5 z rozwinięciem colspan, arkusze XLSX z datami ze stylów);
+  - `shared/import/broker.ts`: nagłówek rozpoznawany po nazwach kolumn (EN/PL; „Time”/„Price” dwa razy = otwarcie,
+    zamknięcie), koniec tabeli na wierszu-tytule albo kolejnym nagłówku, partiale (ten sam symbol, strona, czas i cena
+    otwarcia) scalane w jedną pozycję z kilkoma wyjściami; netto = kolumna netto albo zysk + prowizja (+ podatki) + swap
+    (+ rollover);
+  - `shared/import/match.ts`: czas pliku: serwer MT = NY + 7 h, Warszawa (XTB), UTC; para z symbolu bez końcówek;
+    ta sama para i kierunek, wejście w tolerancji, najbliższe najpierw, jeden do jednego; ticket zapisany w `trade.broker`
+    = „już zaimportowana”, chyba że pozycja zmieniła się u brokera (zamknięta później, kolejny partial) – wtedy znów
+    „dopasowana”, a wartości wpisane poprzednim importem liczą się jak puste. `applyBrokerMatch` uzupełnia puste pola (albo nadpisuje), SL tylko po stronie straty, wynik =
+    netto w walucie konta brokera (nie, gdy kwota ryzyka wpisu jest w innej walucie); `tradeFromBroker` = nowy wpis.
+  - `trade.broker` (addytywne, `SCHEMA_VERSION` bez zmian): tickety, liczby brokera, czasy UTC; duplikat wpisu go nie ma.
 - Kopie przy starcie (`main/datastore/backup.ts`): `backups/daily/RRRR-MM-DD_json.zip` (14), `backups/weekly/RRRR-Wnn_full.zip`
   gdy najnowsza ≥ 7 dni (4), ręczne `backups/manual/` (5), przed migracją `backups/pre-migration/`. Demo nie ma kopii.
 
@@ -269,7 +283,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 8. ✅ 1.2.1: przegląd opcji – poprawki kalkulatorów, waluty konta, kroku lota, słowników i killzone'ów (`tests/e2e/settings.spec.ts`).
 9. ✅ 1.3.0: prognoza wypłat (scenariusze, cele, fundusz celowy, rozrzut, wykres, eksport CSV/XLSX), kursy NBP,
    lista instrumentów, TP i zysk do ryzyka w kalkulatorze pozycji (`tests/e2e/forecast.spec.ts`); kalkulatory w PLN,
-   partiale, kurs z dnia transakcji, wynik z lotów, prognoza z wyników, raport miesięczny (`tests/e2e/journal-tools.spec.ts`).
+   partiale, kurs z dnia transakcji, wynik z lotów, prognoza z wyników, raport miesięczny, import historii od brokera
+   (`tests/e2e/journal-tools.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms
