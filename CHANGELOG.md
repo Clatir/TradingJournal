@@ -38,6 +38,7 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 - Aktualizacja wersji przenośnej: wpisy dziennika `update.log` nie giną przy chwilowej blokadzie pliku.
 - Kwoty transakcji pamiętają swoją walutę: po zmianie waluty konta (np. USD → PLN) dawne kwoty są pokazywane w swojej
   walucie i przeliczone na nową („+100.00 USD ≈ +388.81 PLN”), zamiast udawać kwoty w PLN. CSV ma kolumnę „Waluta kwot”.
+  W edytorze transakcji pole „Waluta kwot” pozwala poprawić walutę, gdy kwoty wpisano w innej.
 - `Ctrl+Shift+4` (`Ctrl+$`) zawsze przełącza kwoty – nie otwiera Biblioteki, gdy system podaje cyfrę zamiast „$”.
 
 ### Ważne przy pracy na kilku komputerach

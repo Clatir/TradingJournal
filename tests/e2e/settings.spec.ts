@@ -346,6 +346,11 @@ test('kalkulator w PLN: kwoty po kursie NBP (konto w USD), wartość pipsa z tab
     await page.keyboard.press('Control+1')
     await page.getByTestId('journal-row').first().dblclick()
     await expect(page.getByTestId('result-money')).toHaveText('+100.00 USD ≈ +388.81 PLN')
+    // Amounts typed in the wrong currency: the currency of the trade's amounts can be changed (no conversion).
+    await expect(page.getByTestId('trade-amount-currency')).toHaveValue('USD')
+    await page.getByTestId('trade-amount-currency').fill('PLN')
+    await page.getByTestId('trade-amount-currency').press('Tab')
+    await expect(page.getByTestId('result-money')).toHaveText('+100.00 PLN')
     expect(first.errors).toEqual([])
   } finally {
     await first.app.close()

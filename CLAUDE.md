@@ -141,6 +141,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   sprzed 1.3.0 jej nie mają: obowiązuje `risk.legacyAmountCurrency` (pierwsza waluta konta, zapamiętana przy pierwszej
   zmianie). `tradeMetrics` przelicza wynik na walutę konta dzisiejszym kursem (`pnlAmount`, oryginał: `pnlAmountOwn`);
   bez kursu `pnlAmount` = null (nie udaje kwoty w walucie konta). CSV: „Wynik kwota (waluta konta)” i „Waluta kwot”.
+  Edytor: pole „Waluta kwot” (poprawka waluty bez przeliczania); wpisana kwota jest w walucie pokazanej obok.
 
 ## Screeny (kalibracja)
 - Pipeline w rendererze: `createImageBitmap` → skalowanie w dół (połowienie + high quality) do max 2560 px →

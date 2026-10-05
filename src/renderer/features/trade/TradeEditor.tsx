@@ -10,7 +10,7 @@ import { deleteRecord, discardDraft, updateRecord, useJournal } from '../../stor
 import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
 import { IconBack, IconClose, IconCopy, IconExternal, IconFolder, IconPlus, IconTrash } from '../../components/icons'
-import { Badge, Chips, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
+import { Badge, Chips, CurrencyInput, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
 import { addTradeToLibrary } from '../library/LibraryPage'
@@ -82,7 +82,8 @@ export function TradeEditor({ id }: { id: string }) {
   const setField = <K extends keyof Trade>(k: K, v: Trade[K]) => up((r) => ({ ...r, [k]: v }))
   // Amounts are typed in the account currency: the trade remembers it (shown converted after a currency change).
   const amountCurrency = t.amountCurrency ?? (t.riskAmount != null || t.pnlAmountOverride != null ? (settings.risk.legacyAmountCurrency ?? currency) : currency)
-  const setAmount = (k: 'riskAmount' | 'pnlAmountOverride', v: number | null) => up((r) => ({ ...r, [k]: v, amountCurrency: currency }))
+  // A typed amount is in the currency shown next to it (the trade keeps it explicitly from then on).
+  const setAmount = (k: 'riskAmount' | 'pnlAmountOverride', v: number | null) => up((r) => ({ ...r, [k]: v, amountCurrency }))
   const setPrice = (k: keyof Trade['prices'], v: number | null) => up((r) => ({ ...r, prices: { ...r.prices, [k]: v } }))
   const setPsy = (patch: Partial<Trade['psychology']>) => up((r) => ({ ...r, psychology: { ...r.psychology, ...patch } }))
   const setExits = (fn: (x: TradeExit[]) => TradeExit[]) => up((r) => ({ ...r, exits: fn(r.exits) }))
@@ -408,12 +409,21 @@ export function TradeEditor({ id }: { id: string }) {
               </Field>
               {showMoney && (
                 <>
+                  <Field label="Waluta kwot" hint={amountCurrency !== currency ? `przeliczane na ${currency} (waluta konta) – zmień, jeśli kwoty wpisano w innej walucie` : 'zmień, jeśli kwoty wpisano w innej walucie'}>
+                    <CurrencyInput
+                      className="w-[70px]"
+                      value={amountCurrency}
+                      onChange={(c) => up((r) => ({ ...r, amountCurrency: c }))}
+                      aria-label="Waluta kwot transakcji"
+                      data-testid="trade-amount-currency"
+                    />
+                  </Field>
                   <Field label={`Ryzyko ${amountCurrency}`}>
                     <NumberField value={t.riskAmount} onChange={(v) => setAmount('riskAmount', v)} decimals={2} data-testid="trade-risk-amount" />
                   </Field>
                   <Field
                     label={`Wynik ${amountCurrency}`}
-                    hint={amountCurrency !== currency ? `kwoty w ${amountCurrency} (waluta konta przy wpisie); nowy wpis zapisze je w ${currency}` : 'puste = R × ryzyko'}
+                    hint="puste = R × ryzyko"
                   >
                     <NumberField value={t.pnlAmountOverride} onChange={(v) => setAmount('pnlAmountOverride', v)} decimals={2} placeholder="auto" />
                   </Field>
