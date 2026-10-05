@@ -103,7 +103,8 @@ export const toneClass = { up: 'text-up', down: 'text-down', flat: 'text-muted' 
 
 /** Parse user-typed numbers: accepts comma or dot, spaces. Returns undefined when invalid. */
 export function parseNumberInput(text: string): number | null | undefined {
-  const t = text.trim().replace(/\s/g, '').replace(',', '.')
+  // Minus "-" or U+2212 (shown by the forecast fields).
+  const t = text.trim().replace(/\s/g, '').replace(MINUS, '-').replace(',', '.')
   if (t === '') return null
   if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return undefined
   const n = Number(t)
@@ -112,14 +113,14 @@ export function parseNumberInput(text: string): number | null | undefined {
 
 /**
  * An amount typed or shown with grouped thousands: spaces (also U+00A0) ignored, comma or dot, minus "-" or
- * U+2212, at most 1e12 in size; null = empty, undefined = invalid.
+ * U+2212; a value beyond ±1e12 is clipped (appendix B); null = empty, undefined = invalid.
  */
 export function parseAmountInput(text: string): number | null | undefined {
   const t = text.replace(/\s/g, '').replace(MINUS, '-').replace(',', '.')
   if (t === '') return null
   if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return undefined
   const v = Number(t)
-  return Number.isFinite(v) && Math.abs(v) <= 1e12 ? v : undefined
+  return Number.isFinite(v) ? Math.min(1e12, Math.max(-1e12, v)) : undefined
 }
 
 /** Parse "330", "3:30", "03.30", "0330" → "03:30". */

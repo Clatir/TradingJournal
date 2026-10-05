@@ -8,7 +8,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 
 /**
  * Number field of the forecast: a value outside the range is clipped (not refused), at most `maxDecimals`
- * places are kept; an emptied field keeps the last value unless `nullable` (appendix B).
+ * places are kept; an emptied field shows the error border and keeps the last value unless `nullable` (appendix B).
  */
 export const Num = forwardRef<
   HTMLInputElement,
@@ -39,7 +39,9 @@ export const Num = forwardRef<
       step={step}
       placeholder={placeholder}
       className={cx('w-[110px]', className)}
-      isValid={isValid}
+      // An emptied field of a required value is invalid text: error border, the last value stays and is back on blur.
+      isValid={nullable ? isValid : (v) => v != null && (!isValid || isValid(v))}
+      typographicMinus
       aria-label={rest['aria-label']}
       data-testid={rest['data-testid']}
       onChange={(v) => {

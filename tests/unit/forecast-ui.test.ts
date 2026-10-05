@@ -6,7 +6,9 @@ import { forecastInputFrom } from '@shared/forecast-input'
 import { newId } from '@shared/ids'
 import { settingsSchema, type Forecast } from '@shared/schema'
 import { fmtAmount, fmtPct, fmtPctShort, parseAmountInput as parseDeposit } from '../../src/renderer/lib/format'
-import { fixedPipsSummary, goalStatus, lotHint, pipValueText, summaryCells, tableDescription } from '../../src/renderer/features/forecast/texts'
+import { fixedPipsSummary, goalStatus, lotHint, pipValueText, scenarioSettingsRows, summaryCells, tableDescription } from '../../src/renderer/features/forecast/texts'
+import { forecastSchema } from '@shared/schema'
+import { generateSample } from '@shared/sample/generate'
 
 const NBSP = ' '
 const settings = settingsSchema.parse({ risk: { accountCurrency: 'USD' }, fx: { nbp: { no: '192/A/NBP/2026', effectiveDate: '2026-10-02', fetchedAt: '2026-10-02T12:00:00.000Z', rates: { USD: 3.8881 } } } })
@@ -159,6 +161,16 @@ describe('teksty strony prognozy', () => {
     expect(statusText(unnamed, 1)).toBe('Czeka na cel „Bez nazwy”, który nie uzbierał się do końca tabeli.')
   })
 
+  it('bez wyniku (tryb pipsowy bez wartości pipsa): statusy niezależne od obliczeń nadal mają tekst', () => {
+    const f = t1()
+    const { input } = run(f)
+    const text = (g: Forecast['goals'][number]) => goalStatus(g, { scenario: f, input, result: null, cash: null }).parts.map((p) => p.text).join('')
+    expect(text({ ...f.goals[0]!, month: 0 })).toBe('Wpisz numer miesiąca od 1 do 240.')
+    expect(text({ ...f.goals[0]!, enabled: false })).toBe('Wyłączony, nie wpływa na tabelę.')
+    expect(text({ ...f.goals[0]!, month: 60 })).toBe('Poza tabelą, która ma 50 miesięcy. Zwiększ liczbę miesięcy.')
+    expect(text(f.goals[0]!)).toBe('—')
+  })
+
   it('podsumowanie: komórki gotówki (T1) i funduszu (T2)', () => {
     const f = t1()
     const cells = summaryCells({ scenario: f, ...run(f) })
@@ -233,7 +245,8 @@ describe('teksty strony prognozy', () => {
     expect(parseDeposit('  ')).toBeNull()
     expect(parseDeposit('abc')).toBeUndefined()
     expect(parseDeposit('1e5')).toBeUndefined()
-    expect(parseDeposit('2000000000000')).toBeUndefined()
+    expect(parseDeposit('2000000000000')).toBe(1e12) // clipped, not refused (appendix B)
+    expect(parseDeposit('\u22122000000000000')).toBe(-1e12)
   })
 })
 
@@ -303,5 +316,26 @@ describe('usprawnienia w tabeli', () => {
     expect(years[1]!.pot).toBe(result.rows[13]!.pot)
     expect(years[1]!.buys).toBe(2) // Cel 1 (mies. 6) i Cel 2 (mies. 12)
     expect(years[4]!.toK).toBe(50)
+  })
+})
+
+describe('arkusz „Ustawienia” i dane przykładowe', () => {
+  it('liczby ujemne z minusem U+2212', () => {
+    const rows = (f: Forecast) => Object.fromEntries(scenarioSettingsRows(f, { input: { m0: 10, y0: 2026 }, instrumentName: null, pip: null, exportedAt: new Date(0) }))
+    expect(rows(t1({ pct: { ...t1().pct, fixed: -2.5 } }))['Zwrot co miesiąc']).toBe('stały \u22122.5%')
+    expect(rows(t1({ pct: { ...t1().pct, mode: 'random', lo: 5, hi: -3 } }))['Zwrot co miesiąc']).toBe('losowy z zakresu \u22123–5%')
+  })
+
+  it('demo ma jeden poprawny scenariusz z neutralnymi nazwami i pełnymi losowaniami (deterministycznie)', () => {
+    const a = generateSample({ endDate: '2026-10-02', now: '2026-10-02T12:00:00.000Z' })
+    const b = generateSample({ endDate: '2026-10-02', now: '2026-10-02T12:00:00.000Z' })
+    expect(a.forecasts).toHaveLength(1)
+    const f = forecastSchema.parse(a.forecasts[0])
+    expect(f.name).toBe('Scenariusz 1')
+    expect(f.goals.map((g) => g.name)).toEqual(['Cel 1', 'Cel 2', 'Cel 3'])
+    for (const k of ['rate', 'loss', 'lossSize', 'pips'] as const) expect(f.draws[k]).toHaveLength(240)
+    expect(b.forecasts[0]!.draws).toEqual(a.forecasts[0]!.draws)
+    const out = forecastInputFrom(f, a.journal.settings)
+    expect(out.ok).toBe(true)
   })
 })

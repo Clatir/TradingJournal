@@ -232,6 +232,10 @@
     border-color: rgb(232 163 61 / 0.6);
     color: var(--color-accent);
   }
+  /* Invalid text wins over the custom-deposit highlight (chapter 7.2). */
+  .fc-dep[aria-invalid='true'] {
+    border-color: var(--color-down);
+  }
   .kbd {
     white-space: nowrap;
     flex-shrink: 0;

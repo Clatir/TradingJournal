@@ -42,6 +42,7 @@ export function RateField({
   settings,
   noneHint,
   label = 'Kurs',
+  labelWidth,
   testId
 }: {
   from: string
@@ -49,11 +50,13 @@ export function RateField({
   settings: Settings
   noneHint: ReactNode
   label?: ReactNode
+  /** Width of the label column, to line up with the other fields of the panel. */
+  labelWidth?: number
   testId?: string
 }) {
   const rate = rateFor(from, to, settings)?.rate ?? null
   return (
-    <Field label={label} hint={rateHint(from, to, settings, noneHint, testId)}>
+    <Field label={label} labelWidth={labelWidth} hint={rateHint(from, to, settings, noneHint, testId)}>
       <div className="flex items-center gap-2">
         <span className="num w-[54px] shrink-0 text-muted">1 {from} =</span>
         <NumberField

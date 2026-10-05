@@ -103,7 +103,7 @@ export function ForecastPage({ id }: { id?: string }) {
           <ForecastChart
             scenario={scenario}
             result={result}
-            spread={spreadResult && spreadResult.key === spreadKey(input) ? spreadResult.summary : null}
+            spread={spreadResult && spreadResult.key === spreadKey(input, scenario.monteCarloRuns) ? spreadResult.summary : null}
             compare={compareLine}
           />
         )}

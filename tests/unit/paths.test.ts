@@ -49,6 +49,7 @@ describe('nazwy plików', () => {
     })
     expect(slugLabel('W trakcie – M15 żółć')).toBe('W-trakcie-M15-zolc')
     expect(slugLabel('///')).toBe('screen')
+    expect(slugLabel('Сценарий', 'scenariusz')).toBe('scenariusz') // export file name of a scenario
   })
 
   it('pomijane ścieżki', () => {

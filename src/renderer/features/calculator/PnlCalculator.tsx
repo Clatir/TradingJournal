@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { pipValueForMinLot, pipValuePerLotFrom, profitLoss } from '@shared/calc/pnl'
 import { lotDecimals, shownDecimals } from '@shared/calc/position'
 import { rateFor } from '@shared/fx'
-import { calculatedPipValue, findInstrument, instrumentCurrency, instrumentMinLot, selectableInstruments } from '@shared/instruments'
+import { calculatedPipValue, instrumentCurrency, instrumentMinLot, selectableInstruments } from '@shared/instruments'
 import type { Settings } from '@shared/schema'
 import { fmtMoneyGrouped, tone, toneClass } from '../../lib/format'
 import { updateJournal } from '../../store/journal'
@@ -36,8 +36,9 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
   const { instrument: selectedId, lots, pips, loss } = usePnlInputs()
   const risk = settings.risk
   const account = risk.accountCurrency
-  const options = selectableInstruments(settings, findInstrument(settings, selectedId) ? selectedId : null)
-  const inst = (options.some((i) => i.id === selectedId) ? findInstrument(settings, selectedId) : null) ?? options[0] ?? null
+  // Only instruments that are not archived; an archived selection falls back to the first one on the list.
+  const options = selectableInstruments(settings)
+  const inst = options.find((i) => i.id === selectedId) ?? options[0] ?? null
 
   const manageLink = (
     <button className="text-accent hover:underline" onClick={() => navigate({ page: 'settings', tab: 'instruments' })} data-testid="pnl-manage">
@@ -68,7 +69,6 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
   const balance = risk.accountBalance
   // Never hide typed digits (0.015 lota, 12.25 pipsa): the calculation uses exactly what is shown.
   const lotsDecimals = shownDecimals(lots, lotDecimals(minLot))
-  const label = (i: typeof inst) => (i.archived ? `${i.name} (zarchiwizowany)` : i.name)
 
   /** Entered per smallest lot, stored per 1.00 lot (a later lot step change keeps the meaning). */
   const setPipValue = (v: number | null) => {
@@ -89,7 +89,7 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
             {options.length <= SEGMENTED_MAX ? (
               <Segmented
                 value={inst.id}
-                options={options.map((i) => ({ value: i.id, label: label(i) }))}
+                options={options.map((i) => ({ value: i.id, label: i.name }))}
                 onChange={(v) => setInputs({ instrument: v })}
                 size="sm"
                 aria-label="Instrument"
@@ -98,7 +98,7 @@ export function PnlCalculator({ settings }: { settings: Settings }) {
               <select className="input" value={inst.id} onChange={(e) => setInputs({ instrument: e.currentTarget.value })} aria-label="Instrument" data-testid="pnl-instrument">
                 {options.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {label(i)}
+                    {i.name}
                   </option>
                 ))}
               </select>

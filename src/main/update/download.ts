@@ -17,26 +17,39 @@ export class HttpError extends Error {
   }
 }
 
-async function get(fetchFn: FetchLike, url: string, headers: Record<string, string>, timeoutMs: number): Promise<Response> {
+/**
+ * GET `url` and read its body with `read`. The time limit covers the body too: a server that sends headers and then
+ * stalls must not hang the request (the race settles even when the fetch implementation ignores the abort).
+ */
+async function getBody<T>(fetchFn: FetchLike, url: string, headers: Record<string, string>, timeoutMs: number, read: (res: Response) => Promise<T>): Promise<T> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
-  try {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      ctrl.abort()
+      const err = new Error(`Przekroczono limit czasu (${Math.round(timeoutMs / 1000)} s) dla ${url}`)
+      err.name = 'AbortError'
+      reject(err)
+    }, timeoutMs)
+  })
+  const request = (async () => {
     const res = await fetchFn(url, { headers, signal: ctrl.signal })
     if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status} dla ${url}`)
-    return res
+    return read(res)
+  })()
+  try {
+    return await Promise.race([request, timeout])
   } finally {
     clearTimeout(timer)
   }
 }
 
 export async function fetchJson(fetchFn: FetchLike, url: string, headers: Record<string, string> = {}, timeoutMs = 20_000): Promise<unknown> {
-  const res = await get(fetchFn, url, headers, timeoutMs)
-  return res.json()
+  return getBody(fetchFn, url, headers, timeoutMs, (res) => res.json())
 }
 
 export async function fetchText(fetchFn: FetchLike, url: string, headers: Record<string, string> = {}, timeoutMs = 20_000): Promise<string> {
-  const res = await get(fetchFn, url, headers, timeoutMs)
-  return res.text()
+  return getBody(fetchFn, url, headers, timeoutMs, (res) => res.text())
 }
 
 export async function sha256File(path: string): Promise<string> {

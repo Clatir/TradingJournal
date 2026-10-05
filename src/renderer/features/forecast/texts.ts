@@ -29,7 +29,8 @@ export function goalStatus(
   ctx: {
     scenario: Pick<Forecast, 'keep' | 'currency' | 'goals'>
     input: Pick<ForecastInput, 'horizon' | 'm0' | 'y0'>
-    result: ForecastResult
+    /** Null when the scenario cannot be calculated (pip mode without a pip value or rate). */
+    result: ForecastResult | null
     /** Second run kept in cash (fund mode only). */
     cash: ForecastResult | null
   }
@@ -42,6 +43,7 @@ export function goalStatus(
   if (!goal.enabled) return { tone: 'dim', parts: [{ text: 'Wyłączony, nie wpływa na tabelę.' }] }
   if (goal.month > input.horizon)
     return { tone: 'dim', parts: [{ text: `Poza tabelą, która ma ${monthsLabel(input.horizon)}. Zwiększ liczbę miesięcy.` }] }
+  if (!result) return { tone: 'dim', parts: [{ text: '—' }] }
   const r = result.goals[goal.id]
   if (!r) return { tone: 'dim', parts: [{ text: 'Nie bierze udziału w obliczeniach.' }] }
   if ('blockedBy' in r) return { tone: 'warn', parts: [{ text: `Czeka na cel „${nameOf(r.blockedBy)}”, który nie uzbierał się do końca tabeli.` }] }
@@ -261,7 +263,9 @@ export function goalOutcome(goal: ForecastGoal, result: ForecastResult, input: P
 }
 
 const MONTHS_GENITIVE = ['styczniu', 'lutym', 'marcu', 'kwietniu', 'maju', 'czerwcu', 'lipcu', 'sierpniu', 'wrześniu', 'październiku', 'listopadzie', 'grudniu']
-const range = (a: number, b: number) => `${Number(Math.min(a, b).toFixed(4))}–${Number(Math.max(a, b).toFixed(4))}`
+/** A plain number with the typographic minus (U+2212). */
+const signed = (v: number) => String(Number(v.toFixed(4))).replace('-', '\u2212')
+const range = (a: number, b: number) => `${signed(Math.min(a, b))}–${signed(Math.max(a, b))}`
 
 /** Scenario parameters as name–value pairs (the "Ustawienia" sheet of the XLSX export). */
 export function scenarioSettingsRows(scenario: Forecast, ctx: { input: Pick<ForecastInput, 'm0' | 'y0'>; instrumentName: string | null; pip: PipValue | null; exportedAt: Date }): Array<[string, string]> {
@@ -273,12 +277,12 @@ export function scenarioSettingsRows(scenario: Forecast, ctx: { input: Pick<Fore
     ['Tryb odkładania', scenario.keep === 'fund' ? 'Fundusz celowy' : 'Gotówka'],
     ['Tryb prognozy zysku', scenario.gain === 'pips' ? 'Pipsowy' : 'Procentowy']
   ]
-  if (scenario.gain === 'pct') rows.push(['Zwrot co miesiąc', scenario.pct.mode === 'fixed' ? `stały ${scenario.pct.fixed}%` : `losowy z zakresu ${range(scenario.pct.lo, scenario.pct.hi)}%`])
+  if (scenario.gain === 'pct') rows.push(['Zwrot co miesiąc', scenario.pct.mode === 'fixed' ? `stały ${signed(scenario.pct.fixed)}%` : `losowy z zakresu ${range(scenario.pct.lo, scenario.pct.hi)}%`])
   else {
     const p = scenario.pips
     rows.push(
       ['Instrument', ctx.instrumentName ? `${ctx.instrumentName} (${p.instrumentId})` : p.instrumentId],
-      ['Pipsy w miesiącu', p.pipsMode === 'fixed' ? `stałe ${p.pips}` : `losowe z zakresu ${range(p.pipsLo, p.pipsHi)}`],
+      ['Pipsy w miesiącu', p.pipsMode === 'fixed' ? `stałe ${signed(p.pips)}` : `losowe z zakresu ${range(p.pipsLo, p.pipsHi)}`],
       [
         'Wielkość lota',
         p.lotMode === 'fixed'

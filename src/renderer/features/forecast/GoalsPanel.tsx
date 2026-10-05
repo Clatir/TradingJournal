@@ -52,6 +52,7 @@ export function GoalsPanel({
     >
       <div className="flex flex-col gap-2" data-testid="fc-goals-panel">
         <div className="flex flex-col gap-1">
+          <span className="text-[11.5px] text-muted">Tryb odkładania</span>
           <Segmented
             value={scenario.keep}
             options={[
@@ -90,9 +91,8 @@ export function GoalsPanel({
         </div>
         <div className="flex items-center gap-2">
           <button ref={addRef} className="btn btn-accent" disabled={full || readOnly} onClick={add} data-testid="fc-goal-add">
-            + Dodaj cel
+            {full ? `Limit: ${FORECAST_MAX_GOALS} celów` : '+ Dodaj cel'}
           </button>
-          {full && <span className="text-[11.5px] text-muted">Limit: {FORECAST_MAX_GOALS} celów</span>}
         </div>
       </div>
     </Panel>
@@ -128,7 +128,7 @@ function GoalRow({
     nameRef.current?.select()
     onFocused()
   }, [autoFocus, onFocused])
-  const status = result ? goalStatus(goal, { scenario, input, result, cash }) : null
+  const status = goalStatus(goal, { scenario, input, result, cash })
   const validMonth = goal.month != null && goal.month >= 1 && goal.month <= 240
   const testId = (part: string) => `fc-goal-${n}-${part}`
 
@@ -173,39 +173,44 @@ function GoalRow({
         />
         <span className="num text-[11.5px] text-muted">{scenario.currency}</span>
         <span
-          className={cx('ml-1 text-[11.5px]', goal.amount == null && 'pointer-events-none opacity-40')}
+          className="ml-1 text-[11.5px]"
           title={goal.amount == null ? 'Dotyczy celu z kwotą' : 'Gdy czeka na swoją kwotę, nie wstrzymuje kolejnych celów'}
           aria-disabled={goal.amount == null}
           data-testid={testId('flex')}
         >
-          <Toggle checked={goal.flexible} onChange={(flexible) => goal.amount != null && set({ flexible })} label="może poczekać" />
+          <Toggle checked={goal.flexible && goal.amount != null} disabled={goal.amount == null} onChange={(flexible) => set({ flexible })} label="może poczekać" />
         </span>
       </div>
       <div
-        className={cx('pl-[36px] text-[11.5px]', status?.tone === 'warn' ? 'text-accent' : status?.tone === 'dim' ? 'text-dim' : 'text-fg')}
+        className={cx('pl-[36px] text-[11.5px]', status.tone === 'warn' ? 'text-accent' : status.tone === 'dim' ? 'text-dim' : 'text-fg')}
         data-testid={testId('status')}
       >
-        {status?.parts.map((part, i) => (
+        {status.parts.map((part, i) => (
           <span key={i} className={cx(part.strong && 'num font-medium', part.accent && 'text-accent', part.dim && 'text-muted')}>
             {part.text}
           </span>
-        )) ?? '—'}
+        ))}
       </div>
     </div>
   )
 }
 
-/** Month number of a goal: empty or outside 1–240 is not clipped – it stores null and keeps the text with an error border. */
+/**
+ * Month number of a goal: empty or a number outside 1–240 is not clipped – it stores null and keeps the text with an
+ * error border. Other text (letters, 5.5) is refused like in every field: state unchanged, last valid value on blur.
+ */
 function GoalMonthField({ value, onChange, n }: { value: number | null; onChange: (v: number | null) => void; n: number }) {
   const [draft, setDraft] = useState<string | null>(null)
-  const parse = (t: string): number | null => {
+  /** Month, null (empty or out of range), undefined (not a whole number). */
+  const parse = (t: string): number | null | undefined => {
     const s = t.trim()
-    if (!/^\d{1,3}$/.test(s)) return null
+    if (s === '') return null
+    if (!/^\d+$/.test(s)) return undefined
     const v = Number(s)
     return v >= 1 && v <= 240 ? v : null
   }
   const shown = draft ?? (value == null ? '' : String(value))
-  const invalid = value == null || (draft != null && parse(draft) == null)
+  const invalid = value == null || (draft != null && parse(draft) == null) || (draft != null && parse(draft) === undefined)
   return (
     <input
       className="input num w-[56px] text-right"
@@ -218,10 +223,11 @@ function GoalMonthField({ value, onChange, n }: { value: number | null; onChange
       onChange={(e) => {
         const t = e.currentTarget.value
         setDraft(t)
-        onChange(parse(t))
+        const v = parse(t)
+        if (v !== undefined) onChange(v)
       }}
-      // An invalid entry stays visible (with the error border); a valid one is shown as stored.
-      onBlur={() => setDraft((d) => (d != null && parse(d) == null ? d : null))}
+      // An empty / out-of-range entry stays visible (with the error border); anything else shows the stored value.
+      onBlur={() => setDraft((d) => (d != null && parse(d) === null ? d : null))}
       onKeyDown={(e) => {
         if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
         e.preventDefault()

@@ -20,6 +20,13 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   straty i prognozy. Dotychczasowe instrumenty i ręczne wartości pipsa przechodzą bez zmian.
 - **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka.
 
+### Poprawki
+- Adnotacje: bardzo szybko narysowany kształt (krótkie przeciągnięcie) nie znika.
+- Strzałki ↑/↓ w polach liczb nie zaokrąglają poniżej kroku (np. lot 0.1 → 0.11).
+- Kalkulator zysku / straty nie proponuje zarchiwizowanych instrumentów.
+- Sprawdzanie aktualizacji i pobieranie kursów nie zawiesza się, gdy serwer przestaje odpowiadać w trakcie odpowiedzi.
+- Aktualizacja wersji przenośnej: wpisy dziennika `update.log` nie giną przy chwilowej blokadzie pliku.
+
 ### Ważne przy pracy na kilku komputerach
 - Format danych się nie zmienia (wersja 1.2.x otwiera folder normalnie), ale **kopia dzienna zrobiona wersją 1.2.x nie
   zawiera scenariuszy prognozy, a import w wersji 1.2.x je pomija**. Zaktualizuj aplikację na wszystkich komputerach.

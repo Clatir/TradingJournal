@@ -11,9 +11,13 @@ export function updateScenario(id: string, fn: (f: Forecast) => Forecast): void 
 
 /** New scenario as a draft (written on the first change), opened right away. */
 export function createScenario(): string | null {
-  const { journal, forecasts, status } = useJournal.getState()
+  const { journal, forecasts, drafts, status } = useJournal.getState()
   if (!journal || status?.readOnly) return null
-  const f = createForecast(journal.settings.risk, Object.values(forecasts).map((e) => e.record.name))
+  // An untouched draft is discarded when another scenario opens, so its name stays free.
+  const taken = Object.values(forecasts)
+    .filter((e) => !drafts[e.record.id])
+    .map((e) => e.record.name)
+  const f = createForecast(journal.settings.risk, taken)
   addRecord('forecasts', f, { draft: true })
   useForecastSession.setState({ lastId: f.id })
   navigate({ page: 'forecast', id: f.id })
@@ -22,6 +26,11 @@ export function createScenario(): string | null {
 
 /** "Losuj ponownie": four new tables of random numbers. */
 export function rerollDraws(id: string): void {
+  const { forecasts, status } = useJournal.getState()
+  if (status?.readOnly || forecasts[id]?.readOnly) {
+    toast(status?.readOnly ? (status.readOnlyReason ?? 'Folder danych jest tylko do odczytu.') : 'Ten scenariusz zapisała nowsza wersja aplikacji – zmiany nie są przyjmowane.', 'error', 5000)
+    return
+  }
   updateScenario(id, (f) => ({ ...f, draws: freshForecastDraws() }))
   toast('Wylosowano nowy scenariusz.', 'success')
 }

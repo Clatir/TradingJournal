@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { describeNbpError, fetchNbpTable, nbpSource } from '../../src/main/fx/nbp'
-import { HttpError } from '../../src/main/update/download'
+import { fetchJson, HttpError } from '../../src/main/update/download'
 
 const TABLE = [{ table: 'A', no: '192/A/NBP/2026', effectiveDate: '2026-10-02', rates: [{ currency: 'dolar amerykański', code: 'USD', mid: 3.8881 }] }]
 const NOW = () => new Date('2026-10-02T12:15:00.000Z')
@@ -53,5 +53,15 @@ describe('pobieranie tabeli NBP (proces główny)', () => {
     expect(offline).toEqual({ ok: false, message: 'brak połączenia z internetem albo serwer NBP nie odpowiada' })
     expect(await fetchNbpTable(fetch, { base, allowInsecure: false })).toEqual({ ok: false, message: 'dozwolone są tylko adresy https://' })
     expect(describeNbpError(new HttpError(404, 'x'))).toBe('serwer NBP odpowiedział błędem 404')
+  })
+
+  it('limit czasu obejmuje też treść odpowiedzi (serwer wysyła nagłówki i milknie)', async () => {
+    const stalled = (async () => ({ ok: true, status: 200, json: () => new Promise(() => {}) })) as unknown as typeof fetch
+    const started = Date.now()
+    const err = await fetchJson(stalled, 'http://example.invalid/x', {}, 80).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect((err as Error).name).toBe('AbortError')
+    expect(Date.now() - started).toBeLessThan(2000)
+    expect(describeNbpError(err)).toBe('brak połączenia z internetem albo serwer NBP nie odpowiada')
   })
 })

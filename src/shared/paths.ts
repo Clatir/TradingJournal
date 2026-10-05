@@ -137,7 +137,7 @@ export function recordRelPath(collection: Collection, record: Record<string, unk
 
 const PL_MAP: Record<string, string> = { ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z' }
 
-export function slugLabel(label: string): string {
+export function slugLabel(label: string, fallback = 'screen'): string {
   const ascii = label
     .split('')
     .map((ch) => {
@@ -150,7 +150,7 @@ export function slugLabel(label: string): string {
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
   const slug = ascii.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
-  return slug || 'screen'
+  return slug || fallback
 }
 
 /** Screens live under screens/YYYY/MM/<id>_<label>.webp with a sibling .thumb.webp. */

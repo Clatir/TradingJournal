@@ -74,16 +74,22 @@ interface NumberFieldProps {
   autoFocus?: boolean
   /** A parsed number this returns false for is refused like unparsable text (error border, state unchanged). */
   isValid?: (v: number | null) => boolean
+  /** Show negatives with U+2212 (typing accepts both minus signs anyway). */
+  typographicMinus?: boolean
   'aria-label'?: string
   'data-testid'?: string
 }
 
+/** Places of a step like 0.25 or 0.01 (at most 10). */
+const stepPlaces = (step: number) => Math.min(10, (String(step).split('.')[1] ?? '').length)
+
 export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(function NumberField(
-  { value, onChange, decimals, step, placeholder, className, readOnly, id, autoFocus, isValid, ...aria },
+  { value, onChange, decimals, step, placeholder, className, readOnly, id, autoFocus, isValid, typographicMinus, ...aria },
   ref
 ) {
   const [draft, setDraft] = useState<string | null>(null)
-  const shown = draft ?? (value == null ? '' : decimals != null ? value.toFixed(decimals) : String(value))
+  const formatted = value == null ? '' : decimals != null ? value.toFixed(decimals) : String(value)
+  const shown = draft ?? (typographicMinus ? formatted.replace('-', '\u2212') : formatted)
   const accepts = (t: string) => {
     const parsed = parseNumberInput(t)
     return parsed !== undefined && (!isValid || isValid(parsed))
@@ -119,8 +125,9 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
         e.preventDefault()
         const delta = (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1)
         const raw = (value ?? 0) + delta
-        // Clean numbers after repeated steps (0.1 + 0.2), whatever the display precision.
-        const next = decimals != null ? Number(raw.toFixed(decimals)) : Number(raw.toFixed(10))
+        // Clean numbers after repeated steps (0.1 + 0.2). Never fewer places than the step has: a value shown as
+        // "0.1" stepped by 0.01 must become 0.11, not round back to 0.1.
+        const next = decimals != null ? Number(raw.toFixed(Math.max(decimals, stepPlaces(step)))) : Number(raw.toFixed(10))
         if (isValid && !isValid(next)) return
         onChange(next)
         setDraft(null)
@@ -205,7 +212,7 @@ export function Segmented<T extends string>({
   ...rest
 }: {
   value: T | null
-  options: Array<{ value: T; label: ReactNode; title?: string; className?: string }>
+  options: Array<{ value: T; label: ReactNode; title?: string; className?: string; disabled?: boolean }>
   onChange: (v: T) => void
   className?: string
   size?: 'sm' | 'md'
@@ -222,12 +229,17 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={active}
             title={o.title}
+            disabled={o.disabled}
             onClick={() => onChange(o.value)}
             className={cx(
               'px-2.5 transition-colors duration-100',
               size === 'sm' ? 'h-[22px] text-[11.5px]' : 'h-[24px]',
               i > 0 && 'border-l border-line-strong',
-              active ? (o.className ?? 'bg-accent-soft text-accent') : 'text-muted hover:bg-hover hover:text-fg-strong'
+              active
+                ? (o.className ?? 'bg-accent-soft text-accent')
+                : o.disabled
+                  ? 'cursor-not-allowed text-dim'
+                  : 'text-muted hover:bg-hover hover:text-fg-strong'
             )}
           >
             {o.label}
@@ -285,13 +297,26 @@ export function Stat({ label, value, className, valueClassName }: { label: React
   )
 }
 
-export function Toggle({ checked, onChange, label, ...rest }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode; 'data-testid'?: string }) {
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  disabled,
+  ...rest
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: ReactNode
+  disabled?: boolean
+  'data-testid'?: string
+}) {
   return (
-    <label className="inline-flex cursor-default items-center gap-2" data-testid={rest['data-testid']}>
+    <label className={cx('inline-flex cursor-default items-center gap-2', disabled && 'opacity-40')} data-testid={rest['data-testid']}>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cx(
           'relative h-[16px] w-[28px] border transition-colors duration-150',

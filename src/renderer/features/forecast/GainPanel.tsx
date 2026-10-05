@@ -23,7 +23,14 @@ export function GainPanel({ scenario, settings, outcome }: { scenario: Forecast;
   const setFirstMonth = (month0: number, year: number) => set({ firstMonth: `${year}-${String(month0 + 1).padStart(2, '0')}` })
 
   return (
-    <Panel title="Zysk i kapitał">
+    <Panel
+      title="Zysk i kapitał"
+      actions={
+        <button className="text-[11.5px] text-accent hover:underline" onClick={() => navigate({ page: 'calculator' })} title="Ctrl+6" data-testid="fc-open-calculator">
+          Kalkulator zysku / straty
+        </button>
+      }
+    >
       <div className="flex flex-col gap-2" data-testid="fc-gain-panel">
         <Field label="Tryb prognozy zysku">
           <Segmented
@@ -221,6 +228,9 @@ function PipsSection({ scenario, settings, outcome }: { scenario: Forecast; sett
   const setPips = (patch: Partial<Forecast['pips']>) => updateScenario(id, (f) => ({ ...f, pips: { ...f.pips, ...patch } }))
   const options = selectableInstruments(settings, p.instrumentId)
   const label = (i: (typeof options)[number]) => (i.archived || !settings.instruments.some((x) => x.id === i.id) ? `${i.name} (zarchiwizowany)` : i.name)
+  const choices = options.map((i) => ({ value: i.id, label: label(i) }))
+  // An instrument that is gone from the list entirely (not even a preset) still shows in the scenario.
+  if (!choices.some((c) => c.value === p.instrumentId)) choices.push({ value: p.instrumentId, label: `${p.instrumentId} (zarchiwizowany)` })
   const instrument = outcome.ok ? outcome.instrument : outcome.reason === 'instrument' ? null : outcome.instrument
   const minLot = instrument ? instrumentMinLot(instrument, settings.risk) : settings.risk.lotStep
   const pip = outcome.ok ? outcome.pip : null
@@ -240,14 +250,13 @@ function PipsSection({ scenario, settings, outcome }: { scenario: Forecast; sett
           </button>
         }
       >
-        {options.length <= SEGMENTED_MAX ? (
-          <Segmented value={p.instrumentId} options={options.map((i) => ({ value: i.id, label: label(i) }))} onChange={(instrumentId) => setPips({ instrumentId })} size="sm" aria-label="Instrument" />
+        {settings.instruments.filter((i) => !i.archived).length <= SEGMENTED_MAX ? (
+          <Segmented value={p.instrumentId} options={choices} onChange={(instrumentId) => setPips({ instrumentId })} size="sm" aria-label="Instrument" />
         ) : (
           <select className="input" value={p.instrumentId} onChange={(e) => setPips({ instrumentId: e.currentTarget.value })} aria-label="Instrument" data-testid="fc-instrument">
-            {!options.some((i) => i.id === p.instrumentId) && <option value={p.instrumentId}>{p.instrumentId} (brak na liście)</option>}
-            {options.map((i) => (
-              <option key={i.id} value={i.id}>
-                {label(i)}
+            {choices.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
               </option>
             ))}
           </select>
@@ -369,6 +378,7 @@ function PipsSection({ scenario, settings, outcome }: { scenario: Forecast; sett
       {rateFrom && rateFrom !== cur && (
         <RateField
           label={`Kurs ${rateFrom} → ${cur}`}
+          labelWidth={168}
           from={rateFrom}
           to={cur}
           settings={settings}

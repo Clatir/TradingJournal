@@ -11,9 +11,12 @@ import { useForecastSession } from './session'
 const CHUNK = 100
 const RUN_OPTIONS = [200, 1000, 5000] as const
 
-/** Identity of the calculation: a changed scenario makes an earlier result "nieaktualny". The stored draws do not matter here. */
-export function spreadKey(input: ForecastInput): string {
-  return JSON.stringify({ ...input, draws: null })
+/**
+ * Identity of the calculation: a changed scenario (including the number of runs) makes an earlier result "nieaktualny".
+ * The stored draws do not matter here.
+ */
+export function spreadKey(input: ForecastInput, runs: number): string {
+  return JSON.stringify({ ...input, draws: null, runs })
 }
 
 /** "Rozrzut wyników" (chapter 11): many runs with fresh random numbers, computed in chunks. */
@@ -21,9 +24,9 @@ export function SpreadPanel({ scenario, input }: { scenario: Forecast; input: Fo
   const stored = useForecastSession((s) => s.spread[scenario.id] ?? null)
   const [progress, setProgress] = useState<number | null>(null)
   const token = useRef(0)
-  const key = input ? spreadKey(input) : ''
-  const random = input ? hasRandomness(input) : false
   const runs = scenario.monteCarloRuns
+  const key = input ? spreadKey(input, runs) : ''
+  const random = input ? hasRandomness(input) : false
 
   // A change of the scenario (or leaving it) stops a calculation in progress.
   useEffect(() => {
@@ -71,7 +74,7 @@ export function SpreadPanel({ scenario, input }: { scenario: Forecast; input: Fo
           <span className="text-[12px] text-muted">Liczba przebiegów</span>
           <Segmented
             value={(RUN_OPTIONS as readonly number[]).includes(runs) ? (String(runs) as `${(typeof RUN_OPTIONS)[number]}`) : null}
-            options={RUN_OPTIONS.map((n) => ({ value: String(n) as `${typeof n}`, label: String(n) }))}
+            options={RUN_OPTIONS.map((n) => ({ value: String(n) as `${typeof n}`, label: String(n), disabled: progress != null }))}
             onChange={(v) => updateScenario(scenario.id, (f) => ({ ...f, monteCarloRuns: Number(v) }))}
             size="sm"
             aria-label="Liczba przebiegów"
@@ -93,7 +96,8 @@ export function SpreadPanel({ scenario, input }: { scenario: Forecast; input: Fo
             </span>
           )}
         </div>
-        {!random && <p className="text-[12px] text-muted">Ten scenariusz nie ma losowości, więc każdy przebieg jest taki sam.</p>}
+        {!input && <p className="text-[12px] text-muted">Rozrzut będzie dostępny, gdy prognozę da się policzyć – czego brakuje, pokazuje panel „Zysk i kapitał”.</p>}
+        {input && !random && <p className="text-[12px] text-muted">Ten scenariusz nie ma losowości, więc każdy przebieg jest taki sam.</p>}
         {random && !summary && progress == null && (
           <p className="text-[11.5px] text-muted">
             Każdy przebieg dostaje świeżo wylosowane liczby (zwroty, pipsy, miesiące stratne); tabela pokazuje, jak bardzo mogą się różnić wyniki tego samego scenariusza.

@@ -114,6 +114,7 @@ describe('duplikowanie wpisów', () => {
     expect(copyName('Plan', [])).toBe('Plan (kopia)')
     expect(copyName('Plan', ['Plan (kopia)'])).toBe('Plan (kopia 2)')
     expect(copyName('Plan', ['Plan (kopia)', 'Plan (kopia 2)'])).toBe('Plan (kopia 3)')
+    expect(copyName('Plan', ['plan (KOPIA)'])).toBe('Plan (kopia 2)') // same check as the name field: case-insensitive
     const long = 'x'.repeat(60)
     expect(copyName(long, [])).toBe(`${'x'.repeat(52)} (kopia)`)
     expect(copyName(long, [`${'x'.repeat(52)} (kopia)`])).toHaveLength(60)

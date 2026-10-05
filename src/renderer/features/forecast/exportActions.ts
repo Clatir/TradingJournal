@@ -13,7 +13,7 @@ const today = () => {
 }
 
 /** "prognoza-<slug nazwy>-<RRRR-MM-DD>.<ext>" */
-export const exportName = (scenario: Forecast, ext: string) => `prognoza-${slugLabel(scenario.name).toLowerCase()}-${today()}.${ext}`
+export const exportName = (scenario: Forecast, ext: string) => `prognoza-${slugLabel(scenario.name, 'scenariusz').toLowerCase()}-${today()}.${ext}`
 
 export async function exportForecastCsv(scenario: Forecast, input: ForecastInput, result: ForecastResult): Promise<void> {
   try {

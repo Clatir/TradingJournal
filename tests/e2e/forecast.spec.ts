@@ -139,6 +139,11 @@ test('prognoza: suwak, pole i szybki wybór wypłaty; nagłówek kolumny', async
     await expect(header).toContainText('Wypłata (46.5%)')
     await fill(page, 'fc-payout', '150')
     await expect(field).toHaveValue('100')
+    // An emptied required field: error border, the value comes back on blur.
+    await field.fill('')
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    await field.press('Tab')
+    await expect(field).toHaveValue('100')
     await field.focus()
     await page.keyboard.press('Shift+ArrowDown')
     await expect(field).toHaveValue('90')
@@ -149,6 +154,17 @@ test('prognoza: suwak, pole i szybki wybór wypłaty; nagłówek kolumny', async
     await expect(page.getByTestId('fc-quick-25')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('fc-quick-10')).toHaveAttribute('aria-pressed', 'false')
     await expect(header).toContainText('Wypłata (25%)')
+    // Arrow steps finer than the shown places (11 + 0.5); negatives use U+2212 and both minus signs are accepted.
+    const pct = page.getByTestId('fc-pct-fixed')
+    await pct.focus()
+    await page.keyboard.press('ArrowUp')
+    await expect(pct).toHaveValue('11.5')
+    await page.keyboard.press('ArrowDown')
+    await expect(pct).toHaveValue('11')
+    await fill(page, 'fc-pct-fixed', '\u22122,5')
+    await page.keyboard.press('Tab')
+    await expect(pct).toHaveValue('\u22122.5')
+    await fill(page, 'fc-pct-fixed', '11')
     // the bar sticks to the top while the page scrolls
     await page.getByTestId('fc-table').scrollIntoViewIfNeeded()
     await expect(page.getByTestId('fc-payout-bar')).toBeInViewport()
@@ -190,6 +206,9 @@ test('prognoza: wpłaty niestandardowe w tabeli (fokus, Enter, kwota ujemna, prz
     // Invalid text: red border, state unchanged; after leaving the field the last valid value is back.
     await page.keyboard.type('abc')
     await expect(dep3).toHaveAttribute('aria-invalid', 'true')
+    // The red border wins over the highlight of a custom deposit (#f6465d).
+    await expect(dep3).toHaveAttribute('data-custom', 'true')
+    await expect(dep3).toHaveCSS('border-top-color', 'rgb(246, 70, 93)')
     await expect(page.getByTestId('fc-row-3')).toContainText('19 276.01')
     await page.keyboard.press('Tab')
     await expect(dep3).toHaveValue('5\u00a0000.00')
@@ -229,6 +248,12 @@ test('prognoza: cel z kwotą kupiony później niż w planie; pola celów', asyn
     await expect(page.getByTestId('fc-goal-3-status')).toHaveText('Wpisz numer miesiąca od 1 do 240.')
     await fill(page, 'fc-goal-3-month', '60')
     await expect(page.getByTestId('fc-goal-3-status')).toHaveText('Poza tabelą, która ma 50 miesięcy. Zwiększ liczbę miesięcy.')
+    // Text that is not a whole number is refused like in other fields: state unchanged, the value is back on blur.
+    await page.getByTestId('fc-goal-3-month').fill('5.5')
+    await expect(page.getByTestId('fc-goal-3-month')).toHaveAttribute('aria-invalid', 'true')
+    await expect(page.getByTestId('fc-goal-3-status')).toHaveText('Poza tabelą, która ma 50 miesięcy. Zwiększ liczbę miesięcy.')
+    await page.getByTestId('fc-goal-3-month').press('Tab')
+    await expect(page.getByTestId('fc-goal-3-month')).toHaveValue('60')
     // A switched off goal is ignored.
     await page.getByTestId('fc-goal-2-on').getByRole('switch').click()
     await expect(page.getByTestId('fc-goal-2-status')).toHaveText('Wyłączony, nie wpływa na tabelę.')
@@ -248,6 +273,14 @@ test('prognoza: cel z kwotą kupiony później niż w planie; pola celów', asyn
     await expect(page.getByTestId('fc-goal-add')).toBeFocused()
     await expect(page.getByTestId('fc-goal-count')).toHaveText('3 / 10')
     await page.screenshot({ path: shots('53-prognoza-cele'), fullPage: true })
+    // At 10 goals the button is disabled and says so.
+    for (let i = 0; i < 7; i++) await page.getByTestId('fc-goal-add').click()
+    await expect(page.getByTestId('fc-goal-count')).toHaveText('10 / 10')
+    await expect(page.getByTestId('fc-goal-add')).toBeDisabled()
+    await expect(page.getByTestId('fc-goal-add')).toHaveText('Limit: 10 celów')
+    // The page links to the profit / loss calculator in either mode.
+    await page.getByTestId('fc-open-calculator').click()
+    await expect(page.getByTestId('pnl')).toBeVisible()
     expect(errors).toEqual([])
   } finally {
     await app.close()
@@ -265,6 +298,10 @@ test('prognoza: tryb pipsowy z kursem NBP z lokalnego serwera (T7)', async () =>
     await expect(page.getByTestId('fc-pips-missing')).toHaveText('Wpisz kurs USD → PLN w polu wyżej albo wartość pipsa w kalkulatorze zysku / straty.')
     await expect(page.getByTestId('fc-table-empty')).toBeVisible()
     await expect(page.getByTestId('fc-summary-empty')).toBeVisible()
+    // Random pips cannot be spread without a rate either – but this is not "no randomness".
+    await expect(page.getByTestId('fc-mc-run')).toBeDisabled()
+    await expect(page.getByTestId('fc-spread')).toContainText('Rozrzut będzie dostępny, gdy prognozę da się policzyć')
+    await expect(page.getByTestId('fc-spread')).not.toContainText('nie ma losowości')
     // The NBP table (button in the settings) fills the rate.
     await page.keyboard.press('Control+,')
     await page.getByTestId('settings-tab-display').click()
@@ -285,6 +322,13 @@ test('prognoza: tryb pipsowy z kursem NBP z lokalnego serwera (T7)', async () =>
     // A typed rate changes the pip value; a lot smaller than the smallest lot is flagged.
     await fill(page, 'fc-rate', '4')
     await expect(page.getByTestId('fc-pips-summary')).toContainText('Zysk co miesiąc: 800.00 PLN')
+    // The lot steps by the smallest lot even when the value shows fewer places (0.1 → 0.11 → 0.1).
+    const lot = page.getByTestId('fc-lot')
+    await lot.focus()
+    await page.keyboard.press('ArrowUp')
+    await expect(lot).toHaveValue('0.11')
+    await page.keyboard.press('ArrowDown')
+    await expect(lot).toHaveValue('0.1')
     await fill(page, 'fc-lot', '0.005')
     await expect(page.getByTestId('fc-lot').locator('..').locator('..')).toContainText('Mniej niż najmniejszy lot (0.01).')
     expect(errors).toEqual([])
@@ -382,7 +426,7 @@ test('prognoza: scenariusze – duplikuj, zmień nazwę, porównaj, usuń (plik 
     await expect(page.getByTestId('fc-name')).toHaveValue('Scenariusz 1 (kopia)')
     await expect(page.getByText('Utworzono kopię: „Scenariusz 1 (kopia)”.')).toBeVisible()
     await expect(page.getByTestId('fc-sum-end')).toHaveText('3 365 620.22 PLN')
-    // Ctrl+Shift+D: the next copy gets "(kopia 2)".
+    // Ctrl+Shift+D copies the scenario on screen – now the copy, hence "(kopia) (kopia)" ("(kopia 2)": unit tests).
     await page.getByTestId('fc-sum-end').click()
     await page.keyboard.press('Control+Shift+D')
     await expect(page.getByTestId('fc-name')).toHaveValue('Scenariusz 1 (kopia) (kopia)')
@@ -569,6 +613,11 @@ test('prognoza: rozrzut wyników (200 przebiegów), wykres z legendą i porówna
     await expect(radio(page, 'Skala', 'Logarytmiczna')).toHaveAttribute('aria-checked', 'true')
     await page.getByTestId('fc-chart').scrollIntoViewIfNeeded()
     await page.screenshot({ path: shots('57-prognoza-wykres-rozrzut') })
+    // Another number of runs makes the result stale as well; back at 200 it is current again.
+    await radio(page, 'Liczba przebiegów', '1000').click()
+    await expect(page.getByTestId('fc-mc-stale')).toBeVisible()
+    await radio(page, 'Liczba przebiegów', '200').click()
+    await expect(page.getByTestId('fc-mc-stale')).toHaveCount(0)
     // A changed scenario marks the result as stale.
     await fill(page, 'fc-pct-hi', '12')
     await expect(page.getByTestId('fc-mc-stale')).toHaveText('nieaktualny — policz ponownie')
@@ -577,6 +626,11 @@ test('prognoza: rozrzut wyników (200 przebiegów), wykres z legendą i porówna
     await page.getByTestId('fc-duplicate').click()
     await page.getByTestId('fc-compare').selectOption({ label: 'Scenariusz 1' })
     await expect(page.getByTestId('fc-legend-compare')).toHaveText('Scenariusz 1')
+    // Capital 0 in a month: the logarithmic scale is disabled (with a hint) and the chart goes back to linear.
+    await fill(page, 'fc-start', '0')
+    await expect(radio(page, 'Skala', 'Logarytmiczna')).toBeDisabled()
+    await expect(radio(page, 'Skala', 'Logarytmiczna')).toHaveAttribute('title', /większy od zera/)
+    await expect(radio(page, 'Skala', 'Liniowa')).toHaveAttribute('aria-checked', 'true')
     expect(errors).toEqual([])
   } finally {
     await app.close()

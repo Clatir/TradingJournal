@@ -103,9 +103,10 @@ export function createDayPlan(date: string, pairs: string[], instruments: string
 
 /** "<prefix> N" with the first N that is not taken yet. */
 export function firstFreeName(prefix: string, taken: Iterable<string>): string {
-  const names = new Set(taken)
+  // Case-insensitive, like the duplicate check of the name field.
+  const names = new Set([...taken].map((t) => t.toLowerCase()))
   let n = 1
-  while (names.has(`${prefix} ${n}`)) n++
+  while (names.has(`${prefix} ${n}`.toLowerCase())) n++
   return `${prefix} ${n}`
 }
 

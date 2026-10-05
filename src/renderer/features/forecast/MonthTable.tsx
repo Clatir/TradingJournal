@@ -237,7 +237,7 @@ function MonthRow({
         <DepositInput k={row.k} label={row.label} value={custom} standard={standard} readOnly={readOnly} inputRef={inputRef} onChange={onDeposit} onNav={onNav} />
       </td>
       {visible.tax && <td className="text-right">{row.tax > 0 ? fmtAmount(row.tax) : ''}</td>}
-      {visible.pips && <td className={cx('text-right', red(row.pips ?? 0))}>{row.pips == null ? '' : fmtAmount(row.pips, undefined, 1)}</td>}
+      {visible.pips && <td className="text-right">{row.pips == null ? '' : fmtAmount(row.pips, undefined, 1)}</td>}
       {visible.lot && <td className="text-right">{row.lot == null ? '' : String(Number(row.lot.toFixed(6)))}</td>}
       <td className="text-right">{fmtAmount(row.start)}</td>
       <td className={cx('text-right', red(row.profit))}>{fmtAmount(row.profit)}</td>

@@ -55,11 +55,12 @@ export function copyDayPlanTo(plan: DayPlan, date: string, now: string): DayPlan
 
 /** "<name> (kopia)", then "(kopia 2)", "(kopia 3)"… – the first one not taken; the name is shortened to fit `max`. */
 export function copyName(name: string, taken: Iterable<string>, max = 60): string {
-  const names = new Set(taken)
+  // Case-insensitive, like the duplicate check of the name field.
+  const names = new Set([...taken].map((t) => t.toLowerCase()))
   for (let n = 1; ; n++) {
     const suffix = n === 1 ? ' (kopia)' : ` (kopia ${n})`
     const candidate = `${name.slice(0, Math.max(0, max - suffix.length)).trimEnd()}${suffix}`
-    if (!names.has(candidate)) return candidate
+    if (!names.has(candidate.toLowerCase())) return candidate
   }
 }
 

@@ -196,17 +196,18 @@ test('instrumenty: lista w ustawieniach, wybór w kalkulatorze, archiwizacja; ka
     await page.getByTestId('pnl-pips').fill('50')
     await expect(page.getByTestId('pnl-amount')).toHaveText('+500.00 USD')
 
-    // Archived instruments leave the selection (the one in use stays, marked).
+    // Archived instruments leave the selection; an archived one in use gives way to the first on the list.
     await page.keyboard.press('Control+,')
     await page.getByTestId('settings-tab-instruments').click()
     await page.getByTestId('inst-archive-EURAUD').click()
     await page.getByTestId('inst-archive-ZLOTOXAU').click()
     await page.keyboard.press('Control+6')
     await expect(page.getByTestId('pnl-instrument')).toHaveCount(0)
-    await expect(page.getByTestId('pnl').getByRole('radio', { name: 'Złoto XAU (zarchiwizowany)', exact: true })).toBeVisible()
-    await page.getByTestId('pnl').getByRole('radio', { name: 'EURUSD', exact: true }).click()
     await expect(page.getByTestId('pnl').getByRole('radio', { name: /Złoto/ })).toHaveCount(0)
     await expect(page.getByTestId('pnl').getByRole('radio', { name: 'EURAUD', exact: true })).toHaveCount(0)
+    await expect(page.getByTestId('pnl').getByRole('radio', { name: 'AUDUSD', exact: true })).toHaveAttribute('aria-checked', 'true')
+    await page.getByTestId('pnl').getByRole('radio', { name: 'EURUSD', exact: true }).click()
+    await expect(page.getByTestId('pnl').getByRole('radio', { name: 'EURUSD', exact: true })).toHaveAttribute('aria-checked', 'true')
 
     // "Przywróć domyślne" brings archived presets back.
     await page.keyboard.press('Control+,')

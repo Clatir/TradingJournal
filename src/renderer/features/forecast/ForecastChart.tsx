@@ -73,7 +73,7 @@ export function ForecastChart({
         panes: { separatorColor: '#1e232a', separatorHoverColor: '#2b323b' }
       },
       grid: { vertLines: { color: '#171b20' }, horzLines: { color: '#171b20' } },
-      rightPriceScale: { borderColor: '#1e232a', mode: log ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal },
+      rightPriceScale: { borderColor: '#1e232a' },
       timeScale: { borderColor: '#1e232a', timeVisible: false },
       crosshair: { mode: CrosshairMode.Normal, vertLine: { color: DIM, labelBackgroundColor: '#2b323b' }, horzLine: { color: DIM, labelBackgroundColor: '#2b323b' } },
       localization: { locale: 'pl-PL', priceFormatter: (p: number) => fmtAmount(p, undefined, 0) }
@@ -96,6 +96,8 @@ export function ForecastChart({
     pot.setData(result.rows.map((r) => (log && !(r.pot > 0) ? { time: time(r.k) } : { time: time(r.k), value: r.pot })))
     const capital = chart.addSeries(LineSeries, { color: ACCENT, lineWidth: 2, priceLineVisible: false, lastValueVisible: true })
     capital.setData(result.rows.map((r) => ({ time: time(r.k), value: r.end })))
+    // Only the capital pane: the payout histogram (second pane) keeps a linear scale, its bars can be 0.
+    capital.priceScale().applyOptions({ mode: log ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal })
     createSeriesMarkers(
       capital,
       result.rows
@@ -127,18 +129,21 @@ export function ForecastChart({
             </span>
           )}
           <span className="text-[11px] text-muted">Skala</span>
-          <span title={logAllowed ? undefined : 'Skala logarytmiczna wymaga wartości większych od zera.'}>
-            <Segmented
-              value={log ? 'log' : 'linear'}
-              options={[
-                { value: 'linear', label: 'Liniowa' },
-                { value: 'log', label: logAllowed ? 'Logarytmiczna' : 'Logarytmiczna (niedostępna)' }
-              ]}
-              onChange={(v) => logAllowed && useForecastSession.setState({ chartScale: v })}
-              size="sm"
-              aria-label="Skala"
-            />
-          </span>
+          <Segmented
+            value={log ? 'log' : 'linear'}
+            options={[
+              { value: 'linear', label: 'Liniowa' },
+              {
+                value: 'log',
+                label: 'Logarytmiczna',
+                disabled: !logAllowed,
+                title: logAllowed ? undefined : 'Skala logarytmiczna wymaga, żeby kapitał we wszystkich miesiącach był większy od zera.'
+              }
+            ]}
+            onChange={(v) => useForecastSession.setState({ chartScale: v })}
+            size="sm"
+            aria-label="Skala"
+          />
         </div>
       }
     >

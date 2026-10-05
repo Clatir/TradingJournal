@@ -391,6 +391,7 @@ describe('createForecast', () => {
     expect(firstFreeName('Scenariusz', [])).toBe('Scenariusz 1')
     expect(firstFreeName('Scenariusz', ['Scenariusz 1', 'Scenariusz 2'])).toBe('Scenariusz 3')
     expect(firstFreeName('Scenariusz', ['Scenariusz 1', 'Scenariusz 3', 'Inny'])).toBe('Scenariusz 2')
+    expect(firstFreeName('Scenariusz', ['scenariusz 1'])).toBe('Scenariusz 2')
     expect(createForecast(risk, ['Scenariusz 1']).name).toBe('Scenariusz 2')
   })
 

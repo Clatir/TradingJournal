@@ -14,6 +14,11 @@ export const useFxFetch = create<{ busy: boolean }>(() => ({ busy: false }))
  */
 export async function refreshFxRates(manual: boolean): Promise<void> {
   if (useFxFetch.getState().busy) return
+  if (useJournal.getState().status?.readOnly) {
+    // The table could not be kept in the settings (e.g. the palette command in a read-only folder).
+    if (manual) toast('Folder jest tylko do odczytu – kursów NBP nie można zapisać.', 'error', 5000)
+    return
+  }
   useFxFetch.setState({ busy: true })
   const current = useJournal.getState().journal?.settings.fx.nbp ?? null
   const kept = current ? ` Zostają kursy z dnia ${current.effectiveDate}.` : ''
