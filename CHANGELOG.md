@@ -30,6 +30,8 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 - **Kurs z dnia transakcji**: kwoty transakcji w innej walucie niż konto są przeliczane po kursie NBP z ostatniej
   tabeli przed dniem zamknięcia (jak przy rozliczeniu podatku), np. „+100.00 USD ≈ +385.00 PLN (NBP 2026-10-01)”.
   Archiwum kursów pobiera się samo (tylko brakujące dni) i jest zapisane w folderze danych – działa też offline.
+- **Wynik z lotów**: transakcja bez wpisanej kwoty ryzyka ma wynik w pieniądzu z lotów (pipsy × wartość pipsa × loty,
+  w walucie kwotowanej, przeliczony po kursie z dnia) – w edytorze, analityce i CSV („· z lotów”).
 - Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
   Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
 

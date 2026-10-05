@@ -335,8 +335,8 @@ export function TradeEditor({ id }: { id: string }) {
                 money={
                   showMoney
                     ? m.amountCurrency && m.amountCurrency !== currency && m.pnlAmountOwn != null
-                      ? `${fmtMoney(m.pnlAmountOwn, m.amountCurrency)} ≈ ${m.pnlAmount != null ? fmtMoney(m.pnlAmount, currency) : `? ${currency}`}${m.amountRateDate ? ` (NBP ${m.amountRateDate})` : ''}`
-                      : fmtMoney(m.pnlAmount, currency)
+                      ? `${fmtMoney(m.pnlAmountOwn, m.amountCurrency)} ≈ ${m.pnlAmount != null ? fmtMoney(m.pnlAmount, currency) : `? ${currency}`}${m.amountRateDate ? ` (NBP ${m.amountRateDate})` : ''}${m.amountSource === 'lots' ? ' · z lotów' : ''}`
+                      : `${fmtMoney(m.pnlAmount, currency)}${m.amountSource === 'lots' ? ' · z lotów' : ''}`
                     : null
                 }
                 be={be}
@@ -403,6 +403,7 @@ export function TradeEditor({ id }: { id: string }) {
                 <NumberField
                   value={t.lots}
                   onChange={(v) => setField('lots', v)}
+                  data-testid="trade-lots"
                   decimals={shownDecimals(t.lots, lotDecimals(settings.risk.lotStep))}
                   step={settings.risk.lotStep}
                 />
@@ -423,7 +424,7 @@ export function TradeEditor({ id }: { id: string }) {
                   </Field>
                   <Field
                     label={`Wynik ${amountCurrency}`}
-                    hint="puste = R × ryzyko"
+                    hint="puste = R × ryzyko, a bez kwoty ryzyka – z lotów (pipsy × wartość pipsa × loty)"
                   >
                     <NumberField value={t.pnlAmountOverride} onChange={(v) => setAmount('pnlAmountOverride', v)} decimals={2} placeholder="auto" />
                   </Field>

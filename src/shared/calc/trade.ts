@@ -2,6 +2,7 @@ import type { Killzone, PairConfig, Settings } from '../schema/journal'
 import type { Trade } from '../schema/trade'
 import { rateFor } from '../fx'
 import { historicalRate, transactionDate } from '../fxHistory'
+import { lotValueFor } from '../instruments'
 import { killzonesAt, primaryKillzone, tradingDateNy } from './time'
 
 export const DEFAULT_PIP_SIZE = 0.0001
@@ -78,12 +79,16 @@ export interface TradeMetrics {
   amountCurrency: string | null
   /** NBP table date used to convert `pnlAmountOwn` to the account currency; null = today's rate (or no conversion). */
   amountRateDate: string | null
+  /** Where the money result comes from: typed, R × risk amount, the lots (pips × pip value × lots) or none. */
+  amountSource: 'typed' | 'risk' | 'lots' | null
 }
 
 export interface MetricsContext {
   pairs: readonly PairConfig[]
   killzones: readonly Killzone[]
   breakevenThresholdR: number
+  /** One lot of a pair for the result from lots: contract size and the quote currency (pip value = pipSize × contract). */
+  lotValue?: (pair: string) => { contractSize: number; quoteCurrency: string } | null
   /** Without it amounts are not converted (they are taken as in the account currency). */
   amounts?: {
     accountCurrency: string
@@ -103,6 +108,7 @@ export function metricsContext(settings: Settings): MetricsContext {
     pairs: settings.pairs,
     killzones: settings.killzones,
     breakevenThresholdR: settings.stats.breakevenThresholdR,
+    lotValue: (pair) => lotValueFor(pair, settings),
     amounts: {
       accountCurrency: account,
       defaultCurrency: settings.risk.legacyAmountCurrency ?? account,
@@ -164,11 +170,26 @@ export function tradeMetrics(trade: Trade, ctx: MetricsContext): TradeMetrics {
   const outcome = resultR != null && trade.status !== 'open' ? classifyOutcome(resultR, ctx.breakevenThresholdR) : null
   const kzs = resolveKillzones(trade, ctx.killzones)
   const exitTimes = trade.exits.map((x) => x.time).filter((t): t is string => !!t).sort()
-  const pnlAmountOwn =
-    trade.pnlAmountOverride ?? (resultR != null && trade.riskAmount != null && countsInStats ? resultR * trade.riskAmount : null)
-  // Amounts typed in another account currency (before a currency change) are converted at today's rate.
+  // The result in money: typed, else R × risk amount, else from the lots (pips × pip value of 1 lot × lots, in the
+  // quote currency). Typed amounts are in `amountCurrency`; all are converted to the account currency below.
   const hasAmounts = trade.riskAmount != null || trade.pnlAmountOverride != null
-  const amountCurrency = trade.amountCurrency ?? (hasAmounts ? (ctx.amounts?.defaultCurrency ?? null) : null)
+  let pnlAmountOwn: number | null = null
+  let amountCurrency = trade.amountCurrency ?? (hasAmounts ? (ctx.amounts?.defaultCurrency ?? null) : null)
+  let amountSource: TradeMetrics['amountSource'] = null
+  if (trade.pnlAmountOverride != null) {
+    pnlAmountOwn = trade.pnlAmountOverride
+    amountSource = 'typed'
+  } else if (resultR != null && trade.riskAmount != null && countsInStats) {
+    pnlAmountOwn = resultR * trade.riskAmount
+    amountSource = 'risk'
+  } else if (trade.riskAmount == null && countsInStats && resultPips != null && trade.lots != null && trade.lots > 0) {
+    const lot = ctx.lotValue?.(trade.pair) ?? null
+    if (lot) {
+      pnlAmountOwn = resultPips * pipSize * lot.contractSize * trade.lots
+      amountCurrency = lot.quoteCurrency
+      amountSource = 'lots'
+    }
+  }
   let pnlAmount = pnlAmountOwn
   let amountRateDate: string | null = null
   if (pnlAmountOwn != null && ctx.amounts && amountCurrency && amountCurrency !== ctx.amounts.accountCurrency) {
@@ -198,7 +219,8 @@ export function tradeMetrics(trade: Trade, ctx: MetricsContext): TradeMetrics {
     pnlAmount,
     pnlAmountOwn,
     amountCurrency,
-    amountRateDate
+    amountRateDate,
+    amountSource
   }
 }
 

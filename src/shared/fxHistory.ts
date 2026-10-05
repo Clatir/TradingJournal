@@ -6,6 +6,7 @@
  */
 import { DateTime } from 'luxon'
 import { z } from 'zod'
+import { lotValueFor } from './instruments'
 import { isoDate, type Settings, type Trade } from './schema'
 
 export type FxHistory = Settings['fx']['history']
@@ -123,16 +124,22 @@ export function historyNeeds(uses: ReadonlyArray<{ code: string; date: string }>
 }
 
 /**
- * Currency / date pairs of trade amounts that get converted: the currency of the amounts and the account currency,
- * on the transaction date (only trades with amounts).
+ * Currency / date pairs of trade amounts that get converted: the currency of the amounts (or the quote currency of a
+ * result from lots) and the account currency, on the transaction date.
  */
-export function historyUses(trades: ReadonlyArray<Pick<Trade, 'entryTime' | 'exits' | 'riskAmount' | 'pnlAmountOverride' | 'amountCurrency'>>, settings: Pick<Settings, 'risk'>): Array<{ code: string; date: string }> {
+export function historyUses(
+  trades: ReadonlyArray<Pick<Trade, 'pair' | 'status' | 'lots' | 'entryTime' | 'exits' | 'riskAmount' | 'pnlAmountOverride' | 'amountCurrency'>>,
+  settings: Pick<Settings, 'risk' | 'pairs' | 'instruments'>
+): Array<{ code: string; date: string }> {
   const account = settings.risk.accountCurrency
   const out: Array<{ code: string; date: string }> = []
   for (const t of trades) {
-    if (t.riskAmount == null && t.pnlAmountOverride == null) continue
+    const typed = t.riskAmount != null || t.pnlAmountOverride != null
+    // A closed trade without amounts but with lots gets its result from the lots, in the quote currency.
+    const fromLots = !typed && t.status === 'closed' && t.lots != null && t.lots > 0 ? lotValueFor(t.pair, settings) : null
+    if (!typed && !fromLots) continue
     const date = transactionDate(t)
-    const own = t.amountCurrency ?? settings.risk.legacyAmountCurrency ?? account
+    const own = fromLots ? fromLots.quoteCurrency : (t.amountCurrency ?? settings.risk.legacyAmountCurrency ?? account)
     out.push({ code: own, date })
     if (account !== own) out.push({ code: account, date })
   }

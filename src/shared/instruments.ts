@@ -103,3 +103,15 @@ export function restoreDefaultInstruments(list: readonly Instrument[]): Instrume
   for (const p of presets) if (!out.some((i) => i.id === p.id)) out.push(p)
   return out
 }
+
+/**
+ * One lot of a traded pair: an instrument with the same id (Ustawienia → Instrumenty, e.g. WTI 1000) gives its contract
+ * size, otherwise the account's contract size (100 000); the quote currency comes from the pair (or the instrument).
+ */
+export function lotValueFor(pair: string, settings: Pick<Settings, 'pairs' | 'instruments' | 'risk'>): { contractSize: number; quoteCurrency: string } | null {
+  const cfg = settings.pairs.find((p) => p.symbol === pair)
+  const inst = settings.instruments.find((i) => i.id === pair)
+  const quoteCurrency = cfg?.quoteCurrency || inst?.quoteCurrency || null
+  if (!quoteCurrency) return null
+  return { contractSize: inst?.contractSize ?? settings.risk.contractSize, quoteCurrency }
+}

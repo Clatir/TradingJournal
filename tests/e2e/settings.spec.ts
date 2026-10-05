@@ -371,6 +371,14 @@ test('kalkulator w PLN: kwoty po kursie NBP (konto w USD), wartość pipsa z tab
     await page.getByTestId('trade-amount-currency').fill('PLN')
     await page.getByTestId('trade-amount-currency').press('Tab')
     await expect(page.getByTestId('result-money')).toHaveText('+100.00 PLN')
+    // A trade with lots and no risk amount: result from the lots (30 pips × 10 USD × 0.5 lota = 150 USD), converted.
+    await page.keyboard.press('Control+n')
+    await page.getByTestId('price-entry').fill('1.0850')
+    await page.getByTestId('price-sl').fill('1.0835')
+    await page.getByTestId('price-tp1').fill('1.0880')
+    await page.getByTestId('quick-TP1').click()
+    await page.getByTestId('trade-lots').fill('0.5')
+    await expect(page.getByTestId('result-money')).toHaveText(`+150.00 USD ≈ +577.50 PLN (NBP ${yesterday}) · z lotów`)
     expect(first.errors).toEqual([])
   } finally {
     await first.app.close()

@@ -100,5 +100,27 @@ describe('kurs NBP z dnia poprzedzającego transakcję', () => {
     expect(historyUses([{ ...base, riskAmount: 50 }], s)).toEqual([{ code: 'USD', date: '2026-10-01' }, { code: 'PLN', date: '2026-10-01' }])
     expect(historyUses([{ ...base, riskAmount: 50, amountCurrency: 'PLN' }], s)).toEqual([{ code: 'PLN', date: '2026-10-01' }])
   })
+
+  it('wynik z lotów (bez kwoty ryzyka): pipsy × pipSize × kontrakt × loty w walucie kwotowanej, potem kurs z dnia', () => {
+    const t = {
+      ...createTrade({ pair: 'EURUSD', direction: 'long', entryTime: '2026-10-01T07:30:00.000Z' }),
+      status: 'closed' as const,
+      prices: { entry: 1.085, stopLoss: 1.0835, takeProfit1: null, takeProfit2: null },
+      exits: [{ id: 'x', time: '2026-10-02T09:00:00.000Z', price: 1.0865, percent: 100, note: '' }],
+      lots: 0.5
+    }
+    const m = tradeMetrics(t, metricsContext(settings()))
+    expect(m.amountSource).toBe('lots')
+    expect(m.amountCurrency).toBe('USD')
+    expect(m.pnlAmountOwn).toBeCloseTo(75, 9) // 15 pips × 0.0001 × 100 000 × 0.5
+    expect(m.pnlAmount).toBeCloseTo(75 * 3.88, 9)
+    expect(m.amountRateDate).toBe('2026-10-01')
+    // A risk amount wins (as before); an open trade or one without lots has no result from lots.
+    expect(tradeMetrics({ ...t, riskAmount: 40, amountCurrency: 'PLN' }, metricsContext(settings())).amountSource).toBe('risk')
+    expect(tradeMetrics({ ...t, status: 'open' }, metricsContext(settings())).pnlAmountOwn).toBeNull()
+    expect(tradeMetrics({ ...t, lots: null }, metricsContext(settings())).amountSource).toBeNull()
+    // The archive is fetched for the quote currency of such a trade.
+    expect(historyUses([t], settings())).toEqual([{ code: 'USD', date: '2026-10-02' }, { code: 'PLN', date: '2026-10-02' }])
+  })
 })
 

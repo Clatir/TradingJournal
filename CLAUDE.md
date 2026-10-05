@@ -145,6 +145,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   (waluta → zakres dat + kursy, w journal.json, więc także offline i na innych komputerach), pobierane przez main
   (`fetchFxHistory`, `rates/A/{kod}/{od}/{do}`, ≤ 367 dni) tylko dla brakujących zakresów (`historyNeeds`, `historyUses`)
   – po starcie, co godzinę i przy „Odśwież kursy NBP”;
+  wynik w kwocie: wpisany → R × kwota ryzyka → z lotów (`amountSource` 'lots': pipsy × pipSize × kontrakt × loty
+  w walucie kwotowanej; kontrakt z instrumentu o tym samym id albo `risk.contractSize`, `lotValueFor` w instruments.ts);
   bez kursu `pnlAmount` = null (nie udaje kwoty w walucie konta). CSV: „Wynik kwota (waluta konta)” i „Waluta kwot”.
   Edytor: pole „Waluta kwot” (poprawka waluty bez przeliczania); wpisana kwota jest w walucie pokazanej obok.
 
