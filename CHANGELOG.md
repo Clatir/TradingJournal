@@ -20,6 +20,9 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   straty i prognozy. Dotychczasowe instrumenty i ręczne wartości pipsa przechodzą bez zmian.
 - **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka. Waluta konta (np. PLN) wybierana obok
   pola „Kapitał” – kapitał przeliczany po kursie NBP; wartość pipsa liczona z kursu NBP (widać tabelę, z której pochodzi).
+- **Partiale w kalkulatorze**: porównanie „zamknij całość teraz” z podziałem na 1–4 części (teraz albo na celu w pipsach,
+  opcjonalnie SL reszty na BE). Wynik każdej części, najlepszy i najgorszy przypadek, każdy scenariusz (osiągnięte cele,
+  reszta na SL/BE) i różnica względem zamknięcia teraz.
 - Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
   Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
 

@@ -10,6 +10,7 @@ import { setAccountCurrency } from '../../store/fx'
 import { Cell, CurrencyInput, Field, NumberField, Panel, cx } from '../../components/ui'
 import { RateField } from '../../components/RateField'
 import { PnlCalculator } from './PnlCalculator'
+import { PartialsCalculator } from './PartialsCalculator'
 
 /** Take profit in pips, kept for the session (a trade opened in the calculator brings its own). */
 const useTakeProfit = create<{ tpPips: number | null }>(() => ({ tpPips: null }))
@@ -157,6 +158,11 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
         </Panel>
 
         <PnlCalculator settings={settings} />
+
+        <PartialsCalculator
+          settings={settings}
+          from={trade && tradeId ? { key: tradeId, instrument: trade.pair, lots: trade.lots, stopPips: initialStop != null ? Number(initialStop.toFixed(1)) : null } : undefined}
+        />
 
         <Panel title="Limity dzienne" className="col-span-2">
           <div className="grid grid-cols-[1fr_1fr_1.4fr] items-start gap-4">

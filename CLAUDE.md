@@ -123,6 +123,10 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     wczytaniu presetami i dawnym instrumentem własnym (`risk.customInstrument` → `CUSTOM`); identyfikatory presetów
     zostają, więc `pipValuesPerLot` działa bez zmian. Import (scal) dołącza brakujące instrumenty.
   - Pola pomocnicze (instrument, loty, pipsy) pamiętane tylko w sesji.
+  - Partiale (`calc/partials.ts`, panel `features/calculator/PartialsCalculator.tsx`): zamknięcie całości teraz albo
+    1–4 części („teraz” albo cel w pipsach, ostatnia bierze resztę %, loty w dół do kroku), opcjonalnie SL reszty na BE
+    po pierwszym partialu w zysku. Scenariusze: osiągnięte 0…N celów (w kolejności odległości), reszta na SL/BE;
+    `beatsNowAfter` = od którego celu podział daje co najmniej tyle, co zamknięcie teraz. Pola w sesji.
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do
