@@ -31,6 +31,9 @@ const fill = async (page: Page, testId: string, value: string) => {
   await page.getByTestId(testId).fill(value)
   await page.getByTestId(testId).press('Tab')
 }
+/** Scenario files only (not the temporary ".<id>.json.tmp-…" of an atomic save in progress). */
+const scenarioFiles = async (dataDir: string) =>
+  (await fs.readdir(join(dataDir, 'forecasts')).catch(() => [] as string[])).filter((n) => n.endsWith('.json') && !n.startsWith('.'))
 const radio = (page: Page, group: string, name: string) => page.getByRole('radiogroup', { name: group }).getByRole('radio', { name, exact: true })
 
 /** Ctrl+7 → empty state → first scenario, set up like the prototype tests (T1): 11%, 10%, 10 000 + 2 000, 11-2026, 50 months, goals 6/12/19, cash, PLN. */
@@ -510,8 +513,8 @@ test('prognoza: po ponownym uruchomieniu scenariusz i losowania są te same; bra
     mean = (await first.page.getByTestId('fc-sum-mean').textContent()) ?? ''
     end = (await first.page.getByTestId('fc-sum-end').textContent()) ?? ''
     expect(mean).toMatch(/^[789]\.\d\d%$/)
-    await expect.poll(async () => (await fs.readdir(join(first.dataDir, 'forecasts')).catch(() => [])).length, { timeout: 8000 }).toBe(1)
-    file = join(first.dataDir, 'forecasts', (await fs.readdir(join(first.dataDir, 'forecasts')))[0]!)
+    await expect.poll(async () => (await scenarioFiles(first.dataDir)).length, { timeout: 8000 }).toBe(1)
+    file = join(first.dataDir, 'forecasts', (await scenarioFiles(first.dataDir))[0]!)
     await expect.poll(async () => JSON.parse(await fs.readFile(file, 'utf8')).payoutPercent, { timeout: 8000 }).toBe(30)
   } finally {
     await first.app.close()
@@ -552,7 +555,7 @@ test('prognoza: folder tylko do odczytu – scenariusz widoczny, zmiany nie są 
   const first = await launch()
   try {
     await firstScenarioLikeT1(first.page)
-    await expect.poll(async () => (await fs.readdir(join(first.dataDir, 'forecasts')).catch(() => [])).length, { timeout: 8000 }).toBe(1)
+    await expect.poll(async () => (await scenarioFiles(first.dataDir)).length, { timeout: 8000 }).toBe(1)
   } finally {
     await first.app.close()
   }

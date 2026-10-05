@@ -60,13 +60,20 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     await page.getByTestId('annotator-done').click()
     await page.getByTestId('library-title').fill('London sweep → MSS → FVG')
     const libDir = join(dataDir, 'library')
-    await expect
-      .poll(async () => {
-        const files = await fs.readdir(libDir).catch(() => [] as string[])
-        if (!files[0]) return 0
+    /**
+     * Annotations of the saved library item. Only canonical files: NTFS lists names sorted, so the temporary file of an
+     * atomic save (".<id>.json.tmp-…") can come first and be read half-written; -1 = keep polling.
+     */
+    const savedAnnotations = async (): Promise<number> => {
+      const files = (await fs.readdir(libDir).catch(() => [] as string[])).filter((n) => n.endsWith('.json') && !n.startsWith('.'))
+      if (!files[0]) return 0
+      try {
         return JSON.parse(await fs.readFile(join(libDir, files[0]), 'utf8')).screens[0]?.annotations.length ?? 0
-      }, { timeout: 8000 })
-      .toBe(2)
+      } catch {
+        return -1
+      }
+    }
+    await expect.poll(savedAnnotations, { timeout: 8000 }).toBe(2)
     await page.screenshot({ path: shots('32-biblioteka') })
 
     // A very fast drag (down, move, up in one task, before React renders the move) still draws the shape.
@@ -83,12 +90,7 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
       at('mouseup', 0.4, 0.5)
     }, canvas)
     await page.getByTestId('annotator-done').click()
-    await expect
-      .poll(async () => {
-        const files = await fs.readdir(libDir)
-        return JSON.parse(await fs.readFile(join(libDir, files[0]!), 'utf8')).screens[0]?.annotations.length ?? 0
-      }, { timeout: 8000 })
-      .toBe(3)
+    await expect.poll(savedAnnotations, { timeout: 8000 }).toBe(3)
 
     // Weekly review: import OHLC CSV generated for the current ISO week (NY dates).
     const nowNy = DateTime.now().setZone('America/New_York')
