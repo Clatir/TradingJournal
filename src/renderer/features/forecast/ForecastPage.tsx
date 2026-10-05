@@ -94,7 +94,7 @@ export function ForecastPage({ id }: { id?: string }) {
         <ScenarioBar key={scenario.id} scenario={scenario} readOnly={readOnly} fileReadOnly={fileReadOnly} folderReadOnly={folderReadOnly} />
         <PayoutBar scenario={scenario} readOnly={readOnly} />
         <div className="grid grid-cols-1 items-start gap-3 min-[1100px]:grid-cols-2">
-          <GainPanel scenario={scenario} settings={settings} outcome={outcome} />
+          <GainPanel scenario={scenario} settings={settings} outcome={outcome} readOnly={readOnly} />
           <GoalsPanel scenario={scenario} input={input ?? fallbackInput(scenario)} result={result} cash={cash} readOnly={readOnly} />
         </div>
         <SummaryPanel scenario={scenario} input={input} result={result} cash={cash} />

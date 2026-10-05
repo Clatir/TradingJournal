@@ -198,6 +198,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   ma ponad 12 h (`nbpFetchDue`), potem co godzinę, gdy brakuje tabeli z ostatniego dnia roboczego od 12:30 czasu
   warszawskiego (`nbpRecheckDue`, `expectedNbpDate`). Bez sieci kalkulatory liczą z ostatniej zapisanej tabeli.
   Kurs ręczny odbiegający od NBP o > 3% (`manualRateDeviation`, `MANUAL_RATE_WARN`) jest oznaczany przy polu i w ustawieniach.
+- „Weź z moich wyników” (`FromJournal.tsx`, `calc/journalReturns.ts`): zwroty miesięczne dziennika (Σ R × ryzyko %
+  zamkniętych transakcji wg miesiąca NY, miesiące bez transakcji = 0%), z nich zwrot losowy (p10–p90 miesięcy ≥ 0),
+  szansa na miesiąc stratny i jego wielkość (p10–p90); min. 3 miesiące; podgląd przed ustawieniem.
 - Eksport: `forecastTable` → TSV (schowek), CSV, XLSX (generator XML w `shared/export/xlsx.ts`, ZIP w `main/export/xlsx.ts`).
 - `SCHEMA_VERSION` bez zmian (kolekcja addytywna): 1.2.x pomija `forecasts/` (kopia dzienna i import 1.2.x ich nie zawierają).
 

@@ -14,6 +14,8 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   - Podsumowanie, tabela miesięcy z podsumowaniami lat, wykres, rozrzut wyników (wiele przebiegów z percentylami).
   - Scenariusze zapisane w folderze danych (`forecasts/`), porównanie dwóch scenariuszy, duplikowanie.
   - Eksport tabeli: schowek (Excel), CSV i XLSX (arkusze: Prognoza, Lata, Cele, Ustawienia).
+  - „Weź z moich wyników”: zwrot losowy i miesiące stratne ustawione z miesięcznych wyników dziennika (R × ryzyko %),
+    z podglądem przed zmianą scenariusza.
 - **Kursy walut z NBP**: tabela A pobierana automatycznie (20 s po starcie, gdy ostatnia ma ponad 12 h) albo przyciskiem.
   Bez internetu zostaje ostatnia pobrana tabela. Kursy wpisane ręcznie mają pierwszeństwo i można wrócić do kursu NBP.
 - **Instrumenty**: lista w ustawieniach (dodawanie, archiwizacja, „Przywróć domyślne”), wspólna dla kalkulatora zysku /

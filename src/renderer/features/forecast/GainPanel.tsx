@@ -6,6 +6,7 @@ import { RateField } from '../../components/RateField'
 import { CurrencyInput, Field as BaseField, Panel, Segmented, Toggle } from '../../components/ui'
 import { rerollDraws, updateScenario } from './actions'
 import { MONTH_NAMES, Num } from './fields'
+import { FromJournal } from './FromJournal'
 import { fixedPipsSummary, lotHint, pipValueText } from './texts'
 
 const SEGMENTED_MAX = 6
@@ -14,7 +15,7 @@ const SEGMENTED_MAX = 6
 const Field = (props: Parameters<typeof BaseField>[0]) => <BaseField labelWidth={168} {...props} />
 
 /** "Zysk i kapitał" (chapter 6.2–6.3). */
-export function GainPanel({ scenario, settings, outcome }: { scenario: Forecast; settings: Settings; outcome: ForecastInputOutcome }) {
+export function GainPanel({ scenario, settings, outcome, readOnly = false }: { scenario: Forecast; settings: Settings; outcome: ForecastInputOutcome; readOnly?: boolean }) {
   const id = scenario.id
   const set = (patch: Partial<Forecast>) => updateScenario(id, (f) => ({ ...f, ...patch }))
   const setPct = (patch: Partial<Forecast['pct']>) => updateScenario(id, (f) => ({ ...f, pct: { ...f.pct, ...patch } }))
@@ -57,6 +58,7 @@ export function GainPanel({ scenario, settings, outcome }: { scenario: Forecast;
                 aria-label="Rodzaj zwrotu"
               />
             </Field>
+            <FromJournal scenario={scenario} readOnly={readOnly} />
             {scenario.pct.mode === 'fixed' ? (
               <Field label="Zwrot co miesiąc">
                 <span className="flex items-center gap-1.5">
