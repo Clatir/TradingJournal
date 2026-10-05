@@ -69,6 +69,25 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
       .toBe(2)
     await page.screenshot({ path: shots('32-biblioteka') })
 
+    // A very fast drag (down, move, up in one task, before React renders the move) still draws the shape.
+    await page.getByTestId('library-detail').getByTestId('annotate').click()
+    await page.getByTestId('tool-rect').click()
+    const canvas = (await page.getByTestId('annotator-canvas').boundingBox())!
+    await page.getByTestId('annotator-canvas').evaluate((el, b) => {
+      const at = (type: string, fx: number, fy: number) =>
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: b.x + b.width * fx, clientY: b.y + b.height * fy }))
+      at('mousedown', 0.2, 0.2)
+      at('mousemove', 0.4, 0.5)
+      at('mouseup', 0.4, 0.5)
+    }, canvas)
+    await page.getByTestId('annotator-done').click()
+    await expect
+      .poll(async () => {
+        const files = await fs.readdir(libDir)
+        return JSON.parse(await fs.readFile(join(libDir, files[0]!), 'utf8')).screens[0]?.annotations.length ?? 0
+      }, { timeout: 8000 })
+      .toBe(3)
+
     // Weekly review: import OHLC CSV generated for the current ISO week (NY dates).
     const nowNy = DateTime.now().setZone('America/New_York')
     const monday = nowNy.startOf('week')

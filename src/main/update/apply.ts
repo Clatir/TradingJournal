@@ -42,7 +42,13 @@ $target = ${psLiteral(p.target)}
 $staged = ${psLiteral(p.staged)}
 $backup = $target + '.old'
 $log = ${psLiteral(p.logFile)}
-function Log([string]$m) { try { Add-Content -LiteralPath $log -Value ((Get-Date).ToString('o') + ' update-helper ' + $m) -Encoding UTF8 } catch {} }
+function Log([string]$m) {
+  # -ErrorAction Stop: with 'Continue' a briefly locked file (antivirus, a reader) would drop the line silently.
+  $line = (Get-Date).ToString('o') + ' update-helper ' + $m
+  for ($t = 0; $t -lt 20; $t++) {
+    try { Add-Content -LiteralPath $log -Value $line -Encoding UTF8 -ErrorAction Stop; return } catch { Start-Sleep -Milliseconds 100 }
+  }
+}
 Log 'start'
 foreach ($id in @(${pids})) {
   $proc = Get-Process -Id $id -ErrorAction SilentlyContinue

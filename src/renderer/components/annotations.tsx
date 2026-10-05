@@ -174,6 +174,13 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
   const [color, setColor] = useState(ANNOTATION_COLORS[0] as string)
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState<Annotation | null>(null)
+  // The shape being drawn, also kept in a ref: mouse moves are rendered lazily, so a fast drag can end
+  // (mouseup) before the last move was rendered – the handler must see the latest point, not a stale render.
+  const draftRef = useRef<Annotation | null>(null)
+  const setDraftNow = (d: Annotation | null) => {
+    draftRef.current = d
+    setDraft(d)
+  }
   const [textAt, setTextAt] = useState<{ x: number; y: number; hline?: boolean } | null>(null)
   const [text, setText] = useState('')
   const [history, setHistory] = useState<Annotation[][]>([])
@@ -253,17 +260,22 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
       setText('')
       return
     }
-    setDraft({ id: newId(), type: tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y, text: '', color })
+    setDraftNow({ id: newId(), type: tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y, text: '', color })
   }
   const onMove = (e: React.MouseEvent) => {
-    if (!draft) return
+    const current = draftRef.current
+    if (!current) return
     const p = point(e)
-    setDraft({ ...draft, x2: p.x, y2: p.y })
+    setDraftNow({ ...current, x2: p.x, y2: p.y })
   }
-  const onUp = () => {
-    if (!draft) return
-    if (Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1) > 0.005) commit([...annotations, draft])
-    setDraft(null)
+  const onUp = (e?: React.MouseEvent) => {
+    const current = draftRef.current
+    if (!current) return
+    // The release point counts too (it may differ from the last move event).
+    const end = e ? point(e) : { x: current.x2, y: current.y2 }
+    const done = { ...current, x2: end.x, y2: end.y }
+    if (Math.hypot(done.x2 - done.x1, done.y2 - done.y1) > 0.005) commit([...annotations, done])
+    setDraftNow(null)
   }
   // Enter and the blur that follows may both finish the same text: commit it once.
   const finishedText = useRef<object | null>(null)
