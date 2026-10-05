@@ -1,6 +1,7 @@
 import type { Killzone, PairConfig, Settings } from '../schema/journal'
 import type { Trade } from '../schema/trade'
 import { rateFor } from '../fx'
+import { historicalRate, transactionDate } from '../fxHistory'
 import { killzonesAt, primaryKillzone, tradingDateNy } from './time'
 
 export const DEFAULT_PIP_SIZE = 0.0001
@@ -75,6 +76,8 @@ export interface TradeMetrics {
   pnlAmountOwn: number | null
   /** Currency of the trade's amounts (risk, override); null without amounts or without the conversion context. */
   amountCurrency: string | null
+  /** NBP table date used to convert `pnlAmountOwn` to the account currency; null = today's rate (or no conversion). */
+  amountRateDate: string | null
 }
 
 export interface MetricsContext {
@@ -86,8 +89,11 @@ export interface MetricsContext {
     accountCurrency: string
     /** Currency of amounts saved without one (risk.legacyAmountCurrency, else the account currency). */
     defaultCurrency: string
-    /** Units of the account currency per 1 unit of `from` (hand-entered or NBP), null when unknown. */
-    rate: (from: string) => number | null
+    /**
+     * Units of the account currency per 1 unit of `from` for a transaction on `date` (Warsaw calendar): the NBP table
+     * of the day before when stored (`tableDate`), else today's rate (hand-entered or NBP); null when unknown.
+     */
+    rate: (from: string, date: string) => { rate: number; tableDate: string | null } | null
   }
 }
 
@@ -100,7 +106,12 @@ export function metricsContext(settings: Settings): MetricsContext {
     amounts: {
       accountCurrency: account,
       defaultCurrency: settings.risk.legacyAmountCurrency ?? account,
-      rate: (from) => rateFor(from, account, settings)?.rate ?? null
+      rate: (from, date) => {
+        const historical = historicalRate(from, account, date, settings)
+        if (historical) return historical
+        const today = rateFor(from, account, settings)
+        return today ? { rate: today.rate, tableDate: null } : null
+      }
     }
   }
 }
@@ -159,9 +170,12 @@ export function tradeMetrics(trade: Trade, ctx: MetricsContext): TradeMetrics {
   const hasAmounts = trade.riskAmount != null || trade.pnlAmountOverride != null
   const amountCurrency = trade.amountCurrency ?? (hasAmounts ? (ctx.amounts?.defaultCurrency ?? null) : null)
   let pnlAmount = pnlAmountOwn
+  let amountRateDate: string | null = null
   if (pnlAmountOwn != null && ctx.amounts && amountCurrency && amountCurrency !== ctx.amounts.accountCurrency) {
-    const rate = ctx.amounts.rate(amountCurrency)
-    pnlAmount = rate != null ? pnlAmountOwn * rate : null
+    // At the NBP table of the day before the closing when it is stored, otherwise at today's rate.
+    const rate = ctx.amounts.rate(amountCurrency, transactionDate(trade))
+    pnlAmount = rate != null ? pnlAmountOwn * rate.rate : null
+    amountRateDate = rate?.tableDate ?? null
   }
 
   return {
@@ -183,7 +197,8 @@ export function tradeMetrics(trade: Trade, ctx: MetricsContext): TradeMetrics {
     exitTime: exitTimes.at(-1) ?? null,
     pnlAmount,
     pnlAmountOwn,
-    amountCurrency
+    amountCurrency,
+    amountRateDate
   }
 }
 

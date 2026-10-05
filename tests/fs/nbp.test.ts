@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { describeNbpError, fetchNbpTable, nbpSource } from '../../src/main/fx/nbp'
+import { describeNbpError, fetchNbpHistory, fetchNbpTable, nbpSource } from '../../src/main/fx/nbp'
 import { fetchJson, HttpError } from '../../src/main/update/download'
 
 const TABLE = [{ table: 'A', no: '192/A/NBP/2026', effectiveDate: '2026-10-02', rates: [{ currency: 'dolar amerykański', code: 'USD', mid: 3.8881 }] }]
@@ -65,3 +65,32 @@ describe('pobieranie tabeli NBP (proces główny)', () => {
     expect(describeNbpError(err)).toBe('brak połączenia z internetem albo serwer NBP nie odpowiada')
   })
 })
+
+describe('kursy archiwalne NBP (proces główny)', () => {
+  const source = { base: 'http://nbp.test', allowInsecure: true }
+  it('zakres jednej waluty: adres rates/A/{kod}/{od}/{do}, 404 = brak tabel w zakresie', async () => {
+    const urls: string[] = []
+    const ok = await fetchNbpHistory(
+      async (url) => (urls.push(url), new Response(JSON.stringify({ code: 'USD', rates: [{ no: '191/A/NBP/2026', effectiveDate: '2026-10-01', mid: 3.88 }] }))),
+      source,
+      'USD',
+      '2026-09-25',
+      '2026-10-02'
+    )
+    expect(ok).toEqual({ ok: true, rates: { '2026-10-01': 3.88 } })
+    expect(urls).toEqual(['http://nbp.test/api/exchangerates/rates/A/USD/2026-09-25/2026-10-02/?format=json'])
+    expect(await fetchNbpHistory(async () => new Response('Not Found', { status: 404 }), source, 'USD', '2026-01-01', '2026-01-01')).toEqual({ ok: true, rates: {} })
+    expect(await fetchNbpHistory(async () => new Response('x', { status: 500 }), source, 'USD', '2026-01-01', '2026-01-02')).toEqual({ ok: false, message: 'serwer NBP odpowiedział błędem 500' })
+  })
+
+  it('odrzuca złe zakresy bez łączenia', async () => {
+    let called = false
+    const f = async () => ((called = true), new Response('{}'))
+    expect((await fetchNbpHistory(f, source, 'PLN', '2026-01-01', '2026-01-02')).ok).toBe(false)
+    expect((await fetchNbpHistory(f, source, 'USD', '2026-02-01', '2026-01-02')).ok).toBe(false)
+    expect(await fetchNbpHistory(f, source, 'USD', '2025-01-01', '2026-01-03')).toEqual({ ok: false, message: 'zakres dłuższy niż 367 dni' }) // 368 days
+    expect((await fetchNbpHistory(f, { base: null, allowInsecure: false }, 'USD', '2026-01-01', '2026-01-02')).ok).toBe(false)
+    expect(called).toBe(false)
+  })
+})
+

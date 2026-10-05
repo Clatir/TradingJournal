@@ -110,7 +110,7 @@ describe('tabela NBP', () => {
   it('tabela w ustawieniach jest walidowana', () => {
     expect(() => settingsSchema.parse({ fx: { nbp: { ...TABLE, rates: { USD: -1 } } } })).toThrow()
     expect(() => settingsSchema.parse({ fx: { manual: { USDPLN: 3.9 } } })).toThrow()
-    expect(settingsSchema.parse({}).fx).toEqual({ autoFetch: true, nbp: null, manual: {} })
+    expect(settingsSchema.parse({}).fx).toEqual({ autoFetch: true, nbp: null, manual: {}, history: {} })
   })
 
   it('pobieranie przy starcie: tylko gdy włączone, folder zapisywalny, nie demo i tabela starsza niż 12 h', () => {

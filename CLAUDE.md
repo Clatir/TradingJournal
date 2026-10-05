@@ -139,7 +139,12 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   kalkulatora, ręczne wartości pipsa przeliczane. Loty nie zależą od waluty. Bez kursu strona wraca do waluty konta.
 - Kwoty transakcji (`riskAmount`, `pnlAmountOverride`) mają walutę `amountCurrency` (waluta konta przy wpisie). Pliki
   sprzed 1.3.0 jej nie mają: obowiązuje `risk.legacyAmountCurrency` (pierwsza waluta konta, zapamiętana przy pierwszej
-  zmianie). `tradeMetrics` przelicza wynik na walutę konta dzisiejszym kursem (`pnlAmount`, oryginał: `pnlAmountOwn`);
+  zmianie). `tradeMetrics` przelicza wynik na walutę konta kursem NBP z tabeli z ostatniego dnia publikacji przed dniem
+  zamknięcia (`src/shared/fxHistory.ts`: `historicalRate`, `transactionDate`; `amountRateDate`), a gdy archiwum nie ma
+  tego dnia – dzisiejszym kursem (`pnlAmount`, oryginał: `pnlAmountOwn`). Archiwum: `settings.fx.history`
+  (waluta → zakres dat + kursy, w journal.json, więc także offline i na innych komputerach), pobierane przez main
+  (`fetchFxHistory`, `rates/A/{kod}/{od}/{do}`, ≤ 367 dni) tylko dla brakujących zakresów (`historyNeeds`, `historyUses`)
+  – po starcie, co godzinę i przy „Odśwież kursy NBP”;
   bez kursu `pnlAmount` = null (nie udaje kwoty w walucie konta). CSV: „Wynik kwota (waluta konta)” i „Waluta kwot”.
   Edytor: pole „Waluta kwot” (poprawka waluty bez przeliczania); wpisana kwota jest w walucie pokazanej obok.
 

@@ -2,6 +2,7 @@
 import type { Collection, FileKind } from './paths'
 import type { RecordTypes } from './records'
 import type { FxFetchResult } from './fx'
+import type { FxHistoryResult } from './fxHistory'
 import type { XlsxSheet } from './export/xlsx'
 import type { JournalFile } from './schema'
 import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
@@ -226,6 +227,8 @@ export interface JournalApi {
   onUpdateState(cb: (state: UpdateState) => void): () => void
   /** Fetch the latest NBP table A (main process, net.fetch, 10 s limit). Nothing is saved. */
   fetchFxRates(): Promise<FxFetchResult>
+  /** Archive NBP mid rates of one currency for start…end (at most 367 days). Nothing is saved. */
+  fetchFxHistory(code: string, start: string, end: string): Promise<FxHistoryResult>
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes (false = something stayed unsaved). */
   onFlushRequest(cb: () => Promise<boolean>): () => void

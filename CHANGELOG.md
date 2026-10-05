@@ -27,6 +27,9 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   reszta na SL/BE) i różnica względem zamknięcia teraz.
 - Kurs wpisany ręcznie, który odbiega od kursu NBP o ponad 3%, jest oznaczony („odbiega od NBP (3.8881) o +8.0%”)
   przy polu kursu i na liście kursów w ustawieniach.
+- **Kurs z dnia transakcji**: kwoty transakcji w innej walucie niż konto są przeliczane po kursie NBP z ostatniej
+  tabeli przed dniem zamknięcia (jak przy rozliczeniu podatku), np. „+100.00 USD ≈ +385.00 PLN (NBP 2026-10-01)”.
+  Archiwum kursów pobiera się samo (tylko brakujące dni) i jest zapisane w folderze danych – działa też offline.
 - Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
   Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
 

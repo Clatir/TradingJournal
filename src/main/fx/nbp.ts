@@ -4,6 +4,7 @@
  * "off" to never connect.
  */
 import { NBP_API, NBP_TABLE_PATH, parseNbpResponse, type FxFetchResult } from '@shared/fx'
+import { NBP_HISTORY_MAX_DAYS, nbpHistoryPath, parseNbpHistory, type FxHistoryResult } from '@shared/fxHistory'
 import { HttpError, fetchJson, type FetchLike } from '../update/download'
 
 const TIMEOUT_MS = 10_000
@@ -45,3 +46,24 @@ export async function fetchNbpTable(fetchFn: FetchLike, source: NbpSource, now: 
     return { ok: false, message: describeNbpError(e) }
   }
 }
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Archive mid rates of one currency for start…end (inclusive, at most 367 days); NBP's 404 means no table in the range. */
+export async function fetchNbpHistory(fetchFn: FetchLike, source: NbpSource, code: string, start: string, end: string): Promise<FxHistoryResult> {
+  if (!source.base) return { ok: false, message: 'pobieranie kursów jest wyłączone' }
+  if (!/^[A-Z]{3}$/.test(code) || code === 'PLN' || !DATE.test(start) || !DATE.test(end) || start > end) return { ok: false, message: 'niepoprawny zakres kursów' }
+  const days = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000 + 1
+  if (days > NBP_HISTORY_MAX_DAYS) return { ok: false, message: `zakres dłuższy niż ${NBP_HISTORY_MAX_DAYS} dni` }
+  const url = `${source.base}${nbpHistoryPath(code, start, end)}`
+  if (!source.allowInsecure && !/^https:\/\//i.test(url)) return { ok: false, message: 'dozwolone są tylko adresy https://' }
+  try {
+    const raw = await fetchJson(fetchFn, url, { Accept: 'application/json' }, TIMEOUT_MS)
+    const rates = parseNbpHistory(raw)
+    return rates ? { ok: true, rates } : { ok: false, message: 'nieoczekiwana odpowiedź serwera NBP' }
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 404) return { ok: true, rates: {} }
+    return { ok: false, message: describeNbpError(e) }
+  }
+}
+

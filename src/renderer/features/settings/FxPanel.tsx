@@ -38,6 +38,20 @@ export function FxPanel({ settings }: { settings: Settings }) {
             <IconSync size={13} /> {busy ? 'Pobieranie…' : 'Odśwież kursy NBP'}
           </button>
         </div>
+        <div className="text-[12px] text-muted" data-testid="fx-history">
+          Kursy archiwalne (wyniki transakcji po kursie z dnia poprzedzającego zamknięcie):{' '}
+          {Object.keys(settings.fx.history).length === 0 ? (
+            <span className="text-dim">jeszcze brak – pobierają się same dla transakcji z kwotami.</span>
+          ) : (
+            Object.entries(settings.fx.history)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([code, h]) => (
+                <span key={code} className="num mr-3 text-fg">
+                  {code} {h.from} – {h.to} ({countLabel(Object.keys(h.rates).length, 'tabela', 'tabele', 'tabel')})
+                </span>
+              ))
+          )}
+        </div>
         <p className="text-[11.5px] text-muted">
           Kurs średni NBP (tabela A) służy w kalkulatorach i w prognozie, gdy nie wpiszesz własnego. Kurs wpisany ręcznie ma pierwszeństwo. Aplikacja
           łączy się z api.nbp.pl tylko po tabelę kursów i niczego nie wysyła.

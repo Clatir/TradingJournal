@@ -234,7 +234,17 @@ export const settingsSchema = z.looseObject({
       /** Last fetched NBP table: mid rates, PLN for 1 unit of the currency. */
       nbp: nbpTableSchema.nullable().default(null),
       /** Hand-entered rates for pairs that do not involve the account currency: "USD>PLN" -> 3.9. */
-      manual: z.record(z.string().regex(/^[A-Z]{3}>[A-Z]{3}$/), z.number().positive()).default({})
+      manual: z.record(z.string().regex(/^[A-Z]{3}>[A-Z]{3}$/), z.number().positive()).default({}),
+      /**
+       * Archive NBP mid rates per currency (src/shared/fxHistory.ts): the covered date range and date → mid. Trade
+       * amounts are converted at the table of the day before the transaction.
+       */
+      history: z
+        .record(
+          z.string().regex(/^[A-Z]{3}$/),
+          z.looseObject({ from: isoDate, to: isoDate, rates: z.record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.number().positive()) })
+        )
+        .default({})
     })
     .prefault({})
 }).transform(seedInstruments)

@@ -281,9 +281,17 @@ test('kalkulator w PLN: kwoty po kursie NBP (konto w USD), wartość pipsa z tab
   const table = [
     { table: 'A', no: '192/A/NBP/2026', effectiveDate: '2026-10-02', rates: [{ currency: 'dolar amerykański', code: 'USD', mid: 3.8881 }, { currency: 'euro', code: 'EUR', mid: 4.3745 }] }
   ]
-  const server = createServer((_req, res) => {
-    if (mode === 'error') res.writeHead(500).end()
-    else res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(table))
+  // Archive rates (rates/A/USD/{from}/{to}): one table, the day before today (Warsaw).
+  const { DateTime } = await import('luxon')
+  const yesterday = DateTime.now().setZone('Europe/Warsaw').minus({ days: 1 }).toISODate()!
+  const historyRequests: string[] = []
+  const server = createServer((req, res) => {
+    if (mode === 'error') return res.writeHead(500).end()
+    if (req.url?.includes('/rates/A/USD/')) {
+      historyRequests.push(req.url)
+      return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ code: 'USD', rates: [{ no: 'x', effectiveDate: yesterday, mid: 3.85 }] }))
+    }
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(table))
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   const env = { ICTJ_NBP_URL: `http://127.0.0.1:${(server.address() as { port: number }).port}`, ICTJ_NBP_FETCH_DELAY_MS: '300' }
@@ -345,7 +353,19 @@ test('kalkulator w PLN: kwoty po kursie NBP (konto w USD), wartość pipsa z tab
     await expect.poll(async () => (await journal()).settings.risk).toMatchObject({ accountCurrency: 'PLN', accountBalance: 38881, legacyAmountCurrency: 'USD' })
     await page.keyboard.press('Control+1')
     await page.getByTestId('journal-row').first().dblclick()
+    // Without the archive: today's rate.
     await expect(page.getByTestId('result-money')).toHaveText('+100.00 USD ≈ +388.81 PLN')
+    // "Odśwież kursy NBP" also fetches the archive: the amount is converted at the table of the day before the trade.
+    await page.keyboard.press('Control+,')
+    await page.getByTestId('settings-tab-display').click()
+    await page.getByTestId('fx-refresh').click()
+    await expect(page.getByTestId('fx-history')).toContainText(`USD `)
+    await expect(page.getByTestId('fx-history')).toContainText('(1 tabela)')
+    expect(historyRequests).toHaveLength(1)
+    await expect.poll(async () => (await journal()).settings.fx.history.USD?.rates).toEqual({ [yesterday]: 3.85 })
+    await page.keyboard.press('Control+1')
+    await page.getByTestId('journal-row').first().dblclick()
+    await expect(page.getByTestId('result-money')).toHaveText(`+100.00 USD ≈ +385.00 PLN (NBP ${yesterday})`)
     // Amounts typed in the wrong currency: the currency of the trade's amounts can be changed (no conversion).
     await expect(page.getByTestId('trade-amount-currency')).toHaveValue('USD')
     await page.getByTestId('trade-amount-currency').fill('PLN')

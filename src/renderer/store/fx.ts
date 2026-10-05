@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { NBP_RECHECK_MS, nbpFetchDue, nbpRecheckDue } from '@shared/fx'
+import { historyNeeds, historyUses, mergeHistory, warsawDate } from '@shared/fxHistory'
 import { changeAccountCurrency } from '@shared/risk'
 import { api, errorMessage } from '../lib/api'
 import { fmtAmount } from '../lib/format'
@@ -40,6 +41,62 @@ export async function refreshFxRates(manual: boolean): Promise<void> {
   } finally {
     useFxFetch.setState({ busy: false })
   }
+  // The button also brings the archive rates for trade amounts up to date.
+  if (manual) await syncFxHistory(true)
+}
+
+/** At most this many requests per run (≈ 4 years of one currency); the next run continues. */
+const HISTORY_REQUESTS_PER_RUN = 4
+let historyRunning = false
+
+/**
+ * Archive NBP rates for the trade amounts that get converted (the table of the day before each transaction): only the
+ * date ranges not stored yet. Automatic runs are silent; the button reports the result.
+ */
+export async function syncFxHistory(manual: boolean): Promise<void> {
+  if (historyRunning) return
+  const { journal, trades, status } = useJournal.getState()
+  if (!journal || !status || status.readOnly || status.isSample) return
+  const needs = historyNeeds(
+    historyUses(
+      Object.values(trades).map((e) => e.record),
+      journal.settings
+    ),
+    journal.settings.fx.history,
+    warsawDate(new Date().toISOString())
+  ).slice(0, HISTORY_REQUESTS_PER_RUN)
+  if (!needs.length) return
+  historyRunning = true
+  const fetched: Array<{ code: string; start: string; end: string; rates: Record<string, number> }> = []
+  let failed: string | null = null
+  try {
+    for (const n of needs) {
+      const res = await api.fetchFxHistory(n.code, n.start, n.end)
+      if (!res.ok) {
+        failed = res.message
+        break
+      }
+      fetched.push({ ...n, rates: res.rates })
+    }
+  } catch (e) {
+    failed = errorMessage(e)
+  } finally {
+    historyRunning = false
+  }
+  if (fetched.length)
+    updateJournal((j) => {
+      let history = j.settings.fx.history
+      for (const f of fetched) history = mergeHistory(history, f.code, f.start, f.end, f.rates)
+      return { ...j, settings: { ...j.settings, fx: { ...j.settings.fx, history } } }
+    })
+  if (!manual) return
+  if (failed) toast(`Nie udało się pobrać kursów archiwalnych NBP: ${failed}.`, 'error', 6000)
+  else
+    toast(
+      `Pobrano kursy archiwalne NBP: ${fetched.map((f) => `${f.code} ${f.start} – ${f.end} (${Object.keys(f.rates).length})`).join(', ')}.`,
+      'success',
+      5000
+    )
 }
 
 /**
@@ -57,6 +114,8 @@ export function useFxAutoFetch(): void {
       const { journal, status } = useJournal.getState()
       if (!journal || !status || status.dataDir !== dataDir) return
       if (due(journal.settings, { readOnly: status.readOnly, isSample: status.isSample, now: new Date() })) void refreshFxRates(false)
+      // Archive rates for new trades with amounts (only missing ranges; nothing when everything is stored).
+      if (journal.settings.fx.autoFetch) void syncFxHistory(false)
     }
     const timer = setTimeout(() => check(nbpFetchDue), delay)
     const interval = setInterval(() => check(nbpRecheckDue), NBP_RECHECK_MS)

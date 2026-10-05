@@ -20,7 +20,7 @@ import { writeFileAtomic } from './datastore/atomic'
 import { GITHUB_API, detectInstallMode, type UpdatePrefs } from '@shared/update'
 import { Updater } from './update/updater'
 import { startPortableSwap, startSilentInstaller } from './update/apply'
-import { fetchNbpTable, nbpSource } from './fx/nbp'
+import { fetchNbpHistory, fetchNbpTable, nbpSource } from './fx/nbp'
 import { writeXlsx } from './export/xlsx'
 import type { XlsxSheet } from '@shared/export/xlsx'
 
@@ -268,6 +268,11 @@ function registerIpc(): void {
   handle('journal:fetchFxRates', async () => {
     const result = await fetchNbpTable((url, init) => net.fetch(url, init), nbpSource(process.env.ICTJ_NBP_URL))
     log(result.ok ? 'info' : 'warn', result.ok ? `NBP table ${result.table.no} (${result.table.effectiveDate})` : `NBP fetch failed: ${result.message}`)
+    return result
+  })
+  handle('journal:fetchFxHistory', async (code: string, start: string, end: string) => {
+    const result = await fetchNbpHistory((url, init) => net.fetch(url, init), nbpSource(process.env.ICTJ_NBP_URL), code, start, end)
+    log(result.ok ? 'info' : 'warn', result.ok ? `NBP history ${code} ${start}…${end}: ${Object.keys(result.rates).length} tables` : `NBP history ${code} failed: ${result.message}`)
     return result
   })
   handle('journal:openExternal', async (url: string) => {

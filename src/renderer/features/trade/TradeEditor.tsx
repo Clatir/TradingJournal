@@ -335,7 +335,7 @@ export function TradeEditor({ id }: { id: string }) {
                 money={
                   showMoney
                     ? m.amountCurrency && m.amountCurrency !== currency && m.pnlAmountOwn != null
-                      ? `${fmtMoney(m.pnlAmountOwn, m.amountCurrency)} ≈ ${m.pnlAmount != null ? fmtMoney(m.pnlAmount, currency) : `? ${currency}`}`
+                      ? `${fmtMoney(m.pnlAmountOwn, m.amountCurrency)} ≈ ${m.pnlAmount != null ? fmtMoney(m.pnlAmount, currency) : `? ${currency}`}${m.amountRateDate ? ` (NBP ${m.amountRateDate})` : ''}`
                       : fmtMoney(m.pnlAmount, currency)
                     : null
                 }

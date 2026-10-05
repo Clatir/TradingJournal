@@ -152,7 +152,7 @@ describe('kwoty w walucie konta', () => {
   const win = (over: Partial<Trade> = {}) => ({ ...trade({ prices: { entry: 1.085, stopLoss: 1.0835 } }, [[1.0865, 100]]), status: 'closed' as const, riskAmount: 50, ...over })
   const withAmounts = (defaultCurrency: string, rates: Record<string, number>): MetricsContext => ({
     ...ctx,
-    amounts: { accountCurrency: 'PLN', defaultCurrency, rate: (from) => rates[from] ?? null }
+    amounts: { accountCurrency: 'PLN', defaultCurrency, rate: (from) => (rates[from] != null ? { rate: rates[from]!, tableDate: null } : null) }
   })
 
   it('kwota w walucie konta bez przeliczenia', () => {
