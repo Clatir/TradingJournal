@@ -47,6 +47,8 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     await expect(page.getByTestId('library-detail')).toBeVisible()
     await page.getByTestId('library-detail').getByTestId('annotate').click()
     await expect(page.getByTestId('annotator')).toBeVisible()
+    // The drawing area is measured only once it is laid out (it is hidden until the image is fitted).
+    await expect(page.getByTestId('annotator-canvas')).toBeVisible()
     const box = (await page.getByTestId('annotator-canvas').boundingBox())!
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.6)
     await page.mouse.down()
@@ -79,6 +81,7 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     // A very fast drag (down, move, up in one task, before React renders the move) still draws the shape.
     await page.getByTestId('library-detail').getByTestId('annotate').click()
     await page.getByTestId('tool-rect').click()
+    await expect(page.getByTestId('annotator-canvas')).toBeVisible()
     const canvas = (await page.getByTestId('annotator-canvas').boundingBox())!
     await page.getByTestId('annotator-canvas').evaluate((el, b) => {
       // Runs in the page; the test tsconfig has no DOM lib.

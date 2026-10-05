@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fileUrl } from '@shared/api'
 import { newId } from '@shared/ids'
 import type { Annotation, ScreenRef } from '@shared/schema'
@@ -189,8 +189,9 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   const annotations = screen.annotations
 
-  // Fit the image into the available area while keeping its aspect ratio.
-  useEffect(() => {
+  // Fit the image into the available area while keeping its aspect ratio. Before the first paint (layout effect):
+  // until then the drawing area is hidden and unsized, so an early click or drag would miss it.
+  useLayoutEffect(() => {
     const el = area.current
     if (!el) return
     const fit = () => {
