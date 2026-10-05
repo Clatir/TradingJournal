@@ -175,6 +175,11 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Przegląd tygodnia: tydzień ISO, dni pon–pt wg daty NY; import CSV z TradingView („Export chart data”, czas UNIX lub ISO,
   separator `,` lub `;`) → `src/shared/calc/ohlc.ts`.
 - Eksport: CSV (`src/shared/export/csv.ts`), markdown (`export/markdown.ts`, Ctrl+Shift+M), ZIP folderu bez `backups/`.
+- Raport miesięczny (`src/shared/export/monthlyReport.ts`, pasek w Analityce, akcje `features/export/reportActions.ts`):
+  cały miesiąc NY, wszystkie pary, bez szkiców. PLN = `pnlAmountOwn` × `historicalRate(waluta kwot, PLN, transactionDate)`,
+  inaczej `rateFor` (dzisiejszy); dopisek mówi, ile transakcji przeliczono i jak. Markdown albo PDF: `monthlyReportHtml`
+  (bez skryptów, CSP `default-src 'none'`) → IPC `savePdf` → `main/export/pdf.ts` (ukryte okno, JS wyłączony, osobna
+  sesja w pamięci blokująca wszystko poza `data:`, `printToPDF` A4).
 - Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
   potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
 - Kopie przy starcie (`main/datastore/backup.ts`): `backups/daily/RRRR-MM-DD_json.zip` (14), `backups/weekly/RRRR-Wnn_full.zip`
@@ -263,7 +268,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 7. ✅ 1.2.0: kalkulator zysku / straty (AUDUSD, EURGBP, EURUSD, EURAUD, WTI, instrument własny).
 8. ✅ 1.2.1: przegląd opcji – poprawki kalkulatorów, waluty konta, kroku lota, słowników i killzone'ów (`tests/e2e/settings.spec.ts`).
 9. ✅ 1.3.0: prognoza wypłat (scenariusze, cele, fundusz celowy, rozrzut, wykres, eksport CSV/XLSX), kursy NBP,
-   lista instrumentów, TP i zysk do ryzyka w kalkulatorze pozycji (`tests/e2e/forecast.spec.ts`).
+   lista instrumentów, TP i zysk do ryzyka w kalkulatorze pozycji (`tests/e2e/forecast.spec.ts`); kalkulatory w PLN,
+   partiale, kurs z dnia transakcji, wynik z lotów, prognoza z wyników, raport miesięczny (`tests/e2e/journal-tools.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

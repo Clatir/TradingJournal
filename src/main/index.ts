@@ -22,6 +22,7 @@ import { Updater } from './update/updater'
 import { startPortableSwap, startSilentInstaller } from './update/apply'
 import { fetchNbpHistory, fetchNbpTable, nbpSource } from './fx/nbp'
 import { writeXlsx } from './export/xlsx'
+import { htmlToPdf } from './export/pdf'
 import type { XlsxSheet } from '@shared/export/xlsx'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
@@ -292,6 +293,12 @@ function registerIpc(): void {
     const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
     if (res.canceled || !res.filePath) return null
     await writeXlsx(res.filePath, sheets)
+    return res.filePath
+  })
+  handle('journal:savePdf', async (name: string, html: string) => {
+    const res = await dialog.showSaveDialog(mainWindow!, { defaultPath: name, filters: [{ name: 'PDF', extensions: ['pdf'] }] })
+    if (res.canceled || !res.filePath) return null
+    await writeFileAtomic(res.filePath, await htmlToPdf(html))
     return res.filePath
   })
   handle('journal:exportZip', async () => {

@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { expect, test } from '@playwright/test'
+import { expect, test, type ElectronApplication } from '@playwright/test'
 import { DataStore } from '../../src/main/datastore/store'
 import { createDefaultJournal, createTrade } from '../../src/shared/defaults'
 import { serializeRecord } from '../../src/shared/records'
@@ -65,6 +65,61 @@ test('prognoza: „Weź z moich wyników” przy za małej liczbie miesięcy', a
     await page.getByTestId('fc-create-first').click()
     await page.getByTestId('fc-history').click()
     await expect(page.getByTestId('fc-history-preview')).toHaveText('Za mało danych: potrzeba co najmniej 3 miesięcy z zamkniętymi transakcjami (jest 1).')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+async function stubSaveDialog(app: ElectronApplication, save: string): Promise<void> {
+  await app.evaluate(({ dialog }, path) => {
+    const d = dialog as unknown as Record<string, unknown>
+    d.showSaveDialog = async (_w: unknown, opts: { defaultPath?: string }) => ({ canceled: false, filePath: path.replace('{name}', opts?.defaultPath ?? 'plik') })
+  }, save)
+}
+
+test('raport miesięczny: wynik w R i PLN, wybór miesiąca, markdown do schowka, pliki .md i PDF', async () => {
+  const journal = createDefaultJournal()
+  const tag = journal.dictionaries.mistakeTags[0]!
+  const psychology = { ...closedTrade('2026-03-12', -1).psychology, mistakeTagIds: [tag.id] }
+  const dataDir = await seed(
+    [
+      closedTrade('2026-02-16', 1, { riskAmount: 50, amountCurrency: 'PLN' }),
+      closedTrade('2026-03-10', 2, { riskAmount: 100, amountCurrency: 'PLN' }),
+      closedTrade('2026-03-12', -1, { riskAmount: 100, amountCurrency: 'PLN', psychology })
+    ],
+    journal
+  )
+  const { app, page, errors } = await launch({ dataDir })
+  const out = await fs.mkdtemp(join(tmpdir(), 'ictj-report-out-'))
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(3)
+    await page.keyboard.press('Control+3')
+    const bar = page.getByTestId('monthly-report')
+    await expect(bar.getByTestId('report-month')).toHaveValue('2026-03')
+    await expect(bar.getByTestId('report-lead')).toHaveText('Wynik: +1.00R · +100.00 PLN')
+    await bar.getByTestId('report-month').selectOption('2026-02')
+    await expect(bar.getByTestId('report-lead')).toHaveText('Wynik: +1.00R · +50.00 PLN')
+    await bar.getByTestId('report-month').selectOption('2026-03')
+
+    await bar.getByTestId('report-copy').click()
+    await expect.poll(async () => app.evaluate(({ clipboard }) => clipboard.readText())).toContain('# Raport miesięczny – marzec 2026')
+    const copied = await app.evaluate(({ clipboard }) => clipboard.readText())
+    expect(copied).toContain(`| ${tag.name} | 1 | −1.00R | −3.00R |`)
+    expect(copied).toContain('| EURUSD | 2 | 50.0% | +1.00R | +100.00 PLN |')
+
+    await stubSaveDialog(app, join(out, '{name}'))
+    await bar.getByTestId('report-md').click()
+    await expect.poll(async () => (await fs.readdir(out)).includes('raport_2026-03.md'), { timeout: 8000 }).toBe(true)
+    expect(await fs.readFile(join(out, 'raport_2026-03.md'), 'utf8')).toBe(copied)
+
+    await bar.getByTestId('report-pdf').click()
+    await expect.poll(async () => (await fs.readdir(out)).includes('raport_2026-03.pdf'), { timeout: 15000 }).toBe(true)
+    const pdf = await fs.readFile(join(out, 'raport_2026-03.pdf'))
+    expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+    expect(pdf.length).toBeGreaterThan(5000)
+    // The hidden PDF window is gone; only the main window is left.
+    await expect.poll(async () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
     expect(errors).toEqual([])
   } finally {
     await app.close()

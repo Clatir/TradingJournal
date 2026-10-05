@@ -173,3 +173,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
    Panel „Partiale”: 1 lot, SL 20, wynik teraz +30, połowa teraz i połowa na +60 → zamknięcie teraz +300, podział
    najlepiej +450, najgorzej +50 (z SL na BE +150); dodaj do 4 części.
 10. Ten sam folder na drugim komputerze: scenariusz pokazuje identyczne liczby (losowania są zapisane w pliku).
+11. `Ctrl+3` → pasek „Raport miesięczny” pod wskaźnikami: wybierz miesiąc – wynik w R i w PLN (kursy NBP z dnia przed
+    zamknięciem), „Kopiuj markdown”, „Zapisz .md”, „Zapisz PDF” (tygodnie, pary, najczęstsze błędy, zgodność z zasadami,
+    plan dnia). Raport obejmuje cały miesiąc i wszystkie pary, niezależnie od filtrów analityki.

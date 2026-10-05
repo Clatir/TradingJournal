@@ -34,6 +34,9 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   Archiwum kursów pobiera się samo (tylko brakujące dni) i jest zapisane w folderze danych – działa też offline.
 - **Wynik z lotów**: transakcja bez wpisanej kwoty ryzyka ma wynik w pieniądzu z lotów (pipsy × wartość pipsa × loty,
   w walucie kwotowanej, przeliczony po kursie z dnia) – w edytorze, analityce i CSV („· z lotów”).
+- **Raport miesięczny** (Analityka, pasek pod wskaźnikami, albo paleta `Ctrl+K`): wynik w R i w PLN (kwoty po kursie
+  NBP z dnia przed zamknięciem), tygodnie, pary, najczęstsze błędy z kosztem, zgodność z zasadami, plan dnia, najlepsza
+  i najgorsza transakcja. Do schowka jako markdown, do pliku `.md` albo PDF (A4).
 - Kursy NBP sprawdzane także co godzinę, gdy aplikacja jest otwarta (nowa tabela pojawia się w dni robocze około 12:15).
   Bez internetu kalkulatory liczą z ostatniej pobranej tabeli.
 

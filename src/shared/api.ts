@@ -200,6 +200,8 @@ export interface JournalApi {
   saveTextFile(defaultName: string, content: string, filter: { name: string; extensions: string[] }): Promise<string | null>
   /** Save dialog + write an XLSX workbook built from `sheets` (main process, yazl). Returns the path or null when cancelled. */
   saveXlsx(defaultName: string, sheets: XlsxSheet[]): Promise<string | null>
+  /** Save dialog + an A4 PDF printed from a self-contained HTML document (hidden window, no JavaScript). */
+  savePdf(defaultName: string, html: string): Promise<string | null>
   /** ZIP of the whole data folder (without backups). */
   exportZip(): Promise<string | null>
   copyText(text: string): Promise<void>

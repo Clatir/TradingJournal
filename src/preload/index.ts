@@ -27,6 +27,7 @@ const api: JournalApi = {
   saveTextFile: (name, content, filter) => invoke('saveTextFile', name, content, filter),
   exportZip: () => invoke('exportZip'),
   saveXlsx: (name, sheets) => invoke('saveXlsx', name, sheets),
+  savePdf: (name, html) => invoke('savePdf', name, html),
   copyText: (text) => invoke('copyText', text),
   copyImage: (png) => invoke('copyImage', png),
   inspectImport: (kind) => invoke('inspectImport', kind),

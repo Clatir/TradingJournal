@@ -13,6 +13,7 @@ import { todayNy } from '../day/DayPlanPage'
 import { enterSample, exitSample } from '../sample/sample'
 import { currentWeek } from '../week/WeekPage'
 import { copyMarkdownForRoute, exportCsv } from '../export/markdownActions'
+import { deliverMonthlyReport, latestReportMonth } from '../export/reportActions'
 import { checkForUpdates } from '../../store/update'
 import { refreshFxRates } from '../../store/fx'
 import { createScenario } from '../forecast/actions'
@@ -72,6 +73,8 @@ export function CommandPalette() {
       { id: 'nbp', label: 'Odśwież kursy NBP', run: () => void refreshFxRates(true) },
       { id: 'md', label: 'Kopiuj markdown bieżącej transakcji / planu dnia', keys: 'Ctrl Shift M', run: () => void copyMarkdownForRoute() },
       { id: 'csv', label: 'Eksport CSV wszystkich transakcji', run: () => void exportCsv() },
+      { id: 'report-copy', label: 'Raport miesięczny (ostatni miesiąc) – kopiuj markdown', run: () => void deliverMonthlyReport(latestReportMonth(), 'copy') },
+      { id: 'report-pdf', label: 'Raport miesięczny (ostatni miesiąc) – zapisz PDF', run: () => void deliverMonthlyReport(latestReportMonth(), 'pdf') },
       { id: 'zip', label: 'Eksport ZIP całego folderu', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
       { id: 'import', label: 'Import / kopie zapasowe', run: () => navigate({ page: 'settings', tab: 'transfer' }) },
       {
