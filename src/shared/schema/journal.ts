@@ -156,6 +156,11 @@ export const settingsSchema = z.looseObject({
        * currency of that time. Set once, on the first account currency change; null = the account currency.
        */
       legacyAmountCurrency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
+      /**
+       * Currency of the calculator page (position, P/L, partials): amounts are converted from the account currency at the
+       * rate account → it (NBP or typed). Lots do not depend on it. Without a rate the page uses the account currency.
+       */
+      calcCurrency: z.string().regex(/^[A-Z]{3}$/).default('PLN'),
       defaultRiskPercent: z.number().positive().default(0.5),
       contractSize: z.number().positive().default(100000),
       lotStep: z.number().positive().default(0.01),

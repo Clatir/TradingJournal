@@ -18,8 +18,10 @@ a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
   Bez internetu zostaje ostatnia pobrana tabela. Kursy wpisane ręcznie mają pierwszeństwo i można wrócić do kursu NBP.
 - **Instrumenty**: lista w ustawieniach (dodawanie, archiwizacja, „Przywróć domyślne”), wspólna dla kalkulatora zysku /
   straty i prognozy. Dotychczasowe instrumenty i ręczne wartości pipsa przechodzą bez zmian.
-- **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka. Waluta konta (np. PLN) wybierana obok
-  pola „Kapitał” – kapitał przeliczany po kursie NBP; wartość pipsa liczona z kursu NBP (widać tabelę, z której pochodzi).
+- **Kalkulator pozycji**: pole „TP (pips)”, zysk przy TP i zysk do ryzyka.
+- **Kalkulatory w PLN**: kalkulator pozycji, zysku / straty i partiali liczą i pokazują kwoty w walucie kalkulatora
+  (domyślnie PLN, pole obok „Kapitał”), także gdy konto jest w USD – po kursie NBP; wartość pipsa z kursu NBP (widać
+  tabelę, z której pochodzi). Liczba lotów się nie zmienia.
 - **Partiale w kalkulatorze**: porównanie „zamknij całość teraz” z podziałem na 1–4 części (teraz albo na celu w pipsach,
   opcjonalnie SL reszty na BE). Wynik każdej części, najlepszy i najgorszy przypadek, każdy scenariusz (osiągnięte cele,
   reszta na SL/BE) i różnica względem zamknięcia teraz.

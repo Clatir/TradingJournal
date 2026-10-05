@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { MAX_PARTIALS, partialPercents, partialPlan, type PartialSpec, type PlanScenario } from '@shared/calc/partials'
 import { lotDecimals, shownDecimals } from '@shared/calc/position'
 import { findInstrument, instrumentPipValue, missingPipValue, selectableInstruments } from '@shared/instruments'
+import { calculatorCurrency } from '@shared/risk'
 import type { Settings } from '@shared/schema'
 import { fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
 import { Field, NumberField, Panel, Segmented, Toggle, cx } from '../../components/ui'
@@ -40,7 +41,8 @@ const pipsText = (p: number) => `${p > 0 ? '+' : p < 0 ? '−' : ''}${Math.abs(p
  */
 export function PartialsCalculator({ settings, from }: { settings: Settings; from?: { key: string; instrument: string | null; lots: number | null; stopPips: number | null } }) {
   const { instrument: selectedId, lots, stopPips, nowPips, breakeven, parts } = usePartials()
-  const account = settings.risk.accountCurrency
+  // Amounts in the calculator currency (PLN by default), like the other calculators of the page.
+  const account = calculatorCurrency(settings).currency
 
   // Opened from a trade: its instrument (when it is on the list), lots and stop.
   const fromKey = from?.key ?? null

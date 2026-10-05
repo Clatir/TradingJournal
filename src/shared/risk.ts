@@ -52,3 +52,24 @@ export function changeAccountCurrency(settings: Pick<Settings, 'risk' | 'fx'>, n
   return { risk: { ...switched, accountBalance: after }, balance: { before, after, rate } }
 }
 
+/** Currency of the calculator page and the rate from the account currency to it. */
+export interface CalculatorCurrency {
+  /** The currency amounts are shown in: the chosen one, or the account currency when its rate is unknown. */
+  currency: string
+  /** risk.calcCurrency as chosen. */
+  wanted: string
+  /** 1 account currency = `fromAccount` × `currency`. */
+  fromAccount: number
+  rateSource: Rate['source']
+  /** The chosen currency has no rate yet (no NBP table, nothing typed): the page falls back to the account currency. */
+  fallback: boolean
+}
+
+export function calculatorCurrency(settings: Pick<Settings, 'risk' | 'fx'>): CalculatorCurrency {
+  const account = settings.risk.accountCurrency
+  const wanted = settings.risk.calcCurrency
+  const r = rateFor(account, wanted, settings)
+  if (r) return { currency: wanted, wanted, fromAccount: r.rate, rateSource: r.source, fallback: false }
+  return { currency: account, wanted, fromAccount: 1, rateSource: 'same', fallback: true }
+}
+

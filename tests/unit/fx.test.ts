@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { expectedNbpDate, manualRates, nbpFetchDue, nbpRate, nbpRecheckDue, parseNbpResponse, rateFor, withManualRate, withoutManualRate } from '@shared/fx'
-import { changeAccountCurrency } from '@shared/risk'
+import { calculatorCurrency, changeAccountCurrency } from '@shared/risk'
 import { settingsSchema, type Settings } from '@shared/schema'
 
 const TABLE = { no: '192/A/NBP/2026', effectiveDate: '2026-10-02', fetchedAt: '2026-10-02T12:15:00.000Z', rates: { USD: 3.8881, EUR: 4.3745, GBP: 5.1353, AUD: 2.699 } }
@@ -175,6 +175,18 @@ describe('changeAccountCurrency (kapitał w nowej walucie konta)', () => {
     expect(changeAccountCurrency(withBalance(settings({ accountCurrency: 'USD' }), null), 'PLN').balance).toBeNull()
     const same = withBalance(settings({ accountCurrency: 'PLN' }), 5)
     expect(changeAccountCurrency(same, 'PLN').risk).toBe(same.risk)
+  })
+})
+
+describe('calculatorCurrency (kalkulator w PLN)', () => {
+  it('domyślnie PLN: kwoty z waluty konta po kursie NBP; bez kursu waluta konta', () => {
+    const usd = settings({ accountCurrency: 'USD' })
+    expect(usd.risk.calcCurrency).toBe('PLN')
+    expect(calculatorCurrency(usd)).toEqual({ currency: 'PLN', wanted: 'PLN', fromAccount: 3.8881, rateSource: 'nbp', fallback: false })
+    expect(calculatorCurrency(settings({ accountCurrency: 'USD', nbp: null }))).toEqual({ currency: 'USD', wanted: 'PLN', fromAccount: 1, rateSource: 'same', fallback: true })
+    expect(calculatorCurrency(settings({ accountCurrency: 'PLN', nbp: null }))).toMatchObject({ currency: 'PLN', fromAccount: 1, fallback: false })
+    // A typed USD → PLN rate counts too.
+    expect(calculatorCurrency(settings({ accountCurrency: 'USD', nbp: null, manual: { 'USD>PLN': 4 } }))).toMatchObject({ currency: 'PLN', fromAccount: 4, rateSource: 'manual' })
   })
 })
 

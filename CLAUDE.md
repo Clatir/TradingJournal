@@ -133,6 +133,10 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   `risk.byAccountCurrency[stara]` i przywraca te dla nowej waluty, bo to kwoty w walucie konta. Zmiana z kalkulatora
   pozycji (pole obok „Kapitał”) albo z ustawień idzie przez `changeAccountCurrency` (+ `setAccountCurrency` w
   `renderer/store/fx.ts`): saldo przeliczane kursem stara → nowa (`fx.manual` albo NBP); bez kursu zostaje i jest komunikat.
+- Waluta kalkulatora: `risk.calcCurrency` (domyślnie PLN), `calculatorCurrency()` w `src/shared/risk.ts`. Cała strona
+  kalkulatorów (pozycja, zysk / strata, partiale) liczy i pokazuje kwoty w tej walucie: kapitał = saldo konta × kurs
+  konto → waluta kalkulatora (wpisany kapitał jest zapisywany z powrotem w walucie konta), kursy kwotowana → waluta
+  kalkulatora, ręczne wartości pipsa przeliczane. Loty nie zależą od waluty. Bez kursu strona wraca do waluty konta.
 - Kwoty transakcji (`riskAmount`, `pnlAmountOverride`) mają walutę `amountCurrency` (waluta konta przy wpisie). Pliki
   sprzed 1.3.0 jej nie mają: obowiązuje `risk.legacyAmountCurrency` (pierwsza waluta konta, zapamiętana przy pierwszej
   zmianie). `tradeMetrics` przelicza wynik na walutę konta dzisiejszym kursem (`pnlAmount`, oryginał: `pnlAmountOwn`);

@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { create } from 'zustand'
 import { lotDecimals, positionSize, takeProfitResult } from '@shared/calc/position'
 import { rateFor } from '@shared/fx'
-import { fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
+import { calculatorCurrency } from '@shared/risk'
+import { fmtAmount, fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
 import { metricsFor, useDailyLimits } from '../../store/derived'
 import { updateJournal, updateRecord, useJournal } from '../../store/journal'
 import { navigate, toast } from '../../store/ui'
-import { setAccountCurrency } from '../../store/fx'
 import { Cell, CurrencyInput, Field, NumberField, Panel, cx } from '../../components/ui'
 import { RateField } from '../../components/RateField'
 import { PnlCalculator } from './PnlCalculator'
@@ -42,13 +42,15 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
   if (!journal || !settings) return null
   const pairCfg = settings.pairs.find((p) => p.symbol === pair)
   const account = settings.risk.accountCurrency
+  // Every amount of the page is in the calculator currency (PLN by default), converted from the account currency.
+  const cc = calculatorCurrency(settings)
+  const cur = cc.currency
   const quote = pairCfg?.quoteCurrency ?? 'USD'
-  const sameCurrency = quote === account
-  const rateInfo = rateFor(quote, account, settings)
+  const sameCurrency = quote === cur
+  const rateInfo = rateFor(quote, cur, settings)
   const rate = rateInfo?.rate ?? null
-  const balance = settings.risk.accountBalance
-  // Where the pip value comes from: one lot's pip in the quote currency × the rate (NBP of a date or typed).
-  const pipInQuote = settings.risk.contractSize * (pairCfg?.pipSize ?? 0.0001)
+  const accountBalance = settings.risk.accountBalance
+  const balance = accountBalance != null ? accountBalance * cc.fromAccount : null
   const rateSource = rateInfo?.source === 'nbp' ? `NBP ${settings.fx.nbp?.effectiveDate ?? '?'}` : 'kurs ręczny'
 
   const result =
@@ -70,8 +72,8 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
 
   const apply = () => {
     if (!tradeId || !result) return
-    updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)), amountCurrency: account }))
-    toast(`Zapisano w transakcji: ${result.lots.toFixed(lotDec)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${account}.`, 'success')
+    updateRecord('trades', tradeId, (t) => ({ ...t, lots: result.lots, riskPercent, riskAmount: Number(result.actualRiskAmount.toFixed(2)), amountCurrency: cur }))
+    toast(`Zapisano w transakcji: ${result.lots.toFixed(lotDec)} lota, ryzyko ${result.actualRiskAmount.toFixed(2)} ${cur}.`, 'success')
     navigate({ page: 'trade', id: tradeId })
   }
 
@@ -80,10 +82,28 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
       <div className="mx-auto grid max-w-[1040px] grid-cols-[1fr_1fr] gap-3">
         <Panel title="Kalkulator pozycji">
           <div className="flex flex-col gap-2">
-            <Field label="Kapitał" hint="waluta konta – po zmianie kapitał jest przeliczany po kursie NBP">
+            <Field
+              label="Kapitał"
+              hint={
+                <span data-testid="calc-currency-hint">
+                  {cc.fallback
+                    ? `brak kursu ${account} → ${cc.wanted} – wyniki w ${account}, dopóki nie pobierzesz kursów NBP albo nie wpiszesz kursu`
+                    : cur !== account
+                      ? `waluta kalkulatora; konto w ${account}${accountBalance != null ? `: ${fmtAmount(accountBalance, account)}` : ''} · kurs ${cc.fromAccount}${cc.rateSource === 'nbp' ? ` (NBP ${settings.fx.nbp?.effectiveDate ?? ''})` : ' (wpisany ręcznie)'}`
+                      : 'waluta kalkulatora = waluta konta'}
+                </span>
+              }
+            >
               <div className="flex items-center gap-2">
-                <NumberField value={balance} onChange={(v) => setRisk({ accountBalance: v != null && v >= 0 ? v : null })} decimals={2} placeholder="np. 10000" data-testid="calc-balance" />
-                <CurrencyInput className="w-[60px] shrink-0" value={account} onChange={setAccountCurrency} aria-label="Waluta konta" data-testid="calc-currency" />
+                <NumberField
+                  value={balance != null ? Number(balance.toFixed(2)) : null}
+                  // Stored in the account currency (other screens use it); typed in the calculator currency.
+                  onChange={(v) => setRisk({ accountBalance: v != null && v >= 0 ? Number((v / cc.fromAccount).toFixed(6)) : null })}
+                  decimals={2}
+                  placeholder="np. 10000"
+                  data-testid="calc-balance"
+                />
+                <CurrencyInput className="w-[60px] shrink-0" value={cc.wanted} onChange={(calcCurrency) => setRisk({ calcCurrency })} aria-label="Waluta kalkulatora" data-testid="calc-currency" />
               </div>
             </Field>
             <Field label="Ryzyko %">
@@ -109,11 +129,11 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
             {sameCurrency ? (
               <Field label="Kurs" hint="waluta kwotowana = waluta konta, kurs 1">
                 <span className="num text-muted">
-                  1 {quote} = 1 {account}
+                  1 {quote} = 1 {cur}
                 </span>
               </Field>
             ) : (
-              <RateField from={quote} to={account} settings={settings} noneHint={`ile ${account} kosztuje 1 ${quote} – wpisz ręcznie (zapamiętywany)`} testId="calc-rate" />
+              <RateField from={quote} to={cur} settings={settings} noneHint={`ile ${cur} kosztuje 1 ${quote} – wpisz ręcznie (zapamiętywany)`} testId="calc-rate" />
             )}
           </div>
         </Panel>
@@ -129,16 +149,16 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                 <span className="num ml-auto text-[12px] text-dim">dokładnie {result.lotsExact.toFixed(4)}</span>
               </div>
               <div className="grid grid-cols-2 border border-line">
-                <Cell label="Ryzyko docelowe" value={`${result.riskAmount.toFixed(2)} ${account}`} />
-                <Cell label="Ryzyko po zaokrągleniu" value={`${result.actualRiskAmount.toFixed(2)} ${account} (${result.actualRiskPercent.toFixed(2)}%)`} />
+                <Cell label="Ryzyko docelowe" value={`${result.riskAmount.toFixed(2)} ${cur}`} />
+                <Cell label="Ryzyko po zaokrągleniu" value={`${result.actualRiskAmount.toFixed(2)} ${cur} (${result.actualRiskPercent.toFixed(2)}%)`} />
                 <Cell
                   label="Wartość pipsa / 1 lot"
-                  value={`${result.pipValuePerLot.toFixed(2)} ${account}`}
-                  sub={sameCurrency ? undefined : <span data-testid="calc-pip-value-source">{`${Number(pipInQuote.toFixed(6))} ${quote} × ${rate} (${rateSource})`}</span>}
+                  value={`${result.pipValuePerLot.toFixed(2)} ${cur}`}
+                  sub={sameCurrency ? undefined : <span data-testid="calc-pip-value-source">{`kurs ${quote}/${cur} ${rate} (${rateSource})`}</span>}
                   testId="calc-pip-value"
                 />
-                <Cell label="Wartość pipsa / pozycja" value={`${(result.pipValuePerLot * result.lots).toFixed(2)} ${account}`} />
-                <Cell label="Zysk przy TP" value={tp ? `${tp.profit.toFixed(2)} ${account}` : '—'} valueClassName={tp && tp.profit > 0 ? 'text-up' : undefined} testId="calc-tp-profit" />
+                <Cell label="Wartość pipsa / pozycja" value={`${(result.pipValuePerLot * result.lots).toFixed(2)} ${cur}`} />
+                <Cell label="Zysk przy TP" value={tp ? `${tp.profit.toFixed(2)} ${cur}` : '—'} valueClassName={tp && tp.profit > 0 ? 'text-up' : undefined} testId="calc-tp-profit" />
                 <Cell label="Zysk do ryzyka" value={tp ? `1 : ${tp.ratio.toFixed(2)}` : '—'} testId="calc-rr" />
               </div>
               <p className="text-[11.5px] text-muted">
@@ -152,7 +172,7 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
             </div>
           ) : (
             <div className="text-muted">
-              {balance == null ? 'Wpisz kapitał konta.' : rate == null ? `Wpisz kurs ${quote} → ${account}.` : 'Uzupełnij ryzyko i SL.'}
+              {balance == null ? 'Wpisz kapitał konta.' : rate == null ? `Wpisz kurs ${quote} → ${cur}.` : 'Uzupełnij ryzyko i SL.'}
             </div>
           )}
         </Panel>
@@ -203,7 +223,7 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                   </span>
                 )}
                 {settings.display.showMoney && limits.trades > 0 && balance != null && (
-                  <span className="text-dim">≈ {fmtMoney((limits.totalR * balance * (settings.risk.defaultRiskPercent / 100)), account)} przy ryzyku domyślnym</span>
+                  <span className="text-dim">≈ {fmtMoney(limits.totalR * balance * (settings.risk.defaultRiskPercent / 100), cur)} przy ryzyku domyślnym</span>
                 )}
               </div>
             )}

@@ -274,7 +274,7 @@ test('kursy NBP: pobieranie z lokalnego serwera, kurs w kalkulatorach, kurs ręc
   }
 })
 
-test('kalkulator pozycji w PLN: kapitał przeliczony po kursie NBP, wartość pipsa z tabeli; bez sieci ostatnia tabela', async () => {
+test('kalkulator w PLN: kwoty po kursie NBP (konto w USD), wartość pipsa z tabeli; bez sieci ostatnia tabela', async () => {
   test.setTimeout(120_000)
   const { createServer } = await import('node:http')
   let mode: 'ok' | 'error' = 'ok'
@@ -295,13 +295,13 @@ test('kalkulator pozycji w PLN: kapitał przeliczony po kursie NBP, wartość pi
     await page.getByTestId('calc-sl').fill('20')
     await expect(page.getByTestId('calc-lots')).toHaveText('0.50')
     await expect(page.getByTestId('calc-pip-value')).toContainText('38.88 PLN')
-    await expect(page.getByTestId('calc-pip-value-source')).toHaveText('10 USD × 3.8881 (NBP 2026-10-02)')
+    await expect(page.getByTestId('calc-pip-value-source')).toHaveText('kurs USD/PLN 3.8881 (NBP 2026-10-02)')
   }
   try {
     const page = first.page
     await expect(page.getByTestId('journal-table')).toBeVisible()
     await expect.poll(async () => (await journal()).settings.fx.nbp?.no ?? null, { timeout: 15_000 }).toBe('192/A/NBP/2026')
-    // A trade with a risk of 50 USD while the account is still in USD: 2R at TP1 = +100 USD.
+    // A trade with a risk of 50 USD (the account is in USD): 2R at TP1 = +100 USD.
     await page.keyboard.press('Control+n')
     await page.getByTestId('price-entry').fill('1.0850')
     await page.getByTestId('price-sl').fill('1.0835')
@@ -310,19 +310,32 @@ test('kalkulator pozycji w PLN: kapitał przeliczony po kursie NBP, wartość pi
     await page.keyboard.press('Control+Shift+4') // amounts visible
     await page.getByTestId('trade-risk-amount').fill('50')
     await expect(page.getByTestId('result-money')).toHaveText('+100.00 USD')
+    // The calculator works in PLN although the account is in USD; the capital is typed in PLN.
     await page.keyboard.press('Control+6')
-    await page.getByTestId('calc-balance').fill('10000')
+    await expect(page.getByTestId('calc-currency')).toHaveValue('PLN')
+    await page.getByTestId('calc-balance').fill('38881')
     await page.getByTestId('calc-balance').press('Tab')
-    // The account currency is changed right in the calculator; the balance follows at the NBP rate.
-    await expect(page.getByTestId('calc-currency')).toHaveValue('USD')
-    await page.getByTestId('calc-currency').fill('PLN')
-    await page.getByTestId('calc-currency').press('Tab')
-    await expect(page.getByText(/Kapitał przeliczony: 10\s000\.00 USD → 38\s881\.00 PLN \(kurs 3\.8881 NBP\)/)).toBeVisible()
-    await expect(page.getByTestId('calc-balance')).toHaveValue('38881.00')
+    await expect(page.getByTestId('calc-currency-hint')).toHaveText('waluta kalkulatora; konto w USD: 10\u00a0000.00 USD · kurs 3.8881 (NBP 2026-10-02)')
     await expectPlnResult(page)
+    // The P/L calculator and the partials are in PLN as well (EURUSD: 0.10 USD × 3.8881 per pip of 0.01 lota).
+    await page.getByTestId('pnl').getByRole('radio', { name: 'EURUSD', exact: true }).click()
+    await page.getByTestId('pnl-lots').fill('0.5')
+    await page.getByTestId('pnl-pips').fill('20')
+    await expect(page.getByTestId('pnl-amount')).toHaveText('+388.81 PLN')
+    await expect(page.getByTestId('pnl-pip-value')).toHaveValue('0.38881')
+    await page.getByTestId('part-lots').fill('1')
+    await page.getByTestId('part-sl').fill('20')
+    await page.getByTestId('part-now').fill('30')
+    await expect(page.getByTestId('part-close-now')).toHaveText('+1166.43 PLN')
     await page.screenshot({ path: join('test-results', 'screens', '48-kalkulator-pln.png') })
+    await expect.poll(async () => (await journal()).settings.risk).toMatchObject({ accountCurrency: 'USD', accountBalance: 10000, calcCurrency: 'PLN' })
+    // The account itself in PLN (settings): the balance follows at the NBP rate; the trade keeps its USD amounts.
+    await page.keyboard.press('Control+,')
+    await page.getByTestId('settings-tab-display').click()
+    await page.getByTestId('risk-currency').fill('PLN')
+    await page.getByTestId('risk-currency').press('Tab')
+    await expect(page.getByText(/Kapitał przeliczony: 10\s000\.00 USD → 38\s881\.00 PLN \(kurs 3\.8881 NBP\)/)).toBeVisible()
     await expect.poll(async () => (await journal()).settings.risk).toMatchObject({ accountCurrency: 'PLN', accountBalance: 38881, legacyAmountCurrency: 'USD' })
-    // The trade keeps its amounts in USD and shows them converted to the new account currency.
     await page.keyboard.press('Control+1')
     await page.getByTestId('journal-row').first().dblclick()
     await expect(page.getByTestId('result-money')).toHaveText('+100.00 USD ≈ +388.81 PLN')
