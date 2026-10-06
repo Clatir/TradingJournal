@@ -152,3 +152,38 @@ describe('partiale: szansa osiągnięcia celów, oczekiwany wynik i sugestia', (
     expect(never.expected.amount).toBeCloseTo(never.worst.amount, 9)
   })
 })
+
+describe('partiale: ile tracisz względem zamknięcia całości na ostatnim celu', () => {
+  const chance = (percent: number | null, targetPips: number, probability: number | null): PartialSpec => ({ mode: 'target', percent, targetPips, probability })
+
+  it('koszt partiali = całość na ostatnim celu − podział przy wszystkich celach; koszt każdej części', () => {
+    const p = plan(base([now(50), target(null, 60)]))
+    // Whole position at +60: 1 lot × 60 × 10 = 600 (3R); the split with the target reached: 450.
+    expect(p.final).toMatchObject({ pips: 60, amount: 600, r: 3, cost: 150, costR: 0.75, probability: 1, expected: 600 })
+    expect(p.final!.splitVsHold).toBeCloseTo(-150, 9)
+    expect(p.rows.map((r) => r.costVsFinal)).toEqual([150, 0])
+
+    const four = plan(base([target(25, 80), now(25), target(25, 40), target(null, 120)], { lots: 0.4 }))
+    expect(four.final!.amount).toBeCloseTo(480, 9)
+    expect(four.final!.cost).toBeCloseTo(480 - 270, 9)
+    expect(four.rows.map((r) => Number(r.costVsFinal.toFixed(6)))).toEqual([40, 90, 80, 0])
+    expect(four.rows.reduce((s, r) => s + r.costVsFinal, 0)).toBeCloseTo(four.final!.cost, 9)
+  })
+
+  it('z szansą ostatniego celu: oczekiwany wynik trzymania całości (reszta szansy = cała pozycja na SL)', () => {
+    // 50%: hold 0.5 × 600 + 0.5 × −200 = 200; split 0.5 × 50 + 0.5 × 450 = 250 → the split is 50 better.
+    const p = plan(base([now(50), chance(null, 60, 50)]))
+    expect(p.final!.expected).toBeCloseTo(200, 9)
+    expect(p.final!.expectedR).toBeCloseTo(1, 9)
+    expect(p.final!.splitVsHold).toBeCloseTo(50, 9)
+    // The chance of the final target is the corrected one (not likelier than a nearer target).
+    const capped = plan(base([chance(50, 40, 60), chance(null, 80, 90)]))
+    expect(capped.final!.probability).toBeCloseTo(0.6, 9)
+  })
+
+  it('bez celów (wszystko teraz) nie ma porównania', () => {
+    const p = plan(base([now(50), now(null)]))
+    expect(p.final).toBeNull()
+    expect(p.rows.map((r) => r.costVsFinal)).toEqual([0, 0])
+  })
+})

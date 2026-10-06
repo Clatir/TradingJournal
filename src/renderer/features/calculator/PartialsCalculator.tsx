@@ -255,35 +255,50 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                 {suggestionNote(plan) && <span className="text-[11.5px] text-muted">{suggestionNote(plan)}</span>}
               </div>
 
+              {plan.final && <FinalTarget final={plan.final} money={money} />}
+
               <table className="num w-full border-collapse text-[12px]" data-testid="part-rows">
                 <thead>
                   <tr className="text-[11px] text-muted">
                     <th className="border-b border-line py-1 text-left font-medium">Część</th>
-                    <th className="border-b border-line py-1 text-right font-medium">Loty</th>
-                    <th className="border-b border-line py-1 text-right font-medium">Zamknięcie</th>
-                    <th className="border-b border-line py-1 text-right font-medium">Szansa</th>
-                    <th className="border-b border-line py-1 text-right font-medium">Wynik części</th>
+                    <th className="border-b border-line py-1 pl-2 text-right font-medium">Loty</th>
+                    <th className="border-b border-line py-1 pl-2 text-right font-medium">Zamknięcie</th>
+                    <th className="border-b border-line py-1 pl-2 text-right font-medium">Szansa</th>
+                    <th className="border-b border-line py-1 pl-2 text-right font-medium">Wynik części</th>
+                    {plan.final && (
+                      <th className="border-b border-line py-1 pl-2 text-right font-medium whitespace-nowrap" title={`Ile ta część traci względem zamknięcia całości na ostatnim celu (${pipsText(plan.final.pips)}), gdy cena tam dojdzie`}>
+                        vs TP {pipsText(plan.final.pips).replace(' pips', '')}
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {plan.rows.map((row) => (
                     <tr key={row.n} data-testid={`part-row-${row.n}`}>
-                      <td className="border-b border-line/60 py-1 font-sans">
+                      <td className="border-b border-line/60 py-1 font-sans whitespace-nowrap">
                         {row.n} <span className="text-dim">({Number(row.percent.toFixed(2))}%)</span>
                       </td>
-                      <td className="border-b border-line/60 py-1 text-right">{row.lots.toFixed(lotDec)}</td>
-                      <td className="border-b border-line/60 py-1 text-right">{row.mode === 'now' ? `teraz ${pipsText(row.pips)}` : `cel ${pipsText(row.pips)}`}</td>
+                      <td className="border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap">{row.lots.toFixed(lotDec)}</td>
+                      <td className="border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap">{row.mode === 'now' ? `teraz ${pipsText(row.pips)}` : `cel ${pipsText(row.pips)}`}</td>
                       <td
-                        className={cx('border-b border-line/60 py-1 text-right', row.probabilityLowered && 'text-accent')}
+                        className={cx('border-b border-line/60 py-1 pl-2 text-right', row.probabilityLowered && 'text-accent')}
                         title={row.probabilityLowered ? 'Obniżona do szansy bliższego celu – cena musi przez niego przejść' : undefined}
                         data-testid={`part-row-${row.n}-chance`}
                       >
                         {row.mode === 'now' ? 'pewne' : chanceText(row.probability)}
                         {row.probabilityLowered ? '*' : ''}
                       </td>
-                      <td className={cx('border-b border-line/60 py-1 text-right whitespace-nowrap', valueClass(row.amount))}>
+                      <td className={cx('border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap', valueClass(row.amount))}>
                         {money(row.amount)} <span className="text-dim">{fmtR(row.r)}</span>
                       </td>
+                      {plan.final && (
+                        <td
+                          className={cx('border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap', row.costVsFinal < 0.005 ? 'text-muted' : valueClass(-row.costVsFinal))}
+                          data-testid={`part-row-${row.n}-cost`}
+                        >
+                          {row.costVsFinal < 0.005 ? '—' : money(-row.costVsFinal)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -327,6 +342,41 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
         </div>
       </div>
     </Panel>
+  )
+}
+
+/** The whole position held to the final target: what the partials give up there, and the expected results. */
+function FinalTarget({ final, money }: { final: NonNullable<Plan['final']>; money: (v: number) => string }) {
+  const abs = (v: number) => money(Math.abs(v)).replace(/^[+−-]/, '')
+  const rAbs = (v: number) => fmtR(Math.abs(v)).replace(/^[+−-]/, '')
+  const vs = Math.abs(final.splitVsHold) < 0.005 ? 'tyle samo' : final.splitVsHold > 0 ? `o ${abs(final.splitVsHold)} więcej` : `o ${abs(final.splitVsHold)} mniej`
+  return (
+    <div className="flex flex-col gap-1 border border-line px-2.5 py-2 text-[12px]" data-testid="part-final">
+      <span className="label">Całość na ostatnim celu ({pipsText(final.pips)})</span>
+      <span>
+        Gdyby cała pozycja doszła do {pipsText(final.pips)}:{' '}
+        <b className={cx('num font-medium', toneClass[tone(final.amount)])} data-testid="part-final-amount">
+          {money(final.amount)}
+        </b>{' '}
+        <span className="num text-muted">({fmtR(final.r)})</span>
+      </span>
+      <span data-testid="part-final-cost">
+        {final.cost < 0.005 ? (
+          'Partiale nic tu nie kosztują – cała pozycja zamyka się na ostatnim celu.'
+        ) : (
+          <>
+            Na partialach tracisz wtedy{' '}
+            <b className="num font-medium text-down">{abs(final.cost)}</b> <span className="num text-muted">({rAbs(final.costR)})</span> – tyle kosztuje
+            wcześniejsze zamknięcie części pozycji.
+          </>
+        )}
+      </span>
+      <span className="text-muted" data-testid="part-final-expected">
+        Przy szansie {chanceText(final.probability)} na {pipsText(final.pips)} trzymanie całości daje oczekiwany wynik{' '}
+        <span className={cx('num', toneClass[tone(final.expected)])}>{money(final.expected)}</span> ({fmtR(final.expectedR)}; bez celu cała pozycja na SL) –
+        podział oczekiwany daje {vs}.
+      </span>
+    </div>
   )
 }
 

@@ -37,8 +37,19 @@ test('partiale: zamknąć całość teraz czy podzielić (do 4 części), zysk /
     await expect(page.getByTestId('part-suggestion')).toContainText(
       'Bardziej opłacalny: podział na 2 partiale (50% teraz, 50% +60 pips) – oczekiwany wynik +450.00 USD, +2.25R, o 150.00 USD więcej niż zamknięcie całości teraz na +30 pips (+300.00 USD).'
     )
+    // Compared with closing the whole position at the final target (+60): what the partials give up.
+    await expect(page.getByTestId('part-final-amount')).toHaveText('+600.00 USD')
+    await expect(page.getByTestId('part-final-cost')).toHaveText(
+      'Na partialach tracisz wtedy 150.00 USD (0.75R) – tyle kosztuje wcześniejsze zamknięcie części pozycji.'
+    )
+    await expect(page.getByTestId('part-row-1-cost')).toHaveText(`${M}150.00 USD`)
+    await expect(page.getByTestId('part-row-2-cost')).toHaveText('—')
+    await expect(page.getByTestId('part-final-expected')).toContainText('trzymanie całości daje oczekiwany wynik +600.00 USD')
+    await expect(page.getByTestId('part-final-expected')).toContainText('podział oczekiwany daje o 150.00 USD mniej')
     await page.getByTestId('part-2-chance').fill('50')
     await page.getByTestId('part-2-chance').blur()
+    await expect(page.getByTestId('part-final-expected')).toContainText('Przy szansie 50% na +60 pips trzymanie całości daje oczekiwany wynik +200.00 USD')
+    await expect(page.getByTestId('part-final-expected')).toContainText('podział oczekiwany daje o 50.00 USD więcej')
     await expect(page.getByTestId('part-scenario-0-chance')).toHaveText('50%')
     await expect(page.getByTestId('part-scenario-1-chance')).toHaveText('50%')
     await expect(page.getByTestId('part-expected')).toHaveText('+250.00 USD')

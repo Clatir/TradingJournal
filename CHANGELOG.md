@@ -3,6 +3,15 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.2
+
+### Nowe
+- **Partiale – ile tracisz względem zamknięcia całości na ostatnim celu** (`Ctrl+6`, panel „Partiale”): ramka
+  „Całość na ostatnim celu” pokazuje wynik całej pozycji zamkniętej na najdalszym celu, ile kosztują partiale, gdy
+  cena tam dojdzie (kwota i R), oraz oczekiwany wynik trzymania całości przy szansie ostatniego celu (bez celu cała
+  pozycja na SL) w porównaniu z oczekiwanym wynikiem podziału. W tabeli części kolumna „vs TP” – strata każdej części
+  zamkniętej wcześniej.
+
 ## 1.4.1
 
 ### Nowe

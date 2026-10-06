@@ -131,7 +131,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     po pierwszym partialu w zysku. Scenariusze: osiągnięte 0…N celów (w kolejności odległości), reszta na SL/BE;
     `beatsNowAfter` = od którego celu podział daje co najmniej tyle, co zamknięcie teraz. Szansa celu (`probability`,
     domyślnie 100%; dalszy cel ≤ bliższy, inaczej obniżana i `probabilityLowered`) → szansa scenariusza = szansa
-    k-tego celu − szansa (k+1)-ego, `expected` = Σ szansa × wynik, `suggestion` split / now / equal (±0,005). Pola w sesji.
+    k-tego celu − szansa (k+1)-ego, `expected` = Σ szansa × wynik, `suggestion` split / now / equal (±0,005).
+    `final` = cała pozycja na najdalszym celu: `cost` (= całość tam − podział przy wszystkich celach = Σ `costVsFinal`
+    części), oczekiwany wynik trzymania całości (szansa ostatniego celu, reszta = cała pozycja na SL), `splitVsHold`. Pola w sesji.
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do

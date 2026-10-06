@@ -52,6 +52,8 @@ export interface PartialRow {
   probability: number
   /** The typed chance was lowered to the chance of a nearer target. */
   probabilityLowered: boolean
+  /** What closing this part before the final target gives up when the price reaches it (≥ 0 for parts closed earlier). */
+  costVsFinal: number
 }
 
 export interface PlanScenario {
@@ -84,6 +86,26 @@ export interface PartialPlan {
   expected: { amount: number; r: number; vsNow: number }
   /** The more profitable choice by the expected result (equal within half a cent). */
   suggestion: PartialSuggestion
+  /**
+   * The whole position held to the final (farthest) target instead of the split; null without targets. `cost` = what
+   * the partials give up when the price reaches it (full position there − split with every target reached).
+   * `expected` = chance of the final target × that result + the rest × the whole position at the stop.
+   */
+  final: FinalTargetComparison | null
+}
+
+export interface FinalTargetComparison {
+  pips: number
+  amount: number
+  r: number
+  cost: number
+  costR: number
+  /** Chance of the final target (after the correction for nearer targets). */
+  probability: number
+  expected: number
+  expectedR: number
+  /** Expected result of the split minus the expected result of holding everything to the final target. */
+  splitVsHold: number
 }
 
 export type PartialPlanOutcome = { ok: true; plan: PartialPlan } | { ok: false; error: string }
@@ -139,7 +161,7 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
     const pips = p.mode === 'now' ? i.nowPips : p.targetPips!
     const amount = amountOf(lots[k]!, pips)
     const typed = p.mode === 'now' ? 1 : (p.probability ?? 100) / 100
-    return { n: k + 1, mode: p.mode, percent: Number(((lots[k]! / i.lots) * 100).toFixed(4)), lots: lots[k]!, pips, amount, r: r(amount), probability: typed, probabilityLowered: false }
+    return { n: k + 1, mode: p.mode, percent: Number(((lots[k]! / i.lots) * 100).toFixed(4)), lots: lots[k]!, pips, amount, r: r(amount), probability: typed, probabilityLowered: false, costVsFinal: 0 }
   })
   const closedNow = rows.filter((row) => row.mode === 'now')
   const pending = rows.filter((row) => row.mode === 'target').sort((a, b) => a.pips - b.pips || a.n - b.n)
@@ -168,6 +190,26 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
     const next = reached < pending.length ? pending[reached]!.probability : 0
     scenarios.push({ reached, restPips, amount, r: r(amount), vsNow: amount - nowAmount, probability: Math.max(0, hit - next) })
   }
+  // The whole position held to the farthest target: what each earlier close gives up when the price gets there.
+  let final: FinalTargetComparison | null = null
+  if (pending.length) {
+    const last = pending.at(-1)!
+    for (const row of rows) row.costVsFinal = amountOf(row.lots, last.pips) - row.amount
+    const fullAmount = amountOf(i.lots, last.pips)
+    const cost = fullAmount - scenarios.at(-1)!.amount
+    const holdExpected = last.probability * fullAmount + (1 - last.probability) * -riskAmount
+    final = {
+      pips: last.pips,
+      amount: fullAmount,
+      r: r(fullAmount),
+      cost,
+      costR: r(cost),
+      probability: last.probability,
+      expected: holdExpected,
+      expectedR: r(holdExpected),
+      splitVsHold: 0
+    }
+  }
   const found = scenarios.find((s) => s.amount >= nowAmount - EPS)
   const expectedAmount = scenarios.reduce((sum, s) => sum + s.probability * s.amount, 0)
   const diff = expectedAmount - nowAmount
@@ -182,7 +224,8 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
       worst: scenarios[0]!,
       beatsNowAfter: found ? found.reached : null,
       expected: { amount: expectedAmount, r: r(expectedAmount), vsNow: diff },
-      suggestion: Math.abs(diff) < 0.005 ? 'equal' : diff > 0 ? 'split' : 'now'
+      suggestion: Math.abs(diff) < 0.005 ? 'equal' : diff > 0 ? 'split' : 'now',
+      final: final && { ...final, splitVsHold: expectedAmount - final.expected }
     }
   }
 }

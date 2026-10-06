@@ -199,3 +199,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 9. `Ctrl+6` → „Partiale”: 1 lot, SL 20, wynik teraz +30, połowa teraz i połowa na +60 – przy szansie 100% sugestia
    „Bardziej opłacalny: podział…” (oczekiwany +450 vs +300 teraz); szansa 50% → oczekiwany +250, sugestia „zamknięcie
    całości teraz”.
+10. Ten sam panel „Partiale”: ramka „Całość na ostatnim celu (+60 pips)” – cała pozycja tam +600, „Na partialach tracisz
+    wtedy 150.00 USD (0.75R)”, kolumna „vs TP” przy każdej części; przy szansie 50% trzymanie całości daje oczekiwany
+    +200, podział o 50 więcej.
