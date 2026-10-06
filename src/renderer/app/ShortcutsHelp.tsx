@@ -27,6 +27,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl 5', 'przegląd tygodnia'],
       ['Ctrl 6', 'kalkulator pozycji'],
       ['Ctrl 7', 'prognoza wypłat'],
+      ['Ctrl 8', 'trening (karty)'],
       ['Ctrl ,', 'ustawienia']
     ]
   },
@@ -46,6 +47,13 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl V', 'wklej screen do aktywnej fazy'],
       ['1 – 7', 'interwał ostatniego screena (W, D, H4…)'],
       ['Esc', 'wróć']
+    ]
+  },
+  {
+    title: 'Trening',
+    items: [
+      ['L / S / N', 'long / short / nie wchodzę (odkrywa wynik)'],
+      ['Enter / →', 'następna karta']
     ]
   },
   {

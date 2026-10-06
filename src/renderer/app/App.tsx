@@ -9,6 +9,7 @@ import { SyncPage } from '../features/sync/SyncPage'
 import { DayPlanPage, todayNy } from '../features/day/DayPlanPage'
 import { CalculatorPage } from '../features/calculator/CalculatorPage'
 import { ForecastPage } from '../features/forecast/ForecastPage'
+import { DrillPage } from '../features/drill/DrillPage'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { LibraryPage } from '../features/library/LibraryPage'
 import { WeekPage, currentWeek } from '../features/week/WeekPage'
@@ -18,7 +19,7 @@ import { newTrade } from '../features/trade/actions'
 import { duplicateCurrent } from '../features/duplicate'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconSync, IconWeek } from '../components/icons'
+import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconSync, IconTarget, IconWeek } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -79,6 +80,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '7') {
         e.preventDefault()
         navigate({ page: 'forecast' })
+      } else if (e.key === '8') {
+        e.preventDefault()
+        navigate({ page: 'drill' })
       } else if (e.key === ',') {
         e.preventDefault()
         navigate({ page: 'settings' })
@@ -140,6 +144,8 @@ function Page({ route }: { route: Route }) {
       return <CalculatorPage key={route.tradeId ?? 'calc'} tradeId={route.tradeId} />
     case 'forecast':
       return <ForecastPage id={route.id} />
+    case 'drill':
+      return <DrillPage />
     case 'settings':
       return <SettingsPage />
     case 'sync':
@@ -188,6 +194,9 @@ export function App() {
           </NavButton>
           <NavButton active={route.page === 'forecast'} onClick={() => navigate({ page: 'forecast' })} label="Prognoza" keys="Ctrl+7" testId="nav-forecast">
             <IconForecast size={17} />
+          </NavButton>
+          <NavButton active={route.page === 'drill'} onClick={() => navigate({ page: 'drill' })} label="Trening" keys="Ctrl+8" testId="nav-drill">
+            <IconTarget size={17} />
           </NavButton>
           <NavButton active={false} onClick={() => newTrade()} label="Nowa" keys="Ctrl+N" testId="nav-new">
             <IconPlus size={17} />

@@ -92,7 +92,8 @@ const STEPS: Record<FileKind, Record<number, Step>> = {
   days: { 0: withIdAndTimestamps },
   weeks: { 0: withIdAndTimestamps },
   library: { 0: (raw) => bumpOnly(withIdAndTimestamps(raw)) },
-  forecasts: { 0: withIdAndTimestamps }
+  forecasts: { 0: withIdAndTimestamps },
+  drills: { 0: withIdAndTimestamps }
 }
 
 export interface MigrationResult {

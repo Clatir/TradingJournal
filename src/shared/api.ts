@@ -70,6 +70,7 @@ export interface Snapshot {
   weeks: RecordEntry<RecordTypes['weeks']>[]
   library: RecordEntry<RecordTypes['library']>[]
   forecasts: RecordEntry<RecordTypes['forecasts']>[]
+  drills: RecordEntry<RecordTypes['drills']>[]
   problems: Problem[]
   conflicts: ConflictEntry[]
   status: FolderStatus

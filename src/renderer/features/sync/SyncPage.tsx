@@ -10,7 +10,7 @@ import { toast } from '../../store/ui'
 import { IconFolder, IconSync, IconTrash } from '../../components/icons'
 import { Badge, Panel, cx } from '../../components/ui'
 
-const KIND_LABEL: Record<string, string> = { trades: 'Transakcja', days: 'Plan dnia', weeks: 'Przegląd tygodnia', library: 'Biblioteka', forecasts: 'Scenariusz prognozy', journal: 'Ustawienia (journal.json)' }
+const KIND_LABEL: Record<string, string> = { trades: 'Transakcja', days: 'Plan dnia', weeks: 'Przegląd tygodnia', library: 'Biblioteka', forecasts: 'Scenariusz prognozy', drills: 'Trening', journal: 'Ustawienia (journal.json)' }
 const PROBLEM_LABEL: Record<string, string> = {
   corrupt: 'uszkodzony',
   invalid: 'zła struktura',

@@ -1,11 +1,13 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { expect, test, type Page } from '@playwright/test'
 import { tradeRelPath } from '../../src/shared/paths'
 import type { Trade } from '../../src/shared/schema'
 import { createDayPlan, createDefaultJournal, createTrade } from '../../src/shared/defaults'
 import { setPairField, startSession, stopSession } from '../../src/shared/calc/sessions'
 import { shiftTradingDay, tradingDateNy, weekdayNy } from '../../src/shared/calc/time'
+import { newId } from '../../src/shared/ids'
 import { launch } from './app'
 import { closedTrade, readDays, readTrades, seed } from './seed'
 
@@ -344,6 +346,106 @@ test('mapa godzin: dzień tygodnia × godzina wejścia NY, miary Σ R, win rate 
     await metric.getByRole('radio', { name: 'Błędy' }).click()
     await expect(map.getByTestId('heat-cell').nth(1)).toContainText('1')
     await expect(map.getByTestId('heat-cell').first()).toContainText('0')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+/** A 1×1 lossless WebP – enough for the image to load. */
+const WEBP_1X1 = Buffer.from('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==', 'base64')
+
+function screenAt(dataDir: string, phase: 'before' | 'after', files: string[]) {
+  const id = newId()
+  const path = `screens/2026/01/${id}_${phase}.webp`
+  files.push(join(dataDir, path), join(dataDir, path.replace('.webp', '.thumb.webp')))
+  return { id, path, thumbPath: path.replace('.webp', '.thumb.webp'), phase, timeframe: 'M15', caption: '', width: 160, height: 90, bytes: 44, createdAt: '2026-01-01T00:00:00.000Z', annotations: [] }
+}
+
+test('trening: screen „przed” bez wyniku, odpowiedź, odkrycie, podsumowanie i trafność w czasie', async () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
+  const files: string[] = []
+  const root = await fs.mkdtemp(join(tmpdir(), 'ictj-drill-'))
+  const dir = join(root, 'Dziennik')
+  const shots = () => [screenAt(dir, 'before', files), screenAt(dir, 'after', files)]
+  const trades = [
+    closedTrade(daysAgo(20), 2, { screens: shots() }), // long winner
+    closedTrade(daysAgo(21), -1, { screens: shots() }), // long loser
+    closedTrade(daysAgo(22), 2, {
+      direction: 'short',
+      screens: shots(),
+      prices: { entry: 1.08, stopLoss: 1.081, takeProfit1: 1.077, takeProfit2: null },
+      exits: [{ id: '01K6H3Z0W8Q4M2N5P7R9S1T3V5', time: `${daysAgo(22)}T15:00:00.000Z`, price: 1.078, percent: 100, note: '' }]
+    }),
+    closedTrade(daysAgo(2), 2, { screens: shots() }) // too fresh with the default "older than 7 days"
+  ]
+  const dataDir = await seed(trades, createDefaultJournal(), [], dir)
+  for (const f of files) {
+    await fs.mkdir(join(f, '..'), { recursive: true })
+    await fs.writeFile(f, WEBP_1X1)
+  }
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    await page.keyboard.press('Control+8')
+    await expect(page.getByTestId('drill-page')).toBeVisible()
+    await expect(page.getByTestId('drill-available')).toContainText('3')
+    await page.getByRole('radiogroup', { name: 'Wiek transakcji' }).getByRole('radio', { name: 'wszystkie' }).click()
+    await expect(page.getByTestId('drill-available')).toContainText('4')
+    await page.getByRole('radiogroup', { name: 'Wiek transakcji' }).getByRole('radio', { name: 'starsze niż 7 dni' }).click()
+    await page.getByTestId('drill-start').click()
+
+    const card = page.getByTestId('drill-card')
+    for (let i = 1; i <= 3; i++) {
+      await expect(page.getByTestId('drill-progress')).toHaveText(`Karta ${i} / 3`)
+      // Before the answer: only the "before" screen, no result.
+      await expect(card.getByRole('button', { name: /^po/ })).toHaveCount(0)
+      await expect(page.getByTestId('drill-result')).toHaveCount(0)
+      await expect(card.locator('img')).toBeVisible()
+      if (i === 1) {
+        await page.getByTestId('drill-sl').fill('10')
+        await page.getByTestId('drill-sl').blur()
+        await page.getByTestId('drill-answer-long').click()
+      } else {
+        await page.keyboard.press('l')
+      }
+      await expect(page.getByTestId('drill-reveal')).toBeVisible()
+      await expect(page.getByTestId('drill-result')).toHaveText(/R$/)
+      await expect(card.getByRole('button', { name: /^po/ })).toHaveCount(1)
+      if (i === 1) await expect(page.getByTestId('drill-score')).toContainText('SL ±0')
+      await page.keyboard.press('Enter')
+    }
+    // Long on everything: the long winner is right; the long loser and the short winner are wrong decisions.
+    await expect(page.getByTestId('drill-summary')).toBeVisible()
+    await expect(page.getByTestId('drill-summary-decision')).toHaveText('33%')
+    await expect(page.getByTestId('drill-summary-row')).toHaveCount(3)
+
+    await expect
+      .poll(async () => {
+        const names = await fs.readdir(join(dataDir, 'drills')).catch(() => [] as string[])
+        const json = names.filter((n) => n.endsWith('.json'))
+        if (json.length !== 1) return null
+        const s = JSON.parse(await fs.readFile(join(dataDir, 'drills', json[0]!), 'utf8'))
+        return { finished: !!s.finishedAt, answers: s.cards.map((c: { answer: string }) => c.answer), truths: s.cards.filter((c: { truth: unknown }) => c.truth).length }
+      })
+      .toEqual({ finished: true, answers: ['long', 'long', 'long'], truths: 3 })
+
+    await page.getByRole('button', { name: 'Zamknij' }).click()
+    const kpis = page.getByTestId('drill-kpis')
+    await expect(kpis).toContainText('3 transakcji')
+    await expect(kpis).toContainText('1 / 3') // decision
+    await expect(kpis).toContainText('2 / 3') // direction
+    await expect(page.getByTestId('drill-months').locator('.num').first()).toHaveText(/^\d{4}-\d{2}$/)
+    await expect(page.getByTestId('drill-sessions').getByRole('button')).toHaveCount(1)
+
+    // An abandoned session without answers is not written.
+    await page.getByTestId('drill-start').click()
+    await expect(page.getByTestId('drill-progress')).toHaveText('Karta 1 / 3')
+    await page.keyboard.press('Control+1')
+    await page.keyboard.press('Control+8')
+    await expect(page.getByTestId('drill-available')).toBeVisible()
+    await page.waitForTimeout(600)
+    expect((await fs.readdir(join(dataDir, 'drills'))).filter((n) => n.endsWith('.json'))).toHaveLength(1)
     expect(errors).toEqual([])
   } finally {
     await app.close()

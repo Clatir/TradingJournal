@@ -22,8 +22,8 @@ export function closedTrade(date: string, r: number, over: Partial<Trade> = {}):
 }
 
 /** A data folder (temporary) with the given journal, trades and day plans written as files. */
-export async function seed(trades: Trade[], journal: JournalFile = createDefaultJournal(), days: DayPlan[] = []): Promise<string> {
-  const root = join(await fs.mkdtemp(join(tmpdir(), 'ictj-seed-')), 'Dziennik')
+export async function seed(trades: Trade[], journal: JournalFile = createDefaultJournal(), days: DayPlan[] = [], dir?: string): Promise<string> {
+  const root = dir ?? join(await fs.mkdtemp(join(tmpdir(), 'ictj-seed-')), 'Dziennik')
   await DataStore.initialize(root, journal)
   for (const t of trades) {
     const rel = tradeRelPath(t)

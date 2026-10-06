@@ -75,6 +75,7 @@ export function CommandPalette() {
         }
       },
       { id: 'forecast', label: 'Prognoza wypłat', keys: 'Ctrl 7', run: () => navigate({ page: 'forecast' }) },
+      { id: 'drill', label: 'Trening: karty z dawnych transakcji', keys: 'Ctrl 8', run: () => navigate({ page: 'drill' }) },
       {
         id: 'forecast-new',
         label: 'Prognoza: nowy scenariusz',

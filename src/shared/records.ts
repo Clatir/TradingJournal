@@ -5,6 +5,7 @@ import { validateTrade } from './calc/validator'
 import { migrateRaw, SchemaTooNewError } from './migrations'
 import type { Collection, FileKind } from './paths'
 import { dayPlanSchema, type DayPlan } from './schema/day'
+import { drillSessionSchema, type DrillSession } from './schema/drill'
 import { forecastSchema, type Forecast } from './schema/forecast'
 import { journalSchema, type JournalFile, type Settings } from './schema/journal'
 import { libraryItemSchema, type LibraryItem } from './schema/library'
@@ -18,6 +19,7 @@ export interface RecordTypes {
   weeks: WeekReview
   library: LibraryItem
   forecasts: Forecast
+  drills: DrillSession
 }
 
 export type AnyRecord = RecordTypes[Collection]
@@ -28,7 +30,8 @@ export const SCHEMAS: { [K in FileKind]: z.ZodType<RecordTypes[K]> } = {
   days: dayPlanSchema as z.ZodType<DayPlan>,
   weeks: weekReviewSchema as z.ZodType<WeekReview>,
   library: libraryItemSchema as z.ZodType<LibraryItem>,
-  forecasts: forecastSchema as z.ZodType<Forecast>
+  forecasts: forecastSchema as z.ZodType<Forecast>,
+  drills: drillSessionSchema as z.ZodType<DrillSession>
 }
 
 export type ParseOutcome<K extends FileKind> =

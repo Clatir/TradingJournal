@@ -19,6 +19,8 @@ export function recordTitle(kind: HistoryKind, record: unknown): string {
       return `Biblioteka: ${s(r.title) || 'bez tytułu'}`
     case 'forecasts':
       return `Scenariusz prognozy: ${s(r.name) || 'bez nazwy'}`
+    case 'drills':
+      return `Trening ${s(r.startedAt).slice(0, 10)}`
     case 'journal':
       return 'Ustawienia i słowniki'
     default:

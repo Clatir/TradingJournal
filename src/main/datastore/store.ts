@@ -94,7 +94,8 @@ const emptyRecords = (): Record<Collection, Map<string, FileState>> => ({
   days: new Map(),
   weeks: new Map(),
   library: new Map(),
-  forecasts: new Map()
+  forecasts: new Map(),
+  drills: new Map()
 })
 
 function stamp(iso: string): string {
@@ -119,7 +120,8 @@ export class DataStore {
     days: new Map(),
     weeks: new Map(),
     library: new Map(),
-    forecasts: new Map()
+    forecasts: new Map(),
+    drills: new Map()
   }
   private prevMeta = ''
   private readonly mutex = new Mutex()
@@ -540,6 +542,7 @@ export class DataStore {
       weeks: list('weeks'),
       library: list('library'),
       forecasts: list('forecasts'),
+      drills: list('drills'),
       problems: views.problems,
       conflicts: views.conflicts,
       status: this.status()

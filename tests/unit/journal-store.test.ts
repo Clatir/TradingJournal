@@ -33,6 +33,7 @@ function load(trade: Trade, readOnly = false): void {
     weeks: [],
     library: [],
     forecasts: [],
+    drills: [],
     problems: [],
     conflicts: [],
     status: status(readOnly),
