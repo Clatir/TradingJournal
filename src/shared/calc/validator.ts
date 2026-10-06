@@ -49,12 +49,15 @@ export function validateTrade(trade: Trade, m: TradeMetrics, settings: Settings,
     rules.push({ id, label: RULE_LABELS[id], status, detail, affectsScore })
 
   if (r.maxStopPips.enabled) {
+    // A pair can have its own limit (commodities use another scale of pips).
+    const own = settings.pairs.find((p) => p.symbol === trade.pair)?.maxStopPips ?? null
+    const limit = own ?? r.maxStopPips.value
     if (m.riskPips == null) push('maxStopPips', 'na', 'brak ceny wejścia lub SL')
     else
       push(
         'maxStopPips',
-        m.riskPips <= r.maxStopPips.value + EPS ? 'pass' : 'fail',
-        `SL ${m.riskPips.toFixed(1)} p ${m.riskPips <= r.maxStopPips.value + EPS ? '≤' : '>'} ${r.maxStopPips.value} p`
+        m.riskPips <= limit + EPS ? 'pass' : 'fail',
+        `SL ${m.riskPips.toFixed(1)} p ${m.riskPips <= limit + EPS ? '≤' : '>'} ${limit} p${own != null ? ` (limit ${trade.pair})` : ''}`
       )
   }
 

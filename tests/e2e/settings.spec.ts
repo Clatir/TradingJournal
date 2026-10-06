@@ -19,7 +19,7 @@ test('ustawienia: wszystkie opcje przyjmują poprawne wartości i odrzucają nie
 
     // Pairs: lower case is normalised, duplicates and bad symbols are refused, JPY gets pip 0.01.
     await settingsTab(page, 'pairs')
-    const pairs = panel(page, 'Pary walutowe')
+    const pairs = panel(page, 'Pary i instrumenty dziennika')
     const addPair = async (sym: string, quote: string) => {
       await pairs.getByPlaceholder('np. GBPUSD', { exact: true }).fill(sym)
       await pairs.getByPlaceholder('USD', { exact: true }).fill(quote)

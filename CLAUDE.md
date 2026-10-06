@@ -115,6 +115,10 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - BE: |R| ≤ 0.1 (edytowalne) – poza win rate, ale w expectancy/PF/equity. BE nie przerywa serii.
 - Missed trades: wynik hipotetyczny (TP1/TP2/SL/nic), poza statystykami wyniku.
 - Pozycja: loty = kapitał × % / (SL pips × contractSize × pipSize × kurs kwotowana→konto), w dół do kroku lota.
+- Skala pary (1.4.5, `src/shared/pairs.ts`): `pair.contractSize` (jednostek w locie; brak = instrument o tym samym id,
+  potem `risk.contractSize`) dla kalkulatora pozycji i wyniku z lotów (`lotValueFor`); `pair.maxStopPips` = własny
+  limit zasady SL (brak = `rules.maxStopPips.value`). Ropa (`isOilSymbol`: WTI, OIL, USOIL, XTI, BRENT, UKOIL…):
+  `pairPreset` → pips 0.01, 2 miejsca, 1 lot = 1000 baryłek, USD; `oilScaleMismatch` → przycisk „Ustaw jak ropa”.
 - Zysk/strata (`calc/pnl.ts`, panel `features/calculator/PnlCalculator.tsx`):
   P/L = pipsy × wartość pipsa najmniejszego lota × loty / najmniejszy lot.
   - Presety AUDUSD/EURGBP/EURUSD/EURAUD: pips 0.0001, lot = `risk.contractSize`, przez kurs waluty kwotowanej.

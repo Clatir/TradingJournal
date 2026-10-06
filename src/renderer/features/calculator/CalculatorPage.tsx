@@ -1,3 +1,4 @@
+import { pairContractSize } from '@shared/pairs'
 import { useState } from 'react'
 import { create } from 'zustand'
 import { lotDecimals, positionSize, takeProfitResult } from '@shared/calc/position'
@@ -60,7 +61,7 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
           riskPercent,
           stopPips,
           pipSize: pairCfg?.pipSize ?? 0.0001,
-          contractSize: settings.risk.contractSize,
+          contractSize: pairContractSize(pair, settings),
           quoteToAccountRate: rate,
           lotStep: settings.risk.lotStep
         })
@@ -162,7 +163,8 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                 <Cell label="Zysk do ryzyka" value={tp ? `1 : ${tp.ratio.toFixed(2)}` : '—'} testId="calc-rr" />
               </div>
               <p className="text-[11.5px] text-muted">
-                Loty zaokrąglane w dół do kroku {settings.risk.lotStep}, więc ryzyko nigdy nie przekracza zadanego. Lot = {settings.risk.contractSize.toLocaleString('pl-PL')} jednostek.
+                Loty zaokrąglane w dół do kroku {settings.risk.lotStep}, więc ryzyko nigdy nie przekracza zadanego. Lot {pair} = {pairContractSize(pair, settings).toLocaleString('pl-PL')} jednostek
+                {pairCfg?.contractSize ? ' (ustawienie pary)' : ''}.
               </p>
               {tradeId && (
                 <button className="btn btn-accent self-start" onClick={apply} data-testid="calc-apply">

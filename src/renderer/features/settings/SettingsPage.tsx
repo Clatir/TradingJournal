@@ -15,6 +15,8 @@ import { FxPanel } from './FxPanel'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
 import { CurrencyInput, Field, NameInput, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 import { CustomFieldsPanel } from './CustomFieldsPanel'
+import { oilScaleMismatch, pairPreset } from '@shared/pairs'
+import { shownDecimals } from '@shared/calc/position'
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'folder', label: 'Folder danych' },
@@ -239,45 +241,98 @@ function PairsTab({ journal }: { journal: JournalFile }) {
     const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (!/^[A-Z0-9]{3,12}$/.test(sym)) return toast('Symbol: 3–12 wielkich liter/cyfr, np. GBPUSD.', 'error')
     if (journal.settings.pairs.some((p) => p.symbol === sym)) return toast('Ta para już jest na liście.', 'error')
-    const q = /^[A-Z]{3}$/.test(quote) ? quote : sym.slice(-3)
-    const jpy = q === 'JPY'
+    const preset = pairPreset(sym, /^[A-Z]{3}$/.test(quote) ? quote : null)
     setSettings((s) => ({
       ...s,
-      pairs: [...s.pairs, { symbol: sym, pipSize: jpy ? 0.01 : 0.0001, priceDecimals: jpy ? 3 : 5, quoteCurrency: q, tvSymbol: `FX:${sym}`, archived: false }]
+      pairs: [
+        ...s.pairs,
+        {
+          symbol: sym,
+          pipSize: preset.pipSize,
+          priceDecimals: preset.priceDecimals,
+          quoteCurrency: preset.quoteCurrency,
+          tvSymbol: preset.tvSymbol,
+          archived: false,
+          contractSize: preset.contractSize
+        }
+      ]
     }))
+    if (preset.note) toast(`${sym}: ${preset.note}. Limit SL ustaw w kolumnie „Maks. SL”.`, 'info', 6000)
     setSymbol('')
   }
+  const cols = 'grid-cols-[90px_90px_56px_70px_96px_80px_minmax(0,1fr)_96px]'
+  const globalSl = journal.settings.rules.maxStopPips.value
+  const globalLot = journal.settings.risk.contractSize
   return (
-    <Panel title="Pary walutowe">
-      <Row className="grid-cols-[100px_100px_80px_80px_1fr_110px] text-[10.5px] tracking-wide text-muted uppercase">
+    <Panel title="Pary i instrumenty dziennika">
+      <Row className={cx(cols, 'text-[10.5px] tracking-wide text-muted uppercase')}>
         <span>Symbol</span>
-        <span>Wielkość pipsa</span>
-        <span>Miejsca</span>
-        <span>Kwotowana</span>
+        <span title="Ile wynosi 1 pips w cenie: forex 0.0001, JPY 0.01, ropa 0.01">Wielkość pipsa</span>
+        <span title="Miejsca po przecinku w cenie">Miejsca</span>
+        <span title="Waluta kwotowana (wynik w pipsach jest w tej walucie)">Waluta</span>
+        <span title={`Jednostek w 1 locie (ropa: 1000 baryłek); puste = ${globalLot.toLocaleString('pl-PL')} z ustawień ryzyka`}>1 lot (jedn.)</span>
+        <span title={`Limit zasady „SL nie większy niż próg” w pipsach tej pary; puste = ${globalSl} p z zakładki Zasady`}>Maks. SL (p)</span>
         <span>Symbol TradingView</span>
         <span />
       </Row>
       {journal.settings.pairs.map((p) => (
-        <Row key={p.symbol} className={cx('grid-cols-[100px_100px_80px_80px_1fr_110px]', p.archived && 'opacity-50')}>
-          <span className="num text-fg-strong" title={used.has(p.symbol) ? 'Para użyta w transakcjach – symbolu nie można zmienić' : ''}>
-            {p.symbol}
-          </span>
-          <NumberField value={p.pipSize} onChange={(v) => v && v > 0 && setPair(p.symbol, { pipSize: v })} decimals={undefined} />
-          <NumberField value={p.priceDecimals} onChange={(v) => v != null && v >= 0 && v <= 8 && setPair(p.symbol, { priceDecimals: Math.round(v) })} decimals={0} />
-          <CurrencyInput value={p.quoteCurrency} onChange={(quoteCurrency) => setPair(p.symbol, { quoteCurrency })} />
-          <TextField mono value={p.tvSymbol} onChange={(v) => setPair(p.symbol, { tvSymbol: v.trim() })} />
-          <button className="btn h-[22px]" onClick={() => setPair(p.symbol, { archived: !p.archived })}>
-            {p.archived ? 'Przywróć' : 'Ukryj'}
-          </button>
-        </Row>
+        <div key={p.symbol} data-testid={`pair-${p.symbol}`}>
+          <Row className={cx(cols, p.archived && 'opacity-50')}>
+            <span className="num text-fg-strong" title={used.has(p.symbol) ? 'Para użyta w transakcjach – symbolu nie można zmienić' : ''}>
+              {p.symbol}
+            </span>
+            <NumberField value={p.pipSize} onChange={(v) => v && v > 0 && setPair(p.symbol, { pipSize: v })} decimals={undefined} aria-label={`Wielkość pipsa ${p.symbol}`} />
+            <NumberField value={p.priceDecimals} onChange={(v) => v != null && v >= 0 && v <= 8 && setPair(p.symbol, { priceDecimals: Math.round(v) })} decimals={0} />
+            <CurrencyInput value={p.quoteCurrency} onChange={(quoteCurrency) => setPair(p.symbol, { quoteCurrency })} />
+            <NumberField
+              value={p.contractSize ?? null}
+              placeholder={globalLot.toLocaleString('pl-PL')}
+              onChange={(v) => setPair(p.symbol, { contractSize: v != null && v > 0 ? v : null })}
+              isValid={(v) => v == null || v > 0}
+              aria-label={`Jednostek w 1 locie ${p.symbol}`}
+              data-testid={`pair-${p.symbol}-lot`}
+            />
+            <NumberField
+              value={p.maxStopPips ?? null}
+              placeholder={String(globalSl)}
+              onChange={(v) => setPair(p.symbol, { maxStopPips: v != null && v > 0 ? v : null })}
+              isValid={(v) => v == null || v > 0}
+              decimals={p.maxStopPips != null ? shownDecimals(p.maxStopPips, 0) : undefined}
+              aria-label={`Maksymalny SL w pipsach ${p.symbol}`}
+              data-testid={`pair-${p.symbol}-maxsl`}
+            />
+            <TextField mono value={p.tvSymbol} onChange={(v) => setPair(p.symbol, { tvSymbol: v.trim() })} />
+            <button className="btn h-[22px]" onClick={() => setPair(p.symbol, { archived: !p.archived })}>
+              {p.archived ? 'Przywróć' : 'Ukryj'}
+            </button>
+          </Row>
+          {oilScaleMismatch(p, journal.settings) && (
+            <div className="flex items-center gap-2 pb-1.5 pl-[90px] text-[11.5px] text-accent" data-testid={`pair-${p.symbol}-oil`}>
+              <span>
+                To ropa: zwykle 1 pips = 0.01 USD i 1 lot = 1000 baryłek (teraz pips {p.pipSize}, lot {(p.contractSize ?? globalLot).toLocaleString('pl-PL')}). Pipsy
+                transakcji przeliczą się same.
+              </span>
+              <button
+                className="btn h-[22px]"
+                onClick={() => setPair(p.symbol, { pipSize: 0.01, priceDecimals: 2, contractSize: 1000, quoteCurrency: 'USD' })}
+                data-testid={`pair-${p.symbol}-oil-fix`}
+              >
+                Ustaw jak ropa
+              </button>
+            </div>
+          )}
+        </div>
       ))}
       <div className="mt-2 flex items-center gap-2">
-        <TextField mono className="w-[110px]" value={symbol} onChange={(v) => setSymbol(v.toUpperCase())} placeholder="np. GBPUSD" />
+        <TextField mono className="w-[110px]" value={symbol} onChange={(v) => setSymbol(v.toUpperCase())} placeholder="np. GBPUSD" data-testid="pair-new-symbol" />
         <TextField mono className="w-[70px]" value={quote} onChange={(v) => setQuote(v.toUpperCase().slice(0, 3))} placeholder="USD" />
-        <button className="btn" onClick={add}>
+        <button className="btn" onClick={add} data-testid="pair-add">
           <IconPlus size={13} /> Dodaj parę
         </button>
-        <span className="text-[11px] text-muted">Pary z JPY dostają pips 0.01. Ukryte pary znikają z wyboru, historia zostaje.</span>
+        <span className="text-[11px] text-muted">
+          JPY: pips 0.01. Ropa (WTI, OIL, USOIL, XTI, BRENT, UKOIL): pips 0.01, 1 lot = 1000 baryłek. Inne towary i indeksy – wpisz pips i lot brokera. Ukryte
+          pary znikają z wyboru, historia zostaje.
+        </span>
       </div>
     </Panel>
   )
@@ -379,7 +434,7 @@ function RulesTab({ settings }: { settings: Settings }) {
           <NumberField className="w-[80px]" value={r.maxStopPips.value} onChange={(v) => v && v > 0 && setRules({ maxStopPips: { ...r.maxStopPips, value: v } })} decimals={1} step={1} />
           <span className="text-muted">pips</span>
         </div>,
-        'SL większy niż próg = złamana zasada'
+        'SL większy niż próg = złamana zasada; para może mieć własny limit (Ustawienia → Pary, „Maks. SL”), np. ropa'
       )}
       {row(
         r.minRiskReward.enabled,

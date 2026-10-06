@@ -8,7 +8,11 @@ export const pairConfigSchema = z.looseObject({
   priceDecimals: z.number().int().min(0).max(8).default(5),
   quoteCurrency: z.string().regex(/^[A-Z]{3}$/),
   tvSymbol: z.string().default(''),
-  archived: z.boolean().default(false)
+  archived: z.boolean().default(false),
+  /** Units in 1.00 lot for this pair (e.g. 1000 barrels of WTI); null = risk.contractSize (since 1.4.5). */
+  contractSize: z.number().positive().nullable().optional(),
+  /** Own limit of the "SL ≤ threshold" rule in this pair's pips; null = rules.maxStopPips.value (since 1.4.5). */
+  maxStopPips: z.number().positive().nullable().optional()
 })
 export type PairConfig = z.infer<typeof pairConfigSchema>
 

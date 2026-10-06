@@ -113,5 +113,5 @@ export function lotValueFor(pair: string, settings: Pick<Settings, 'pairs' | 'in
   const inst = settings.instruments.find((i) => i.id === pair)
   const quoteCurrency = cfg?.quoteCurrency || inst?.quoteCurrency || null
   if (!quoteCurrency) return null
-  return { contractSize: inst?.contractSize ?? settings.risk.contractSize, quoteCurrency }
+  return { contractSize: cfg?.contractSize ?? inst?.contractSize ?? settings.risk.contractSize, quoteCurrency }
 }

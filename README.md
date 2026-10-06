@@ -206,3 +206,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     całość na +60 (+360); „Bez straty”: 40% teraz / 60% na +60 (+336, najgorszy 0); „Strata najwyżej 0.5 R”: 20% / 80%
     (+348). Przy każdym wyniku koszt względem całości na ostatnim celu (np. „Bez straty”: 120.00 USD, 0.60R).
     „Zastosuj ten podział” wpisuje go do kalkulatora.
+12. Ustawienia → Pary: dodaj „OILWTI” – pips 0.01, 2 miejsca, 1 lot = 1000; transakcja short 90.37 → 86.83 z SL 90.84
+    ma 354 pipsy wyniku i 47 pipsów SL. „Maks. SL (p)” = 60 → walidator „SL 47.0 p ≤ 60 p (limit OILWTI)”. Kalkulator
+    pozycji: 10 000 USD, 1%, SL 47 → 0.21 lota.

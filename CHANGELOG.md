@@ -3,6 +3,19 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.5
+
+### Poprawki
+- **Ropa i inne instrumenty spoza forex** (Ustawienia → Pary): pipsy, limit SL i loty liczone w skali instrumentu.
+  - Nowa para ropy (WTI, OIL, OILWTI, USOIL, XTI, BRENT, UKOIL) dostaje od razu: 1 pips = 0.01 USD, 2 miejsca po
+    przecinku, 1 lot = 1000 baryłek, symbol TradingView TVC:USOIL / TVC:UKOIL. Ruch 90.37 → 86.83 to 354 pipsy.
+  - Para ropy z inną skalą (np. pips jak na forex) jest oznaczona – przycisk „Ustaw jak ropa” poprawia ją jednym
+    kliknięciem, a pipsy wszystkich jej transakcji przeliczają się same (wynik w R się nie zmienia).
+  - Kolumna **„Maks. SL (p)”**: własny limit zasady „SL nie większy niż próg” dla pary (puste = ogólny z zakładki
+    Zasady). Walidator pokazuje, który limit zastosował („SL 47.0 p ≤ 60 p (limit OILWTI)”).
+  - Kolumna **„1 lot (jedn.)”**: liczba jednostek w locie dla pary (puste = wartość ogólna, 100 000). Używają jej
+    kalkulator pozycji i wynik transakcji z lotów – dla ropy loty nie są już 100× za małe.
+
 ## 1.4.4
 
 ### Nowe
