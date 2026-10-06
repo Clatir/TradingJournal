@@ -201,15 +201,18 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
   potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
 - Screen XTB „Szczegóły pozycji” → transakcja (1.4.6, edytor → „Ze screenu XTB”, `features/trade/XtbScreenImport.tsx`):
-  - renderer (`lib/ocr.ts`): powiększenie do 3× (max 4000 px), skala szarości, ciemny motyw odwracany, rozciągnięcie
-    kontrastu, progowanie (200, potem 170, 225 – kolejny przebieg tylko, gdy czegoś brakuje albo cenę poprawiono) → PNG;
+  - renderer (`lib/ocr.ts`): powiększenie (3× / 4×, max 4000 px), skala szarości, ciemny motyw odwracany, rozciągnięcie
+    kontrastu, progowanie → PNG; przebiegi 3×/200, 3×/170, 4×/200, 3×/225 – kolejny tylko, gdy czegoś brakuje albo cenę
+    odczytano bez kropki (`undotted`; wartość z kropką z innego przebiegu wygrywa w `mergeXtb`);
   - main (`main/ocr/`): IPC `ocrImage` → wątek z Tesseractem (PSM 11 = rozrzucony tekst), TSV; wątek kończy się po 60 s;
   - `shared/import/xtbScreen.ts`: etykiety (PL/EN, bez ogonków, literówki OCR, „…” = prefiks) → wartość pod etykietą w jej
     kolumnie (czasy: data + godzina w dwóch wierszach) albo obok w wierszu; cena bez kropki skalowana do pozostałych
-    (`fixed`); `mergeXtb` łączy przebiegi; `xtbWarnings` (kierunek a wynik, netto a brutto, SL po stronie zysku);
+    cen z kropką; `mergeXtb` łączy przebiegi; `xtbWarnings` (kierunek a wynik, netto a brutto, SL po stronie zysku);
     `screenValues` (czasy WAW → UTC, para przez `pairForSymbol`), `changedScreenFields`, `applyScreenValues`
     (wyjście = jedno 100%, wynik netto → `pnlAmountOverride` w walucie konta, `trade.broker` z `source: 'screen'`).
   - Screen nie jest zapisywany. `Ctrl+V` w oknie przechwytywane w fazie capture (nie trafia do panelu screenów).
+  - E2E używa stałego pliku `tests/fixtures/xtb-position.png` (syntetyczny panel): tekst rysowany canvasem jest
+    rasteryzowany inaczej na Windows i Linuksie, więc OCR obrazu narysowanego w teście daje różne wyniki.
 - Czas wyjścia/partiala: `ExitClockField` w NY i w WAW (`zone`), data od dnia wejścia w tej strefie, „+1” dla następnego dnia.
 - Import historii od brokera (Ustawienia → Eksport, import, kopie; `renderer/features/settings/BrokerImport.tsx`):
   - plik: main `import/broker.ts` (`pickBrokerFile`: XLSX → arkusze przez yauzl, reszta → bajty), renderer dekoduje

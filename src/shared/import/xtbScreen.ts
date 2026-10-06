@@ -267,8 +267,8 @@ export interface XtbPosition {
   takeProfit: number | null
   /** Texts found under each label (for the review). */
   raw: Partial<Record<XtbField, string>>
-  /** Prices read without the decimal point and scaled to match the other prices. */
-  fixed: PriceField[]
+  /** Prices read without the decimal point (scaled to match the other prices when they allow it): suspicious. */
+  undotted: PriceField[]
 }
 
 const PRICE_FIELDS = ['openPrice', 'closePrice', 'stopLoss', 'takeProfit'] as const
@@ -279,18 +279,18 @@ type PriceField = (typeof PRICE_FIELDS)[number]
  * each other, so a price that is 10^k times the ones read with a point is scaled back.
  */
 function repairPrices(p: XtbPosition): XtbPosition {
-  const dotted = PRICE_FIELDS.filter((f) => p[f] != null && /[.,]/.test(p.raw[f] ?? '')).map((f) => p[f]!)
-  if (!dotted.length) return p
+  const undotted = PRICE_FIELDS.filter((f) => p[f] != null && !/[.,]/.test(p.raw[f] ?? ''))
+  const dotted = PRICE_FIELDS.filter((f) => p[f] != null && !undotted.includes(f)).map((f) => p[f]!)
+  const out = { ...p, undotted }
+  if (!dotted.length) return out
   const ref = [...dotted].sort((a, b) => a - b)[Math.floor(dotted.length / 2)]!
-  const out = { ...p, fixed: [...p.fixed] }
-  for (const f of PRICE_FIELDS) {
-    const v = p[f]
-    if (v == null || /[.,]/.test(p.raw[f] ?? '') || (v / ref < 5 && v / ref > 0.2)) continue
+  for (const f of undotted) {
+    const v = p[f]!
+    if (v / ref < 5 && v / ref > 0.2) continue
     for (let k = 1; k <= 7; k++) {
       const scaled = Number((v / 10 ** k).toFixed(10))
       if (scaled / ref < 2 && scaled / ref > 0.5) {
         out[f] = scaled
-        out.fixed.push(f)
         break
       }
     }
@@ -334,7 +334,7 @@ export function parseXtbScreen(words: readonly OcrWord[]): XtbPosition | null {
     stopLoss: level('stopLoss'),
     takeProfit: level('takeProfit'),
     raw,
-    fixed: []
+    undotted: []
   })
 }
 
@@ -374,12 +374,15 @@ export function xtbMissing(p: XtbPosition | null): string[] {
 /** Two readings of one screenshot (different image preparation): the first one's values, gaps from the second. */
 export function mergeXtb(a: XtbPosition | null, b: XtbPosition | null): XtbPosition | null {
   if (!a || !b) return a ?? b
-  const out = { ...a, raw: { ...b.raw, ...a.raw }, fixed: a.fixed.filter((f) => !(b[f] != null && !b.fixed.includes(f))) } as XtbPosition
+  const out = { ...a, raw: { ...b.raw, ...a.raw }, undotted: [...a.undotted] } as XtbPosition
   for (const k of Object.keys(a) as Array<keyof XtbPosition>) {
-    if (k === 'raw' || k === 'fixed') continue
-    // A price scaled after a lost decimal point gives way to one read with the point.
-    const guessed = (a.fixed as string[]).includes(k) && b[k] != null && !(b.fixed as string[]).includes(k)
-    if (out[k] == null || guessed) (out as unknown as Record<string, unknown>)[k] = b[k]
+    if (k === 'raw' || k === 'undotted' || b[k] == null) continue
+    const price = (PRICE_FIELDS as readonly string[]).includes(k) ? (k as PriceField) : null
+    // A price read without its decimal point gives way to one read with the point.
+    const better = price != null && a.undotted.includes(price) && !b.undotted.includes(price)
+    if (out[k] != null && !better) continue
+    ;(out as unknown as Record<string, unknown>)[k] = b[k]
+    if (price) out.undotted = [...out.undotted.filter((f) => f !== price), ...(b.undotted.includes(price) ? [price] : [])]
   }
   return out
 }
@@ -398,7 +401,7 @@ export function xtbWarnings(p: XtbPosition): string[] {
     const net = p.gross + (p.commission ?? 0) + (p.swap ?? 0) + (p.rollover ?? 0)
     if (Math.abs(net - p.profit) > 0.015) out.push('Zysk/strata różni się od zysku brutto z kosztami – sprawdź odczytane kwoty.')
   }
-  if (p.fixed.length) out.push(`Bez kropki dziesiętnej odczytano: ${p.fixed.map((f) => FIELD_NAMES[f]).join(', ')} – poprawiono do skali pozostałych cen, sprawdź.`)
+  if (p.undotted.length) out.push(`Bez kropki dziesiętnej odczytano: ${p.undotted.map((f) => FIELD_NAMES[f]).join(', ')} – sprawdź (cena dopasowana do skali pozostałych).`)
   if (p.openTime && p.closeTime && p.closeTime < p.openTime) out.push('Czas zamknięcia jest wcześniejszy niż czas otwarcia.')
   if (p.direction && p.openPrice != null && p.stopLoss != null && (p.direction === 'long' ? p.stopLoss > p.openPrice : p.stopLoss < p.openPrice))
     out.push('Stop Loss jest po stronie zysku (przesunięty) – nie mówi o ryzyku wejścia.')

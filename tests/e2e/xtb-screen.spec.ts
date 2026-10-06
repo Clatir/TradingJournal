@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { createDefaultJournal } from '../../src/shared/defaults'
 import { launch } from './app'
 import { seed } from './seed'
@@ -23,64 +23,10 @@ async function jsonFiles(dir: string): Promise<string[]> {
 }
 
 /**
- * A stand-in for XTB's "Szczegóły pozycji" (dark theme, gray labels, values under them, times in two rows), drawn by
- * the app's own canvas so no screenshot of a real account is needed. Returns PNG bytes.
+ * A stand-in for XTB's "Szczegóły pozycji" (dark theme, gray labels, values under them, times in two rows), drawn
+ * synthetically – not a screenshot of a real account. A fixed file, so every system OCRs the same pixels.
  */
-async function drawXtbPanel(page: Page): Promise<Buffer> {
-  const b64 = await page.evaluate(async () => {
-    const W = 904
-    const H = 332
-    const c = new OffscreenCanvas(W, H)
-    const g = c.getContext('2d')!
-    g.fillStyle = '#1b1e24'
-    g.fillRect(0, 0, W, H)
-    g.fillStyle = '#e9ecf1'
-    g.font = '600 15px Inter, sans-serif'
-    g.fillText('Szczegóły pozycji', 21, 30)
-    g.font = '600 14px Inter, sans-serif'
-    g.fillText('EURUSD', 52, 62)
-    g.fillStyle = '#8b919c'
-    g.font = '11px Inter, sans-serif'
-    g.fillText('CFD', 110, 62)
-    g.fillText('Euro to American Dollar currency pair', 53, 82)
-    const cols = [21, 143, 265, 387]
-    const cell = (col: number, top: number, label: string, value: string, color = '#e9ecf1', second?: string) => {
-      g.fillStyle = '#8b919c'
-      g.font = '12px Inter, sans-serif'
-      g.fillText(label, cols[col]!, top)
-      g.fillStyle = color
-      g.font = '500 13px Inter, sans-serif'
-      g.fillText(value, cols[col]!, top + 18)
-      if (second) {
-        g.fillStyle = '#8b919c'
-        g.font = '12px Inter, sans-serif'
-        g.fillText(second, cols[col]!, top + 34)
-      }
-    }
-    cell(0, 116, 'Typ', 'Sell', '#f6465d')
-    cell(1, 116, 'Wolumen', '0.01')
-    cell(2, 116, 'Zysk/strata', '-7.06', '#f6465d')
-    cell(3, 116, 'Zysk brutto', '-7.06', '#f6465d')
-    cell(0, 184, 'Cena otwarcia', '1.12414')
-    cell(1, 184, 'Cena zamknięcia', '1.12595')
-    cell(2, 184, 'Czas otwarcia', '06.10.2026', '#e9ecf1', '09:58')
-    cell(3, 184, 'Czas zamknięcia', '06.10.2026', '#e9ecf1', '13:22')
-    cell(0, 252, 'Rolowanie', '0.00')
-    cell(1, 252, 'Depozyt zabezpiec...', '145.61')
-    cell(2, 252, 'Swap', '0.00')
-    cell(3, 252, 'Prowizja', '0.00')
-    cell(0, 304, 'Stop Loss', '1.12643')
-    cell(1, 304, 'Take Profit', '1.10843')
-    // The rest of XTB's window (a chart area), not part of the panel.
-    g.fillStyle = '#f4f5f7'
-    g.fillRect(520, 0, W - 520, H)
-    const bytes = new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer())
-    let s = ''
-    for (const x of bytes) s += String.fromCharCode(x)
-    return btoa(s)
-  })
-  return Buffer.from(b64, 'base64')
-}
+const XTB_PANEL = join(__dirname, '../fixtures/xtb-position.png')
 
 test('screen „Szczegóły pozycji” z XTB uzupełnia transakcję w edytorze (OCR offline, bez zapisu screena); czas wyjścia NY i WAW', async () => {
   const journal = createDefaultJournal()
@@ -94,9 +40,7 @@ test('screen „Szczegóły pozycji” z XTB uzupełnia transakcję w edytorze (
     await page.getByTestId('price-sl').fill('1.0835')
 
     await page.getByTestId('xtb-open').click()
-    const file = join(mkdtempSync(join(tmpdir(), 'ictj-xtb-')), 'xtb.png')
-    await fs.writeFile(file, await drawXtbPanel(page))
-    await page.getByTestId('xtb-file').setInputFiles(file)
+    await page.getByTestId('xtb-file').setInputFiles(XTB_PANEL)
     await expect(page.getByTestId('xtb-values')).toBeVisible({ timeout: 60_000 })
 
     await expect(page.getByTestId('xtb-direction')).toHaveValue('short')

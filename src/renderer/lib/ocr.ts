@@ -5,9 +5,17 @@
 import { mergeXtb, parseTesseractTsv, parseXtbScreen, xtbMissing, type XtbPosition } from '@shared/import/xtbScreen'
 import { api } from './api'
 
-/** Binarization thresholds of the passes (another pass only while a needed value is missing). */
-const THRESHOLDS = [200, 170, 225]
-/** Largest side of the prepared image; small screenshots are enlarged up to 3× (Tesseract likes ~30 px letters). */
+/**
+ * Passes: enlargement and binarization threshold. The next pass runs only while a needed value is missing or a price
+ * was read without its decimal point (small fonts, different text rendering).
+ */
+const PASSES = [
+  { scale: 3, threshold: 200 },
+  { scale: 3, threshold: 170 },
+  { scale: 4, threshold: 200 },
+  { scale: 3, threshold: 225 }
+]
+/** Largest side of the prepared image (Tesseract likes ~30 px letters; small screenshots are enlarged). */
 const MAX_SIDE = 4000
 
 interface Gray {
@@ -17,10 +25,10 @@ interface Gray {
 }
 
 /** Enlarged grayscale with dark text on white (a dark theme is inverted), contrast stretched. */
-async function grayscale(image: Blob): Promise<Gray> {
+async function grayscale(image: Blob, enlarge: number): Promise<Gray> {
   const bitmap = await createImageBitmap(image)
   try {
-    const scale = Math.max(1, Math.min(3, MAX_SIDE / Math.max(bitmap.width, bitmap.height)))
+    const scale = Math.max(1, Math.min(enlarge, MAX_SIDE / Math.max(bitmap.width, bitmap.height)))
     const width = Math.round(bitmap.width * scale)
     const height = Math.round(bitmap.height * scale)
     const canvas = new OffscreenCanvas(width, height)
@@ -77,14 +85,15 @@ async function binaryPng(gray: Gray, threshold: number): Promise<Uint8Array> {
 
 /** The position read from a screenshot (several passes merged); null when no position panel was found. */
 export async function readXtbScreenshot(image: Blob, onPass?: (pass: number, total: number) => void): Promise<XtbPosition | null> {
-  const gray = await grayscale(image)
+  const grays = new Map<number, Gray>()
   let result: XtbPosition | null = null
-  for (let i = 0; i < THRESHOLDS.length; i++) {
-    onPass?.(i + 1, THRESHOLDS.length)
-    const tsv = await api.ocrImage(await binaryPng(gray, THRESHOLDS[i]!))
+  for (let i = 0; i < PASSES.length; i++) {
+    const { scale, threshold } = PASSES[i]!
+    onPass?.(i + 1, PASSES.length)
+    if (!grays.has(scale)) grays.set(scale, await grayscale(image, scale))
+    const tsv = await api.ocrImage(await binaryPng(grays.get(scale)!, threshold))
     result = mergeXtb(result, parseXtbScreen(parseTesseractTsv(tsv)))
-    // Another pass also when a price was read without its decimal point.
-    if (xtbMissing(result).length === 0 && !result?.fixed.length) break
+    if (xtbMissing(result).length === 0 && !result?.undotted.length) break
   }
   return result
 }

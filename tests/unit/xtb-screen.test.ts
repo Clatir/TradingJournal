@@ -86,16 +86,24 @@ describe('screen XTB → pozycja', () => {
   it('cena bez kropki dziesiętnej wraca do skali pozostałych cen (z ostrzeżeniem); symbol sklejony z „CFD”', () => {
     const p = parseXtbScreen(xtbPanel({ openPrice: '112414', symbol: 'EURUSDcrD' }))!
     expect(p.openPrice).toBe(1.12414)
-    expect(p.fixed).toEqual(['openPrice'])
+    expect(p.undotted).toEqual(['openPrice'])
     expect(p.symbol).toBe('EURUSD')
-    expect(xtbWarnings(p)).toEqual(['Bez kropki dziesiętnej odczytano: cena otwarcia – poprawiono do skali pozostałych cen, sprawdź.'])
+    expect(xtbWarnings(p)).toEqual(['Bez kropki dziesiętnej odczytano: cena otwarcia – sprawdź (cena dopasowana do skali pozostałych).'])
     // Another pass that read it with the point wins.
     const merged = mergeXtb(p, parseXtbScreen(xtbPanel({ openPrice: '1.12415' })))!
     expect(merged.openPrice).toBe(1.12415)
-    expect(merged.fixed).toEqual([])
+    expect(merged.undotted).toEqual([])
     // Oil: 90.37 vs a lost point in "8683".
     const oil = parseXtbScreen(xtbPanel({ openPrice: '90.37', closePrice: '8683', sl: '90.84', tp: '86.83' }))!
     expect(oil.closePrice).toBe(86.83)
+    // No price with a point to compare with: kept, marked, and replaced by a pass that read the point.
+    const bare = parseXtbScreen(xtbPanel({ openPrice: '11244', closePrice: null, sl: null, tp: null }))!
+    expect(bare.openPrice).toBe(11244)
+    expect(bare.undotted).toEqual(['openPrice'])
+    const fixed = mergeXtb(bare, parseXtbScreen(xtbPanel({ closePrice: '112595', sl: '1.12643' })))!
+    expect(fixed.openPrice).toBe(1.12414)
+    expect(fixed.closePrice).toBe(1.12595)
+    expect(fixed.undotted).toEqual(['closePrice'])
   })
 
   it('brak rozpoznanej etykiety nie skleja wartości dwóch kolumn', () => {
