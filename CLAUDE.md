@@ -129,7 +129,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   - Partiale (`calc/partials.ts`, panel `features/calculator/PartialsCalculator.tsx`): zamknięcie całości teraz albo
     1–4 części („teraz” albo cel w pipsach, ostatnia bierze resztę %, loty w dół do kroku), opcjonalnie SL reszty na BE
     po pierwszym partialu w zysku. Scenariusze: osiągnięte 0…N celów (w kolejności odległości), reszta na SL/BE;
-    `beatsNowAfter` = od którego celu podział daje co najmniej tyle, co zamknięcie teraz. Pola w sesji.
+    `beatsNowAfter` = od którego celu podział daje co najmniej tyle, co zamknięcie teraz. Szansa celu (`probability`,
+    domyślnie 100%; dalszy cel ≤ bliższy, inaczej obniżana i `probabilityLowered`) → szansa scenariusza = szansa
+    k-tego celu − szansa (k+1)-ego, `expected` = Σ szansa × wynik, `suggestion` split / now / equal (±0,005). Pola w sesji.
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do

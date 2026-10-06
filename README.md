@@ -196,3 +196,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 7. `Ctrl+8` „Trening”: transakcje ze screenem „przed”, odpowiedz L / S / N, Enter – następna karta; trafność w czasie.
 8. Ustawienia → Słowniki → „Własne pola transakcji”: dodaj „Ocena setupu” (lista A+/A/B), ustaw w transakcji, w dzienniku
    „Kolumny” → pokaż pole, „Filtry” → wybierz A+, „Zapisane ▾” → zapisz filtr; Analityka → „Własne pole: Ocena setupu”.
+9. `Ctrl+6` → „Partiale”: 1 lot, SL 20, wynik teraz +30, połowa teraz i połowa na +60 – przy szansie 100% sugestia
+   „Bardziej opłacalny: podział…” (oczekiwany +450 vs +300 teraz); szansa 50% → oczekiwany +250, sugestia „zamknięcie
+   całości teraz”.

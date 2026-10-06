@@ -30,6 +30,24 @@ test('partiale: zamknąć całość teraz czy podzielić (do 4 części), zysk /
     await expect(page.getByTestId('part-verdict')).toHaveText(
       'Podział daje więcej niż zamknięcie teraz, jeśli cena dojdzie do celu +60 pips. Jeśli cena wróci przed pierwszym celem, wyjdziesz o 250.00 USD gorzej niż przy zamknięciu teraz.'
     )
+    // Chance of the targets (default 100%): expected result and the suggestion of the more profitable choice.
+    await expect(page.getByTestId('part-2-chance')).toHaveValue('100')
+    await expect(page.getByTestId('part-row-2-chance')).toHaveText('100%')
+    await expect(page.getByTestId('part-expected')).toHaveText('+450.00 USD')
+    await expect(page.getByTestId('part-suggestion')).toContainText(
+      'Bardziej opłacalny: podział na 2 partiale (50% teraz, 50% +60 pips) – oczekiwany wynik +450.00 USD, +2.25R, o 150.00 USD więcej niż zamknięcie całości teraz na +30 pips (+300.00 USD).'
+    )
+    await page.getByTestId('part-2-chance').fill('50')
+    await page.getByTestId('part-2-chance').blur()
+    await expect(page.getByTestId('part-scenario-0-chance')).toHaveText('50%')
+    await expect(page.getByTestId('part-scenario-1-chance')).toHaveText('50%')
+    await expect(page.getByTestId('part-expected')).toHaveText('+250.00 USD')
+    await expect(page.getByTestId('part-suggestion')).toContainText(
+      'Bardziej opłacalne: zamknięcie całości teraz na +30 pips (+300.00 USD) – podział na 2 partiale (50% teraz, 50% +60 pips) daje oczekiwany wynik +250.00 USD, +1.25R, o 50.00 USD mniej.'
+    )
+    await page.getByTestId('part-2-chance').fill('100')
+    await page.getByTestId('part-2-chance').blur()
+    await expect(page.getByTestId('part-expected')).toHaveText('+450.00 USD')
     // Stop of the rest at break-even after the first partial.
     await page.getByTestId('part-be').getByRole('switch').click()
     await expect(page.getByTestId('part-worst')).toHaveText('+150.00 USD')
@@ -43,6 +61,13 @@ test('partiale: zamknąć całość teraz czy podzielić (do 4 części), zysk /
     await expect(page.getByTestId('part-4-pct')).toHaveText('reszta 25%')
     await expect(page.getByTestId('part-rows').locator('tbody tr')).toHaveCount(4)
     await expect(page.getByTestId('part-scenarios').locator('tbody tr')).toHaveCount(4) // 0, 1, 2, 3 targets reached
+    // A farther target cannot be likelier than a nearer one: 3rd target (farther) typed 80%, the 2nd 60%.
+    await page.getByTestId('part-3-chance').fill('60')
+    await page.getByTestId('part-3-chance').blur()
+    await page.getByTestId('part-4-chance').fill('80')
+    await page.getByTestId('part-4-chance').blur()
+    await expect(page.getByTestId('part-row-4-chance')).toHaveText('60%*')
+    await expect(page.getByTestId('part-suggestion')).toContainText('Szansa części 4 obniżona do szansy bliższego celu')
     await page.screenshot({ path: join('test-results', 'screens', '48b-partiale.png'), fullPage: true })
     // A part switched to "Cel" gets a target field; a target not beyond now is refused with a message.
     await page.getByTestId('part-1').getByRole('radio', { name: 'Cel', exact: true }).click()

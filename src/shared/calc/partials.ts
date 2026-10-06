@@ -3,6 +3,8 @@
  * now (at the current result), the others at targets (pips from entry). For the split, every outcome is listed:
  * the price reaches 0, 1, … of the targets and then the rest closes at the stop (or at break-even).
  * Amounts: pips × value of one pip for the smallest lot × lots / smallest lot (as in the P/L calculator).
+ * Every target has a chance of being reached (default 100%); with them the split has an expected result, and the
+ * plan suggests the more profitable choice: the split or closing everything now.
  */
 import { lotDecimals } from './position'
 import { profitLoss } from './pnl'
@@ -16,6 +18,8 @@ export interface PartialSpec {
   percent: number | null
   /** Result in pips (from entry) where the part closes; only for 'target'. */
   targetPips: number | null
+  /** Chance (percent) that the price reaches the target; only for 'target'; null / missing = 100%. */
+  probability?: number | null
 }
 
 export interface PartialPlanInput {
@@ -43,6 +47,11 @@ export interface PartialRow {
   pips: number
   amount: number
   r: number
+  /** Chance (0–1) that this part closes where planned: 1 for parts closed now; for targets after the
+   * correction that a farther target cannot be likelier than a nearer one. */
+  probability: number
+  /** The typed chance was lowered to the chance of a nearer target. */
+  probabilityLowered: boolean
 }
 
 export interface PlanScenario {
@@ -54,7 +63,11 @@ export interface PlanScenario {
   r: number
   /** Difference to closing everything now. */
   vsNow: number
+  /** Chance (0–1) of exactly this outcome. */
+  probability: number
 }
+
+export type PartialSuggestion = 'split' | 'now' | 'equal'
 
 export interface PartialPlan {
   /** Loss of the whole position at the stop (positive amount, = 1R). */
@@ -67,6 +80,10 @@ export interface PartialPlan {
   worst: PlanScenario
   /** Fewest targets reached for which the plan gives at least as much as closing now; null = never. */
   beatsNowAfter: number | null
+  /** Expected result of the split: Σ chance × result of every outcome. */
+  expected: { amount: number; r: number; vsNow: number }
+  /** The more profitable choice by the expected result (equal within half a cent). */
+  suggestion: PartialSuggestion
 }
 
 export type PartialPlanOutcome = { ok: true; plan: PartialPlan } | { ok: false; error: string }
@@ -99,6 +116,9 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
     if (p.mode !== 'target') continue
     if (p.targetPips == null || !Number.isFinite(p.targetPips)) return { ok: false, error: `Wpisz cel części ${k + 1} w pipsach.` }
     if (p.targetPips <= i.nowPips) return { ok: false, error: `Cel części ${k + 1} (${p.targetPips} pips) nie jest dalej niż obecny wynik (${i.nowPips} pips) – wybierz „teraz”.` }
+    const chance = p.probability
+    if (chance != null && !(Number.isFinite(chance) && chance >= 0 && chance <= 100))
+      return { ok: false, error: `Szansa osiągnięcia celu części ${k + 1} musi być od 0 do 100%.` }
   }
 
   // Lots of each part: rounded down to the lot step; the last part takes exactly what is left.
@@ -118,10 +138,20 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
   const rows: PartialRow[] = i.parts.map((p, k) => {
     const pips = p.mode === 'now' ? i.nowPips : p.targetPips!
     const amount = amountOf(lots[k]!, pips)
-    return { n: k + 1, mode: p.mode, percent: Number(((lots[k]! / i.lots) * 100).toFixed(4)), lots: lots[k]!, pips, amount, r: r(amount) }
+    const typed = p.mode === 'now' ? 1 : (p.probability ?? 100) / 100
+    return { n: k + 1, mode: p.mode, percent: Number(((lots[k]! / i.lots) * 100).toFixed(4)), lots: lots[k]!, pips, amount, r: r(amount), probability: typed, probabilityLowered: false }
   })
   const closedNow = rows.filter((row) => row.mode === 'now')
-  const pending = rows.filter((row) => row.mode === 'target').sort((a, b) => a.pips - b.pips)
+  const pending = rows.filter((row) => row.mode === 'target').sort((a, b) => a.pips - b.pips || a.n - b.n)
+  // To reach a farther target the price passes the nearer ones: its chance is at most theirs.
+  let cap = 1
+  for (const row of pending) {
+    if (row.probability > cap + EPS) {
+      row.probability = cap
+      row.probabilityLowered = true
+    }
+    cap = row.probability
+  }
   const lockedNow = closedNow.reduce((s, row) => s + row.amount, 0)
 
   const scenarios: PlanScenario[] = []
@@ -133,9 +163,14 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
     pending.forEach((row, j) => {
       amount += j < reached ? row.amount : amountOf(row.lots, restPips!)
     })
-    scenarios.push({ reached, restPips, amount, r: r(amount), vsNow: amount - nowAmount })
+    // Exactly `reached` targets: the last reached one hit, the next one not.
+    const hit = reached === 0 ? 1 : pending[reached - 1]!.probability
+    const next = reached < pending.length ? pending[reached]!.probability : 0
+    scenarios.push({ reached, restPips, amount, r: r(amount), vsNow: amount - nowAmount, probability: Math.max(0, hit - next) })
   }
   const found = scenarios.find((s) => s.amount >= nowAmount - EPS)
+  const expectedAmount = scenarios.reduce((sum, s) => sum + s.probability * s.amount, 0)
+  const diff = expectedAmount - nowAmount
   return {
     ok: true,
     plan: {
@@ -145,7 +180,9 @@ export function partialPlan(i: PartialPlanInput): PartialPlanOutcome {
       scenarios,
       best: scenarios.at(-1)!,
       worst: scenarios[0]!,
-      beatsNowAfter: found ? found.reached : null
+      beatsNowAfter: found ? found.reached : null,
+      expected: { amount: expectedAmount, r: r(expectedAmount), vsNow: diff },
+      suggestion: Math.abs(diff) < 0.005 ? 'equal' : diff > 0 ? 'split' : 'now'
     }
   }
 }

@@ -99,3 +99,56 @@ describe('partiale: zamknąć całość teraz czy podzielić', () => {
     expect(err(base([now(10), now(10), now(10), now(10), now(null)]))).toBe('Od 1 do 4 części.')
   })
 })
+
+describe('partiale: szansa osiągnięcia celów, oczekiwany wynik i sugestia', () => {
+  const chance = (percent: number | null, targetPips: number, probability: number | null): PartialSpec => ({ mode: 'target', percent, targetPips, probability })
+
+  it('domyślnie 100%: oczekiwany wynik = wszystkie cele osiągnięte, sugestia podziału', () => {
+    const p = plan(base([now(50), target(null, 60)]))
+    expect(p.rows.map((r) => r.probability)).toEqual([1, 1])
+    expect(p.scenarios.map((s) => s.probability)).toEqual([0, 1])
+    expect(p.expected).toEqual({ amount: 450, r: 2.25, vsNow: 150 })
+    expect(p.suggestion).toBe('split')
+  })
+
+  it('szansa 50%: oczekiwany wynik = średnia ważona scenariuszy; poniżej progu opłaca się zamknąć teraz', () => {
+    // 50 / 50 between +50 (back to the stop) and +450: expected 250 < 300 now.
+    const half = plan(base([now(50), chance(null, 60, 50)]))
+    expect(half.scenarios.map((s) => [s.amount, s.probability])).toEqual([
+      [50, 0.5],
+      [450, 0.5]
+    ])
+    expect(half.expected.amount).toBeCloseTo(250, 9)
+    expect(half.expected.vsNow).toBeCloseTo(-50, 9)
+    expect(half.suggestion).toBe('now')
+    // Break-even: 150 or 450 → at 50% the expected 300 equals closing now; at 60% the split is better.
+    expect(plan(base([now(50), chance(null, 60, 50)], { breakevenAfterFirst: true })).suggestion).toBe('equal')
+    expect(plan(base([now(50), chance(null, 60, 60)], { breakevenAfterFirst: true })).suggestion).toBe('split')
+  })
+
+  it('kilka celów: szansa dokładnie k celów = szansa k-tego − szansa (k+1)-ego; dalszy cel nie bardziej prawdopodobny', () => {
+    // Parts given out of order; targets 40 (80%), 80 (50%), 120 (typed 70% → lowered to 50%).
+    const p = plan(base([chance(25, 80, 50), now(25), chance(25, 40, 80), chance(null, 120, 70)], { lots: 0.4 }))
+    expect(p.rows.map((r) => [r.pips, r.probability, r.probabilityLowered])).toEqual([
+      [80, 0.5, false],
+      [30, 1, false],
+      [40, 0.8, false],
+      [120, 0.5, true]
+    ])
+    const probs = p.scenarios.map((s) => Number(s.probability.toFixed(9)))
+    expect(probs).toEqual([0.2, 0.3, 0, 0.5])
+    expect(probs.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9)
+    // Amounts −30 / 30 / 130 / 270 (see the four-part case above).
+    expect(p.expected.amount).toBeCloseTo(0.2 * -30 + 0.3 * 30 + 0 * 130 + 0.5 * 270, 9)
+    expect(p.suggestion).toBe('split') // 138 > 120
+  })
+
+  it('wszystko teraz = tyle samo; szansa spoza 0–100% jest odrzucana', () => {
+    expect(plan(base([now(50), now(null)])).suggestion).toBe('equal')
+    const bad = partialPlan(base([now(50), chance(null, 60, 120)]))
+    expect(bad).toEqual({ ok: false, error: 'Szansa osiągnięcia celu części 2 musi być od 0 do 100%.' })
+    // 0%: the target is never reached – the split is the worst case.
+    const never = plan(base([now(50), chance(null, 60, 0)]))
+    expect(never.expected.amount).toBeCloseTo(never.worst.amount, 9)
+  })
+})

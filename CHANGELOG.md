@@ -3,6 +3,15 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.1
+
+### Nowe
+- **Partiale – sugestia bardziej opłacalnego wariantu** (`Ctrl+6`, panel „Partiale”): przy każdym celu pole „szansa”
+  (prawdopodobieństwo, że cena do niego dojdzie, domyślnie 100%). Kalkulator liczy szansę każdego scenariusza i
+  oczekiwany wynik podziału (średnia wyników ważona szansą) i wskazuje, co jest bardziej opłacalne: podział na podane
+  partiale czy zamknięcie całości teraz – z różnicą w kwocie. Dalszy cel nie może mieć większej szansy niż bliższy
+  (cena musi przez niego przejść) – taka szansa jest obniżana i oznaczona `*`.
+
 ## 1.4.0
 
 ### Nowe

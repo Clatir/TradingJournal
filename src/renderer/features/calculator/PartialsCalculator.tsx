@@ -26,7 +26,7 @@ const usePartials = create<PartialsInputs>(() => ({
   breakeven: false,
   parts: [
     { mode: 'now', percent: 50, targetPips: null },
-    { mode: 'target', percent: null, targetPips: 60 }
+    { mode: 'target', percent: null, targetPips: 60, probability: 100 }
   ]
 }))
 const set = (patch: Partial<PartialsInputs>) => usePartials.setState(patch)
@@ -37,7 +37,8 @@ const pipsText = (p: number) => `${p > 0 ? '+' : p < 0 ? '−' : ''}${Math.abs(p
 
 /**
  * "Partiale": close the whole open position now, or split it into up to 4 parts (now or at targets). Shows the
- * result of every choice: closing now, each part, and every outcome of the split (0, 1, … targets reached).
+ * result of every choice: closing now, each part, and every outcome of the split (0, 1, … targets reached) with its
+ * chance; the expected result of the split decides which choice is suggested.
  */
 export function PartialsCalculator({ settings, from }: { settings: Settings; from?: { key: string; instrument: string | null; lots: number | null; stopPips: number | null } }) {
   const { instrument: selectedId, lots, stopPips, nowPips, breakeven, parts } = usePartials()
@@ -79,7 +80,7 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
       const share = Math.floor(100 / (s.parts.length + 1))
       const prev = s.parts.map((p) => ({ ...p, percent: share }))
       const lastTarget = Math.max(s.nowPips ?? 0, ...s.parts.map((p) => p.targetPips ?? -Infinity))
-      return { parts: [...prev, { mode: 'target', percent: null, targetPips: Math.round(lastTarget + (s.stopPips ?? 20)) }] }
+      return { parts: [...prev, { mode: 'target', percent: null, targetPips: Math.round(lastTarget + (s.stopPips ?? 20)), probability: 100 }] }
     })
   const removePart = (k: number) => usePartials.setState((s) => (s.parts.length <= 1 ? s : { parts: s.parts.filter((_, i) => i !== k) }))
 
@@ -125,19 +126,25 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
               const last = k === parts.length - 1
               return (
                 <div key={k} className="flex flex-wrap items-center gap-2" data-testid={`part-${k + 1}`}>
-                  <span className="w-[52px] text-[11.5px] text-muted">Część {k + 1}</span>
+                  <span className="w-[46px] text-[11.5px] text-muted">Część {k + 1}</span>
                   <Segmented
                     value={p.mode}
                     options={[
                       { value: 'now', label: 'Teraz' },
                       { value: 'target', label: 'Cel' }
                     ]}
-                    onChange={(mode) => setPart(k, { mode, targetPips: mode === 'target' ? (p.targetPips ?? Math.round((nowPips ?? 0) + (stopPips ?? 20))) : p.targetPips })}
+                    onChange={(mode) =>
+                      setPart(k, {
+                        mode,
+                        targetPips: mode === 'target' ? (p.targetPips ?? Math.round((nowPips ?? 0) + (stopPips ?? 20))) : p.targetPips,
+                        probability: p.probability ?? 100
+                      })
+                    }
                     size="sm"
                     aria-label={`Część ${k + 1}`}
                   />
                   {last ? (
-                    <span className="num w-[86px] text-right text-[12px] text-muted" data-testid={`part-${k + 1}-pct`}>
+                    <span className="num w-[80px] text-right text-[12px] whitespace-nowrap text-muted" data-testid={`part-${k + 1}-pct`}>
                       {parts.length === 1 ? 'całość' : `reszta ${Number(percents[k]!.toFixed(2))}%`}
                     </span>
                   ) : (
@@ -147,7 +154,7 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                         onChange={(v) => setPart(k, { percent: v != null && v > 0 && v < 100 ? v : null })}
                         decimals={shownDecimals(p.percent, 0)}
                         step={5}
-                        className="w-[64px]"
+                        className="w-[52px]"
                         aria-label={`Udział części ${k + 1} w procentach`}
                         data-testid={`part-${k + 1}-pct`}
                       />
@@ -162,11 +169,27 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                         onChange={(v) => setPart(k, { targetPips: v })}
                         decimals={shownDecimals(p.targetPips, 1)}
                         step={5}
-                        className="w-[72px]"
+                        className="w-[60px]"
                         aria-label={`Cel części ${k + 1} w pipsach`}
                         data-testid={`part-${k + 1}-target`}
                       />
                       <span className="text-[11.5px] text-muted">pips</span>
+                    </span>
+                  )}
+                  {p.mode === 'target' && (
+                    <span className="flex items-center gap-1" title="Szansa, że cena dojdzie do tego celu (domyślnie 100%)">
+                      <span className="text-[11.5px] text-muted">szansa</span>
+                      <NumberField
+                        value={p.probability ?? 100}
+                        onChange={(v) => setPart(k, { probability: v != null && v >= 0 && v <= 100 ? v : 100 })}
+                        isValid={(v) => v == null || (v >= 0 && v <= 100)}
+                        decimals={shownDecimals(p.probability ?? 100, 0)}
+                        step={5}
+                        className="w-[48px]"
+                        aria-label={`Szansa osiągnięcia celu części ${k + 1} w procentach`}
+                        data-testid={`part-${k + 1}-chance`}
+                      />
+                      <span className="text-[11.5px] text-muted">%</span>
                     </span>
                   )}
                   {parts.length > 1 && (
@@ -220,7 +243,16 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                     najgorzej <b className={cx('font-medium', valueClass(plan.worst.amount))} data-testid="part-worst">{money(plan.worst.amount)}</b>{' '}
                     <span className="text-muted">({fmtR(plan.worst.r)})</span>
                   </span>
+                  <span className="num text-[13px]" title="Średnia wyników wszystkich scenariuszy ważona ich szansą">
+                    oczekiwany <b className={cx('font-medium', valueClass(plan.expected.amount))} data-testid="part-expected">{money(plan.expected.amount)}</b>{' '}
+                    <span className="text-muted">({fmtR(plan.expected.r)})</span>
+                  </span>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1 border border-accent/60 bg-accent-soft px-2.5 py-2" data-testid="part-suggestion">
+                <span className="text-[13px] text-fg-strong">{suggestion(plan, money)}</span>
+                {suggestionNote(plan) && <span className="text-[11.5px] text-muted">{suggestionNote(plan)}</span>}
               </div>
 
               <table className="num w-full border-collapse text-[12px]" data-testid="part-rows">
@@ -229,6 +261,7 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                     <th className="border-b border-line py-1 text-left font-medium">Część</th>
                     <th className="border-b border-line py-1 text-right font-medium">Loty</th>
                     <th className="border-b border-line py-1 text-right font-medium">Zamknięcie</th>
+                    <th className="border-b border-line py-1 text-right font-medium">Szansa</th>
                     <th className="border-b border-line py-1 text-right font-medium">Wynik części</th>
                   </tr>
                 </thead>
@@ -240,6 +273,14 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                       </td>
                       <td className="border-b border-line/60 py-1 text-right">{row.lots.toFixed(lotDec)}</td>
                       <td className="border-b border-line/60 py-1 text-right">{row.mode === 'now' ? `teraz ${pipsText(row.pips)}` : `cel ${pipsText(row.pips)}`}</td>
+                      <td
+                        className={cx('border-b border-line/60 py-1 text-right', row.probabilityLowered && 'text-accent')}
+                        title={row.probabilityLowered ? 'Obniżona do szansy bliższego celu – cena musi przez niego przejść' : undefined}
+                        data-testid={`part-row-${row.n}-chance`}
+                      >
+                        {row.mode === 'now' ? 'pewne' : chanceText(row.probability)}
+                        {row.probabilityLowered ? '*' : ''}
+                      </td>
                       <td className={cx('border-b border-line/60 py-1 text-right whitespace-nowrap', valueClass(row.amount))}>
                         {money(row.amount)} <span className="text-dim">{fmtR(row.r)}</span>
                       </td>
@@ -252,6 +293,7 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                 <thead>
                   <tr className="text-[11px] text-muted">
                     <th className="border-b border-line py-1 text-left font-medium">Gdy</th>
+                    <th className="border-b border-line py-1 text-right font-medium">Szansa</th>
                     <th className="border-b border-line py-1 text-right font-medium">Razem</th>
                     <th className="border-b border-line py-1 pl-2 text-right font-medium whitespace-nowrap">vs zamknięcie teraz</th>
                   </tr>
@@ -262,6 +304,9 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
                     return (
                       <tr key={s.reached} data-testid={`part-scenario-${s.reached}`}>
                         <td className="border-b border-line/60 py-1 font-sans text-[11.5px]">{scenarioLabel(s, targets)}</td>
+                        <td className={cx('border-b border-line/60 py-1 pl-2 text-right', s.probability < 1e-9 && 'text-dim')} data-testid={`part-scenario-${s.reached}-chance`}>
+                          {chanceText(s.probability)}
+                        </td>
                         <td className={cx('border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap', valueClass(s.amount))}>
                           {money(s.amount)} <span className="text-dim">{fmtR(s.r)}</span>
                         </td>
@@ -285,7 +330,41 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
   )
 }
 
-function verdict(plan: NonNullable<Extract<ReturnType<typeof partialPlan>, { ok: true }>['plan']>, money: (v: number) => string): string {
+function chanceText(p: number): string {
+  return `${Number((p * 100).toFixed(1))}%`
+}
+
+type Plan = NonNullable<Extract<ReturnType<typeof partialPlan>, { ok: true }>['plan']>
+
+/** "2 partiale", "3 partiale", "4 partiale"; one part at a target = holding the whole position to it. */
+function splitName(plan: Plan): string {
+  const n = plan.rows.length
+  if (n === 1) return `trzymanie całości do celu ${pipsText(plan.rows[0]!.pips)}`
+  return `podział na ${n} partiale (${plan.rows.map((r) => `${Number(r.percent.toFixed(2))}% ${r.mode === 'now' ? 'teraz' : pipsText(r.pips)}`).join(', ')})`
+}
+
+/** The more profitable choice by the expected result. */
+function suggestion(plan: Plan, money: (v: number) => string): string {
+  const now = `zamknięcie całości teraz na ${pipsText(plan.closeNow.pips)} (${money(plan.closeNow.amount)})`
+  const exp = `${money(plan.expected.amount)}, ${fmtR(plan.expected.r)}`
+  const diff = money(Math.abs(plan.expected.vsNow)).replace(/^[+−-]/, '')
+  if (!plan.rows.some((r) => r.mode === 'target')) return `Oba warianty dają tyle samo: wszystkie części zamykasz teraz (${money(plan.closeNow.amount)}).`
+  if (plan.suggestion === 'equal') return `Oba warianty dają tyle samo: ${splitName(plan)} – oczekiwany wynik ${exp} – i ${now}.`
+  if (plan.suggestion === 'split') return `Bardziej opłacalny: ${splitName(plan)} – oczekiwany wynik ${exp}, o ${diff} więcej niż ${now}.`
+  return `Bardziej opłacalne: ${now} – ${splitName(plan)} daje oczekiwany wynik ${exp}, o ${diff} mniej.`
+}
+
+function suggestionNote(plan: Plan): string | null {
+  const targets = plan.rows.filter((r) => r.mode === 'target')
+  const lowered = targets.filter((r) => r.probabilityLowered)
+  if (lowered.length)
+    return `* Szansa części ${lowered.map((r) => r.n).join(', ')} obniżona do szansy bliższego celu – żeby dojść dalej, cena musi przejść przez bliższy cel.`
+  if (targets.length && targets.every((r) => r.probability >= 1 - 1e-9))
+    return 'Przy szansie 100% przy każdym celu oczekiwany wynik = wszystkie cele osiągnięte. Wpisz realną szansę przy celach, żeby porównanie uwzględniało ryzyko powrotu ceny.'
+  return null
+}
+
+function verdict(plan: Plan, money: (v: number) => string): string {
   const targets = plan.rows.filter((r) => r.mode === 'target').map((r) => r.pips).sort((a, b) => a - b)
   if (!targets.length) return 'Wszystkie części zamykasz teraz – wynik jest taki sam jak przy zamknięciu całości.'
   const k = plan.beatsNowAfter
