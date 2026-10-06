@@ -10,15 +10,17 @@ import {
   customValueText,
   filterOf,
   filterRows,
+  gridMinWidth,
   gridTemplate,
   moveColumn,
   resolveColumns,
   sameFilter,
   toggleColumn,
+  tradeAmount,
   withCustomValue
 } from '@shared/journalView'
 import { mergeJournal } from '../../src/main/datastore/transfer'
-import { customFieldSchema, journalSchema, type CustomField, type JournalFile, type Trade } from '@shared/schema'
+import { customFieldSchema, journalSchema, type CustomField, type JournalFile, type Settings, type Trade } from '@shared/schema'
 import { closedTradeAt } from './helpers/trades'
 
 function journalWithFields(): { journal: JournalFile; grade: CustomField; conf: CustomField; note: CustomField; a1: CustomField } {
@@ -120,6 +122,14 @@ describe('kolumny dziennika', () => {
     expect(gridTemplate(resolveColumns(['date', `cf:${conf.id}`], fields))).toBe('82px 56px 24px')
     expect(moveColumn(['date', 'r'], 'date', -1)).toEqual(['date', 'r'])
   })
+
+  it('kwota trafia obok R; szerokość minimalna listy', () => {
+    expect(toggleColumn(['date', 'r', 'score'], 'amount')).toEqual(['date', 'r', 'amount', 'score'])
+    expect(toggleColumn(['date', 'pips'], 'amount')).toEqual(['date', 'pips', 'amount'])
+    expect(toggleColumn(['date', 'r', 'amount'], 'amount')).toEqual(['date', 'r'])
+    // 82 + minmax(64px,…) + 104, screens 24, gaps 3 × 6, padding 16.
+    expect(gridMinWidth(resolveColumns(['date', 'killzone', 'amount'], []))).toBe(82 + 64 + 104 + 24 + 18 + 16)
+  })
 })
 
 describe('import (scal): własne pola i powody odrzucenia', () => {
@@ -173,5 +183,46 @@ describe('własne pola w analityce i CSV', () => {
     expect(csv[1]!.endsWith(';A+;2,5;;')).toBe(true)
     expect(csv[2]!.endsWith(';B;;;tak')).toBe(true)
     expect(csv[3]).toContain(';"tekst; z ""cudzysłowem""";')
+  })
+})
+
+describe('kwota transakcji w dzienniku', () => {
+  const base = createDefaultJournal()
+  const settings: Settings = { ...base.settings, risk: { ...base.settings.risk, accountCurrency: 'PLN', accountBalance: 20000 } }
+  const amount = (t: Trade, s = settings) => tradeAmount(t, tradeMetrics(t, metricsContext(s)), s.risk)
+
+  it('wpisany wynik, R × kwota ryzyka – dokładnie', () => {
+    expect(amount(closedTradeAt('2026-10-06T08:00:00.000Z', -1, { pnlAmountOverride: -7.06, amountCurrency: 'PLN' }))).toEqual({
+      value: -7.06,
+      estimated: false,
+      hint: 'Kwota: wpisany wynik w kwocie.'
+    })
+    const risk = amount(closedTradeAt('2026-10-06T08:00:00.000Z', 2, { riskAmount: 100, amountCurrency: 'PLN' }))
+    expect(risk.value).toBeCloseTo(200, 6)
+    expect(risk).toMatchObject({ estimated: false, hint: 'Kwota: R × kwota ryzyka.' })
+  })
+
+  it('bez kwot i lotów: szacunek R × ryzyko % × saldo konta (oznaczony)', () => {
+    const a = amount(closedTradeAt('2026-10-06T08:00:00.000Z', 1.5, { riskPercent: 0.5 }))
+    expect(a.value).toBe(150)
+    expect(a.estimated).toBe(true)
+    expect(a.hint).toContain('Szacunek: 1.50 R × ryzyko 0.5% × saldo konta 20')
+    // Without a balance: nothing, with what to fill in.
+    const none = amount(closedTradeAt('2026-10-06T08:00:00.000Z', 1.5, { riskPercent: 0.5 }), { ...settings, risk: { ...settings.risk, accountBalance: null } })
+    expect(none).toMatchObject({ value: null, estimated: false })
+    expect(none.hint).toContain('saldo konta w kalkulatorze pozycji')
+  })
+
+  it('z lotów bez kursu: nic, z podpowiedzią o kursie; missed i otwarta bez kwoty', () => {
+    const lots = amount(closedTradeAt('2026-10-06T08:00:00.000Z', 1, { lots: 1, riskPercent: 0.5 }))
+    expect(lots.value).toBeNull()
+    expect(lots.hint).toContain('Brak kursu USD → PLN')
+    const usd = { ...settings, risk: { ...settings.risk, accountCurrency: 'USD' } }
+    // 10 pips × 0.0001 × 100 000 × 1 lot = 100 USD.
+    const fromLots = amount(closedTradeAt('2026-10-06T08:00:00.000Z', 1, { lots: 1 }), usd)
+    expect(fromLots.value).toBeCloseTo(100, 6)
+    expect(fromLots).toMatchObject({ estimated: false, hint: 'Kwota: z lotów: pipsy × wartość pipsa × loty.' })
+    expect(amount(closedTradeAt('2026-10-06T08:00:00.000Z', 1, { status: 'missed' })).value).toBeNull()
+    expect(amount(closedTradeAt('2026-10-06T08:00:00.000Z', 1, { status: 'open', riskPercent: 1 }))).toMatchObject({ value: null, hint: 'Otwarta – kwota po zamknięciu.' })
   })
 })

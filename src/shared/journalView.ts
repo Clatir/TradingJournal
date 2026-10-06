@@ -5,7 +5,7 @@
 import { deepEqual } from './merge'
 import type { TradeMetrics } from './calc/trade'
 import type { ValidationResult } from './calc/validator'
-import { journalFilterSchema, type CustomCondition, type CustomField, type DictionaryKey, type JournalFile, type JournalFilter, type SavedFilter, type Trade } from './schema'
+import { journalFilterSchema, type CustomCondition, type CustomField, type DictionaryKey, type JournalFile, type JournalFilter, type SavedFilter, type Settings, type Trade } from './schema'
 
 export interface FilterRow {
   trade: Trade
@@ -171,7 +171,7 @@ export const BUILTIN_COLUMNS: readonly ColumnDef[] = [
   { id: 'duration', label: 'Czas', title: 'Czas trwania transakcji', width: '52px', align: 'right' },
   { id: 'lots', label: 'Loty', width: '44px', align: 'right' },
   { id: 'risk', label: 'Ryz. %', title: 'Ryzyko w % kapitału', width: '48px', align: 'right' },
-  { id: 'amount', label: 'Kwota', title: 'Wynik w walucie konta (gdy kwoty są włączone)', width: '72px', align: 'right' },
+  { id: 'amount', label: 'Kwota', title: 'Zysk / strata w walucie konta (≈ = szacunek z ryzyka % i salda konta)', width: '104px', align: 'right' },
   { id: 'notes', label: 'Notatki', width: 'minmax(80px,1.4fr)' }
 ]
 
@@ -201,10 +201,21 @@ export function gridTemplate(cols: readonly ColumnDef[]): string {
   return [...cols.map((c) => c.width), '24px'].join(' ')
 }
 
-/** Show / hide a column (shown columns keep their order; a new one goes to the end). */
+/** The narrowest the list can be (px): column minimums, the screens indicator, 6 px gaps and 8 px padding. */
+export function gridMinWidth(cols: readonly ColumnDef[]): number {
+  const min = (w: string) => Number(/^(?:minmax\()?(\d+(?:\.\d+)?)px/.exec(w)?.[1] ?? 0)
+  return cols.reduce((s, c) => s + min(c.width), 0) + 24 + 6 * cols.length + 16
+}
+
+/** Where a shown column goes: next to its neighbour (the amount beside R), else at the end. */
+const PLACE_AFTER: Record<string, string> = { amount: 'r' }
+
+/** Show / hide a column (shown columns keep their order; a new one goes to the end, the amount next to R). */
 export function toggleColumn(current: readonly string[] | null, id: string): string[] {
   const list = [...(current ?? DEFAULT_COLUMNS)]
-  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+  if (list.includes(id)) return list.filter((x) => x !== id)
+  const after = PLACE_AFTER[id] ? list.indexOf(PLACE_AFTER[id]) : -1
+  return after >= 0 ? [...list.slice(0, after + 1), id, ...list.slice(after + 1)] : [...list, id]
 }
 
 export function moveColumn(current: readonly string[] | null, id: string, delta: -1 | 1): string[] {
@@ -214,4 +225,60 @@ export function moveColumn(current: readonly string[] | null, id: string, delta:
   if (i < 0 || j < 0 || j >= list.length) return list
   ;[list[i], list[j]] = [list[j]!, list[i]!]
   return list
+}
+
+// ---- Amount --------------------------------------------------------------------------------------------------------
+
+export interface AmountShown {
+  /** Result in the account currency; null when it cannot be told. */
+  value: number | null
+  /** An estimate from risk % × the current account balance (the trade has no amounts or lots). */
+  estimated: boolean
+  /** Where the amount comes from, or what is missing for it (tooltip). */
+  hint: string
+}
+
+const money = (v: number, currency: string) => `${v.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} ${currency}`
+
+/**
+ * The money result of a trade for the journal list: the computed amount (typed result, R × risk amount, or from the
+ * lots), else an estimate R × risk % × account balance (marked), else nothing – with a hint what to fill in.
+ */
+export function tradeAmount(trade: Trade, m: TradeMetrics, risk: Pick<Settings['risk'], 'accountCurrency' | 'accountBalance'>): AmountShown {
+  const cur = risk.accountCurrency
+  if (trade.status === 'missed') return { value: null, estimated: false, hint: 'Missed – wynik hipotetyczny, bez kwoty.' }
+  if (m.pnlAmount != null) {
+    const source = m.amountSource === 'typed' ? 'wpisany wynik w kwocie' : m.amountSource === 'risk' ? 'R × kwota ryzyka' : 'z lotów: pipsy × wartość pipsa × loty'
+    const converted =
+      m.amountCurrency && m.amountCurrency !== cur
+        ? `, przeliczone z ${m.amountCurrency} kursem ${m.amountRateDate ? `NBP z ${m.amountRateDate}` : 'dzisiejszym'}`
+        : ''
+    return { value: m.pnlAmount, estimated: false, hint: `Kwota: ${source}${converted}.` }
+  }
+  if (m.pnlAmountOwn != null && m.amountCurrency)
+    return {
+      value: null,
+      estimated: false,
+      hint: `Brak kursu ${m.amountCurrency} → ${cur}: Ustawienia → Wyświetlanie i ryzyko → Kursy walut („Odśwież kursy NBP” albo kurs ręczny).`
+    }
+  if (trade.status === 'open') return { value: null, estimated: false, hint: 'Otwarta – kwota po zamknięciu.' }
+  const balance = risk.accountBalance
+  if (m.countsInStats && m.resultR != null && trade.riskPercent != null && trade.riskPercent > 0 && balance != null && balance > 0) {
+    const value = Number(((m.resultR * trade.riskPercent * balance) / 100).toFixed(2))
+    return {
+      value,
+      estimated: true,
+      hint:
+        `Szacunek: ${m.resultR.toFixed(2)} R × ryzyko ${trade.riskPercent}% × saldo konta ${money(balance, cur)} (obecne saldo z kalkulatora pozycji). ` +
+        'Dokładna kwota: wpisz loty albo wynik w kwocie w edytorze transakcji.'
+    }
+  }
+  if (m.resultR == null) return { value: null, estimated: false, hint: 'Brak wyniku (cena wejścia, SL albo wyjście).' }
+  return {
+    value: null,
+    estimated: false,
+    hint:
+      'Brak danych do kwoty: wpisz w edytorze transakcji loty, kwotę ryzyka albo wynik w kwocie' +
+      (trade.riskPercent != null ? ' – albo saldo konta w kalkulatorze pozycji (z ryzykiem % da szacunek).' : '.')
+  }
 }

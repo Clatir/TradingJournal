@@ -4,7 +4,7 @@ import { fileUrl } from '@shared/api'
 import { shownDecimals } from '@shared/calc/position'
 import { summarize } from '@shared/calc/stats'
 import { formatClock, weekdayNy } from '@shared/calc/time'
-import { customValueText, filterRows, gridTemplate, resolveColumns, type ColumnDef } from '@shared/journalView'
+import { customValueText, filterRows, gridMinWidth, gridTemplate, resolveColumns, tradeAmount, type ColumnDef } from '@shared/journalView'
 import type { JournalFile, TradeStatus } from '@shared/schema'
 import { fmtMoney, fmtNum, fmtPercent, fmtPips, fmtR, fmtRatio, tone, toneClass, WEEKDAY_PL, fmtPrice } from '../../lib/format'
 import { dictName, useTradeRows, type TradeRow } from '../../store/derived'
@@ -15,6 +15,7 @@ import { Badge, Kbd, Segmented, cx } from '../../components/ui'
 import { newTrade } from '../trade/actions'
 import { duplicateTradeEntry } from '../duplicate'
 import { ColumnsMenu, FiltersButton, SavedFiltersMenu, setFilter, useJournalFilter } from './JournalTools'
+import { toggleMoney } from '../money'
 
 const STATUS_LABEL: Record<TradeStatus, string> = { closed: 'zamkn.', open: 'otwarta', missed: 'missed' }
 
@@ -85,15 +86,27 @@ function cell(col: ColumnDef, row: TradeRow, journal: JournalFile | null, be: nu
       return <span className="num text-right">{t.riskPercent != null ? `${fmtNum(t.riskPercent, shownDecimals(t.riskPercent, 1))}%` : '—'}</span>
     case 'amount':
       return journal?.settings.display.showMoney ? (
-        <span className={cx('num truncate text-right', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.pnlAmount)])}>{fmtMoney(m.pnlAmount, journal.settings.risk.accountCurrency)}</span>
+        <AmountText row={row} journal={journal} className="truncate text-right" />
       ) : (
-        <span className="num text-right text-dim" title="Kwoty są ukryte (Ctrl+$)">•••</span>
+        <span className="num text-right text-dim" title="Kwoty są ukryte – kliknij nagłówek „Kwota” albo Ctrl+$">
+          •••
+        </span>
       )
     case 'notes':
       return <span className="truncate text-muted">{t.notes.split('\n')[0]}</span>
     default:
       return <span />
   }
+}
+
+/** The money result of a row: exact, "≈" estimate from risk % × balance, or "—" with what is missing. */
+function AmountText({ row, journal, className }: { row: TradeRow; journal: JournalFile; className?: string }) {
+  const a = tradeAmount(row.trade, row.m, journal.settings.risk)
+  return (
+    <span className={cx('num', className, a.value == null ? 'text-dim' : toneClass[tone(a.value)], a.estimated && 'opacity-80')} title={a.hint} data-testid="trade-amount">
+      {a.value == null ? '—' : `${a.estimated ? '≈ ' : ''}${fmtMoney(a.value, journal.settings.risk.accountCurrency)}`}
+    </span>
+  )
 }
 
 export function JournalPage() {
@@ -116,6 +129,23 @@ export function JournalPage() {
     () => summarize(filtered.filter((r) => r.m.countsInStats).map((r) => ({ r: r.m.resultR as number, time: r.m.exitTime ?? r.trade.entryTime })), be),
     [filtered, be]
   )
+  const showMoney = journal?.settings.display.showMoney ?? false
+  // Σ of the amounts of closed trades (estimates included and marked; trades without an amount counted apart).
+  const amountSum = useMemo(() => {
+    if (!journal || !showMoney) return null
+    let sum = 0
+    let known = 0
+    let estimated = false
+    const closed = filtered.filter((r) => r.m.countsInStats)
+    for (const r of closed) {
+      const a = tradeAmount(r.trade, r.m, journal.settings.risk)
+      if (a.value == null) continue
+      sum += a.value
+      known++
+      estimated ||= a.estimated
+    }
+    return { sum, known, total: closed.length, estimated }
+  }, [filtered, journal, showMoney])
 
   const virtualizer = useVirtualizer({ count: filtered.length, getScrollElement: () => scrollRef.current, estimateSize: () => 26, overscan: 24 })
 
@@ -215,75 +245,112 @@ export function JournalPage() {
           <SumItem label="Win rate" value={fmtPercent(summary.winRate)} />
           <SumItem label="Expectancy" value={fmtR(summary.expectancy)} cls={toneClass[tone(summary.expectancy)]} />
           <SumItem label="W / L / BE" value={`${summary.wins} / ${summary.losses} / ${summary.breakevens}`} />
+          {amountSum && amountSum.known > 0 && (
+            <span
+              className="flex items-baseline gap-1.5"
+              title={
+                (amountSum.estimated ? '≈ zawiera szacunki z ryzyka % i salda konta. ' : '') +
+                (amountSum.known < amountSum.total ? `Kwota znana dla ${amountSum.known} z ${amountSum.total} zamkniętych transakcji.` : '')
+              }
+              data-testid="journal-amount-sum"
+            >
+              <span className="text-muted">Σ kwota</span>
+              <span className={cx('num', toneClass[tone(amountSum.sum)])}>
+                {amountSum.estimated ? '≈ ' : ''}
+                {fmtMoney(amountSum.sum, journal!.settings.risk.accountCurrency)}
+              </span>
+              {amountSum.known < amountSum.total && (
+                <span className="num text-dim">
+                  ({amountSum.known}/{amountSum.total})
+                </span>
+              )}
+            </span>
+          )}
         </div>
 
-        {/* table */}
-        <div
-          className="grid h-[26px] shrink-0 items-center gap-x-1.5 border-b border-line bg-panel px-2 text-[10.5px] tracking-wide text-muted uppercase"
-          style={{ gridTemplateColumns: template }}
-          data-testid="journal-header"
-        >
-          {columns.map((c) => (
-            <span key={c.id} className={cx('truncate', c.align === 'right' && 'text-right', c.field && 'normal-case')} title={c.title ?? c.label}>
-              {c.label}
-            </span>
-          ))}
-          <span />
-        </div>
-        <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="journal-table">
-          {filtered.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-muted">
-              {rows.length === 0 ? (
-                <>
-                  <span>Dziennik jest pusty.</span>
-                  <span>
-                    <Kbd>Ctrl N</Kbd> dodaje transakcję, <Kbd>Ctrl K</Kbd> otwiera paletę komend.
+        {/* table: scrolls sideways when the chosen columns do not fit next to the preview */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden" data-testid="journal-hscroll">
+          <div className="flex min-h-0 flex-1 flex-col" style={{ minWidth: gridMinWidth(columns) }}>
+            <div
+              className="grid h-[26px] shrink-0 items-center gap-x-1.5 border-b border-line bg-panel px-2 text-[10.5px] tracking-wide text-muted uppercase"
+              style={{ gridTemplateColumns: template }}
+              data-testid="journal-header"
+            >
+              {columns.map((c) =>
+                c.id === 'amount' && !showMoney ? (
+                  <button
+                    key={c.id}
+                    className="truncate text-right tracking-wide text-accent uppercase hover:underline"
+                    onClick={toggleMoney}
+                    title="Kwoty są ukryte – kliknij, by je pokazać (Ctrl+$)"
+                    data-testid="amount-show"
+                  >
+                    {c.label} •••
+                  </button>
+                ) : (
+                  <span key={c.id} className={cx('truncate', c.align === 'right' && 'text-right', c.field && 'normal-case')} title={c.title ?? c.label}>
+                    {c.label}
                   </span>
-                </>
+                )
+              )}
+              <span />
+            </div>
+            <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="journal-table">
+              {filtered.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-muted">
+                  {rows.length === 0 ? (
+                    <>
+                      <span>Dziennik jest pusty.</span>
+                      <span>
+                        <Kbd>Ctrl N</Kbd> dodaje transakcję, <Kbd>Ctrl K</Kbd> otwiera paletę komend.
+                      </span>
+                    </>
+                  ) : (
+                    <span>Brak wpisów dla wybranych filtrów.</span>
+                  )}
+                </div>
               ) : (
-                <span>Brak wpisów dla wybranych filtrów.</span>
+                <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+                  {virtualizer.getVirtualItems().map((v) => {
+                    const row = filtered[v.index] as TradeRow
+                    const t = row.trade
+                    const isSel = selected?.trade.id === t.id
+                    return (
+                      <div
+                        key={t.id}
+                        data-testid="journal-row"
+                        onClick={() => select(t.id)}
+                        onDoubleClick={() => navigate({ page: 'trade', id: t.id })}
+                        className={cx(
+                          'absolute left-0 grid w-full items-center gap-x-1.5 border-b border-line/70 px-2 text-[12px]',
+                          isSel ? 'bg-accent-soft' : v.index % 2 ? 'bg-white/[0.012] hover:bg-hover' : 'hover:bg-hover'
+                        )}
+                        style={{ top: v.start, height: 26, gridTemplateColumns: template }}
+                      >
+                        {columns.map((c) => (
+                          <span key={c.id} className={cx('min-w-0 truncate', c.align === 'right' && 'text-right')}>
+                            {cell(c, row, journal, be)}
+                          </span>
+                        ))}
+                        <span
+                          className="flex items-center justify-end gap-0.5 text-dim"
+                          onMouseEnter={(e) => t.screens.length && setHover({ row, x: e.clientX, y: e.clientY })}
+                          onMouseLeave={() => setHover(null)}
+                        >
+                          {t.screens.length > 0 && (
+                            <>
+                              <IconImage size={12} />
+                              <span className="num text-[10.5px]">{t.screens.length}</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
-          ) : (
-            <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-              {virtualizer.getVirtualItems().map((v) => {
-                const row = filtered[v.index] as TradeRow
-                const t = row.trade
-                const isSel = selected?.trade.id === t.id
-                return (
-                  <div
-                    key={t.id}
-                    data-testid="journal-row"
-                    onClick={() => select(t.id)}
-                    onDoubleClick={() => navigate({ page: 'trade', id: t.id })}
-                    className={cx(
-                      'absolute left-0 grid w-full items-center gap-x-1.5 border-b border-line/70 px-2 text-[12px]',
-                      isSel ? 'bg-accent-soft' : v.index % 2 ? 'bg-white/[0.012] hover:bg-hover' : 'hover:bg-hover'
-                    )}
-                    style={{ top: v.start, height: 26, gridTemplateColumns: template }}
-                  >
-                    {columns.map((c) => (
-                      <span key={c.id} className={cx('min-w-0 truncate', c.align === 'right' && 'text-right')}>
-                        {cell(c, row, journal, be)}
-                      </span>
-                    ))}
-                    <span
-                      className="flex items-center justify-end gap-0.5 text-dim"
-                      onMouseEnter={(e) => t.screens.length && setHover({ row, x: e.clientX, y: e.clientY })}
-                      onMouseLeave={() => setHover(null)}
-                    >
-                      {t.screens.length > 0 && (
-                        <>
-                          <IconImage size={12} />
-                          <span className="num text-[10.5px]">{t.screens.length}</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -338,6 +405,7 @@ function Preview({ row, be }: { row: TradeRow; be: number }) {
         {line('TP1 / TP2', <span className="num">{fmtPrice(t.prices.takeProfit1, dec) || '—'} / {fmtPrice(t.prices.takeProfit2, dec) || '—'}</span>)}
         {line('SL / R:R TP1', <span className="num">{m.riskPips != null ? `${m.riskPips.toFixed(1)} p` : '—'} / {fmtRatio(m.rrTp1)}</span>)}
         {line('Pipsy', <span className={cx('num', toneClass[tone(m.resultPips)])}>{fmtPips(m.resultPips)}</span>)}
+        {journal?.settings.display.showMoney && line('Kwota', <AmountText row={row} journal={journal} />)}
         {line('Model', dictName(journal, 'entryModels', t.entryModelId) || '—')}
         {line('PD array', [dictName(journal, 'pdArrays', t.entryPdArrayId), dictName(journal, 'pdArrays', t.htfPdArrayId)].filter(Boolean).join(' · HTF ') || '—')}
         {line('Płynność', t.liquidityTakenIds.map((id) => dictName(journal, 'liquidityPools', id)).join(', ') || '—')}

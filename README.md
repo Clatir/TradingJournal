@@ -216,3 +216,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 14. To samo ze screenem indeksu lub surowca (US500, DE40, OIL.WTI): para dopasowana mimo zniekształconej nazwy
     („odczytano „USS00” – dopasowano”); instrumentu spoza par – „Dodaj do par” w oknie. Pola z rozbieżnymi odczytami
     mają „sprawdź – inny odczyt”, a wynik niezgodny z cenami i wolumenem – ostrzeżenie pod tabelą.
+15. Dziennik → „Kolumny” → „Kwota”: kwoty włączają się same, kolumna staje obok R. Transakcja z wpisanym wynikiem
+    albo lotami – kwota; z samym ryzykiem % (saldo konta wpisane w kalkulatorze) – „≈” szacunek; bez danych – „—”
+    z podpowiedzią po najechaniu. Pasek nad tabelą: „Σ kwota”. Ctrl+$ ukrywa kwoty, klik w „Kwota •••” je pokazuje.

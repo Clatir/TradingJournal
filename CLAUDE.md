@@ -301,6 +301,11 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   kolumny (`BUILTIN_COLUMNS`, `cf:<id>`, `settings.journalView.columns`, null = domyślne), zapisane filtry
   (`settings.savedFilters`, `sameFilter` bez pustych warunków). Analityka `customFieldBreakdowns`, CSV i markdown
   dopisują pola. Import (scal) dołącza pola i opcje po `id`.
+- Kwota w dzienniku (1.4.8): `tradeAmount` (`shared/journalView.ts`) = `m.pnlAmount` (wpisany / R × kwota ryzyka /
+  z lotów), inaczej szacunek R × `riskPercent` × `risk.accountBalance` (oznaczony „≈”, tylko lista dziennika i jej Σ,
+  nie analityka), inaczej null z podpowiedzią (brak kursu, brak danych). Dodanie kolumny `amount` włącza
+  `display.showMoney` (`features/money.ts` `toggleMoney`); `toggleColumn` stawia ją za `r`. Lista przewija się w bok
+  (`gridMinWidth` = minima kolumn + odstępy), gdy kolumny nie mieszczą się obok podglądu.
 
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.

@@ -21,15 +21,9 @@ import { addManualSession, setReviewsOpen } from '../sessions/actions'
 import { insertTemplate } from '../day/TemplatesMenu'
 import { EMPTY_FILTER, filterOf } from '@shared/journalView'
 import { useJournalFilter } from '../journal/JournalTools'
+import { toggleMoney } from '../money'
 
-export function toggleMoney(): void {
-  let on = false
-  updateJournal((j) => {
-    on = !j.settings.display.showMoney
-    return { ...j, settings: { ...j.settings, display: { ...j.settings.display, showMoney: on } } }
-  })
-  toast(on ? 'Kwoty widoczne.' : 'Kwoty ukryte – wyniki w R i pipsach.')
-}
+export { toggleMoney }
 
 const GROUP =
   '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10.5px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted'

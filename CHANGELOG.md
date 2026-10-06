@@ -3,6 +3,20 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.8
+
+### Poprawki
+- **Kwota zysku / straty w dzienniku** (kolumna „Kwota”):
+  - **Dodanie kolumny** („Kolumny” → „Kwota”) włącza pokazywanie kwot. Wcześniej kwoty były ukryte i kolumna
+    pokazywała tylko „•••”. Gdy kwoty są ukryte (Ctrl+$), nagłówek „Kwota •••” odkrywa je jednym kliknięciem.
+  - **Nowa kolumna „Kwota” trafia obok „R”**, a tabela przewija się w bok, gdy kolumny nie mieszczą się obok
+    podglądu (wcześniej końcowe kolumny chowały się pod nim).
+  - **Szacunek z ryzyka %** dla transakcji bez kwot i lotów: R × ryzyko % × saldo konta z kalkulatora pozycji,
+    oznaczony „≈”. Dokładna kwota zostaje taka jak dotąd: wpisany wynik, R × kwota ryzyka albo wynik z lotów.
+  - **„—” ma podpowiedź**, czego brakuje: lotów, kwoty, salda konta albo kursu walut.
+  - **„Σ kwota” na pasku podsumowania** dziennika (z liczbą transakcji z kwotą) i linia „Kwota” w podglądzie
+    transakcji.
+
 ## 1.4.7
 
 ### Poprawki

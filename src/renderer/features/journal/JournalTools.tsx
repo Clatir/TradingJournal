@@ -6,6 +6,7 @@ import type { CustomCondition, CustomField, JournalFilter } from '@shared/schema
 import { parseDateInput } from '../../lib/format'
 import { updateJournal, useJournal } from '../../store/journal'
 import { toast } from '../../store/ui'
+import { toggleMoney } from '../money'
 import { Popover } from '../../components/Popover'
 import { NumberField, Segmented, cx } from '../../components/ui'
 
@@ -280,6 +281,7 @@ export function ColumnsMenu() {
   const view = useJournal((s) => s.journal?.settings.journalView.columns ?? null)
   const fields = useJournal((s) => s.journal?.settings.customFields)
   const readOnly = useJournal((s) => !!s.status?.readOnly)
+  const showMoney = useJournal((s) => s.journal?.settings.display.showMoney ?? false)
   const shown = resolveColumns(view, fields ?? [])
   const hidden = allColumns(fields ?? []).filter((c) => !shown.some((s) => s.id === c.id))
   const setColumns = (columns: string[] | null) => updateJournal((j) => ({ ...j, settings: { ...j.settings, journalView: { ...j.settings.journalView, columns } } }))
@@ -311,7 +313,16 @@ export function ColumnsMenu() {
               <div className="flex max-h-[200px] flex-col overflow-y-auto">
                 {hidden.map((c) => (
                   <label key={c.id} className="flex items-center gap-1.5 py-0.5" data-testid="column-hidden">
-                    <input type="checkbox" checked={false} onChange={() => setColumns(toggleColumn(ids, c.id))} aria-label={`Pokaż ${c.label}`} />
+                    <input
+                      type="checkbox"
+                      checked={false}
+                      onChange={() => {
+                        setColumns(toggleColumn(ids, c.id))
+                        // The amount column is for seeing amounts: hidden amounts would only show "•••".
+                        if (c.id === 'amount' && !showMoney) toggleMoney()
+                      }}
+                      aria-label={`Pokaż ${c.label}`}
+                    />
                     <span className={cx('min-w-0 flex-1 truncate', c.field && 'text-accent')} title={c.title}>
                       {c.label}
                     </span>
