@@ -19,6 +19,7 @@ import { CustomFieldsEditor } from './CustomFields'
 import { addTradeToLibrary } from '../library/LibraryPage'
 import { copyTradeMarkdown } from '../export/markdownActions'
 import { duplicateTradeEntry } from '../duplicate'
+import { XtbScreenButton } from './XtbScreenImport'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -184,6 +185,7 @@ export function TradeEditor({ id }: { id: string }) {
               <IconCopy size={13} /> Duplikuj
             </button>
           )}
+          {t.status !== 'missed' && <XtbScreenButton trade={t} disabled={readOnly} />}
           {!isDraft && <HistoryButton kind="trades" id={id} current={t} />}
           {!isDraft && (
             <button className="btn" onClick={() => addTradeToLibrary(t)} title="Dodaj jako przykład do biblioteki setupów" data-testid="to-library">
@@ -302,10 +304,11 @@ export function TradeEditor({ id }: { id: string }) {
                 </div>
               }
             >
-              <div className="grid grid-cols-[52px_minmax(84px,1fr)_58px_minmax(0,1fr)_60px_20px] items-center gap-1 text-[10.5px] text-muted">
+              <div className="grid grid-cols-[46px_minmax(72px,1fr)_50px_50px_minmax(44px,1fr)_54px_16px] items-center gap-1 text-[10.5px] text-muted">
                 <span>%</span>
                 <span>Cena</span>
                 <span>Czas NY</span>
+                <span>Czas WAW</span>
                 <span>Notatka</span>
                 <span className="text-right">R</span>
                 <span />
@@ -317,12 +320,13 @@ export function TradeEditor({ id }: { id: string }) {
                 return (
                   <div
                     key={x.id}
-                    className={cx('mt-1 grid grid-cols-[52px_minmax(84px,1fr)_58px_minmax(0,1fr)_60px_20px] items-center gap-1', activeExit === i && 'outline outline-1 outline-line-strong')}
+                    className={cx('mt-1 grid grid-cols-[46px_minmax(72px,1fr)_50px_50px_minmax(44px,1fr)_54px_16px] items-center gap-1', activeExit === i && 'outline outline-1 outline-line-strong')}
                     onFocusCapture={() => setActiveExit(i)}
                   >
                     <NumberField value={x.percent} onChange={(v) => setX({ percent: Math.max(0, Math.min(100, v ?? 0)) })} decimals={0} step={5} aria-label="Procent pozycji" />
                     <NumberField value={x.price} onChange={(v) => setX({ price: v })} decimals={decimals} step={pip} aria-label="Cena wyjścia" data-testid={`exit-price-${i}`} />
-                    <ExitClockField iso={x.time} referenceIso={t.entryTime} onChange={(v) => setX({ time: v })} />
+                    <ExitClockField iso={x.time} referenceIso={t.entryTime} onChange={(v) => setX({ time: v })} testId={`exit-time-${i}-NY`} width={50} />
+                    <ExitClockField iso={x.time} referenceIso={t.entryTime} onChange={(v) => setX({ time: v })} zone="WAW" testId={`exit-time-${i}-WAW`} width={50} />
                     <input className="input text-[11.5px]" value={x.note} placeholder="np. TP1" onChange={(e) => setX({ note: e.currentTarget.value })} />
                     <span className={cx('num text-right', toneClass[tone(r, be)])} title={pips != null ? `${fmtPips(pips)} pips` : ''}>
                       {fmtR(r)}
@@ -620,7 +624,7 @@ function BrokerLine({ broker: b }: { broker: NonNullable<Trade['broker']> }) {
   const costs = [b.commission ? `prowizja ${fmtMoney(b.commission, cur)}` : null, b.swap ? `swap ${fmtMoney(b.swap, cur)}` : null].filter(Boolean)
   return (
     <div className="mt-1 text-[11.5px] text-muted" data-testid="trade-broker">
-      Broker: <span className="num">#{b.tickets.join(', #')}</span>
+      Broker: {b.tickets.length ? <span className="num">#{b.tickets.join(', #')}</span> : b.source === 'screen' ? 'ze screenu' : ''}
       {b.symbol ? ` · ${b.symbol}` : ''}
       {b.volume != null ? <span className="num"> · {b.volume} lot</span> : null}
       {b.net != null ? (

@@ -34,6 +34,7 @@ const api: JournalApi = {
   saveXlsx: (name, sheets) => invoke('saveXlsx', name, sheets),
   savePdf: (name, html) => invoke('savePdf', name, html),
   pickBrokerFile: () => invoke('pickBrokerFile'),
+  ocrImage: (png) => invoke('ocrImage', png),
   copyText: (text) => invoke('copyText', text),
   copyImage: (png) => invoke('copyImage', png),
   inspectImport: (kind) => invoke('inspectImport', kind),

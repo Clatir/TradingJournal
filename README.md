@@ -209,3 +209,7 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 12. Ustawienia → Pary: dodaj „OILWTI” – pips 0.01, 2 miejsca, 1 lot = 1000; transakcja short 90.37 → 86.83 z SL 90.84
     ma 354 pipsy wyniku i 47 pipsów SL. „Maks. SL (p)” = 60 → walidator „SL 47.0 p ≤ 60 p (limit OILWTI)”. Kalkulator
     pozycji: 10 000 USD, 1%, SL 47 → 0.21 lota.
+13. Transakcja → „Ze screenu XTB”: w XTB otwórz pozycję z historii („Szczegóły pozycji”), zrób screen (Win+Shift+S) i
+    wklej `Ctrl+V` w oknie (albo przeciągnij / wybierz plik). Po 1–3 s: kierunek, czas wejścia (WAW), ceny, SL, TP, loty,
+    wyjście i wynik netto w walucie konta – popraw, odznacz, „Uzupełnij transakcję”. W folderze `screens/` nic nie
+    przybywa. W „Wyjście i partiale” czas wyjścia jest w NY i w WAW – wpisz godzinę z XTB w kolumnie „Czas WAW”.

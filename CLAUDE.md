@@ -8,6 +8,8 @@ tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba m
 - Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4.
 - Zależności w czystym JS: zod 4 (schematy), zustand 5 (stan), luxon (strefy, DST), ulid, yazl/yauzl (ZIP),
   cmdk (paleta), @tanstack/react-virtual, lightweight-charts 5 (equity). Słupki i heatmapy: własne komponenty SVG.
+- OCR offline (1.4.6): tesseract.js-core 6 (`tesseract-core-simd-lstm.wasm.js`, wasm wbudowany w JS) + model
+  `@tesseract.js-data/eng` (`4.0.0_best_int`, `?asset`) w wątku procesu głównego (`?nodeWorker`); działa też z `app.asar`.
 - **Żadnych natywnych modułów Node.** Wszystkie biblioteki są w `devDependencies` i bundlowane do `out/`,
   więc `app.asar` nie zawiera `node_modules`.
 - Testy: Vitest (`tests/unit`, `tests/fs`), Playwright `_electron` (`tests/e2e`, lokalnie pod `xvfb-run`).
@@ -198,6 +200,17 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   sesja w pamięci blokująca wszystko poza `data:`, `printToPDF` A4).
 - Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
   potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
+- Screen XTB „Szczegóły pozycji” → transakcja (1.4.6, edytor → „Ze screenu XTB”, `features/trade/XtbScreenImport.tsx`):
+  - renderer (`lib/ocr.ts`): powiększenie do 3× (max 4000 px), skala szarości, ciemny motyw odwracany, rozciągnięcie
+    kontrastu, progowanie (200, potem 170, 225 – kolejny przebieg tylko, gdy czegoś brakuje albo cenę poprawiono) → PNG;
+  - main (`main/ocr/`): IPC `ocrImage` → wątek z Tesseractem (PSM 11 = rozrzucony tekst), TSV; wątek kończy się po 60 s;
+  - `shared/import/xtbScreen.ts`: etykiety (PL/EN, bez ogonków, literówki OCR, „…” = prefiks) → wartość pod etykietą w jej
+    kolumnie (czasy: data + godzina w dwóch wierszach) albo obok w wierszu; cena bez kropki skalowana do pozostałych
+    (`fixed`); `mergeXtb` łączy przebiegi; `xtbWarnings` (kierunek a wynik, netto a brutto, SL po stronie zysku);
+    `screenValues` (czasy WAW → UTC, para przez `pairForSymbol`), `changedScreenFields`, `applyScreenValues`
+    (wyjście = jedno 100%, wynik netto → `pnlAmountOverride` w walucie konta, `trade.broker` z `source: 'screen'`).
+  - Screen nie jest zapisywany. `Ctrl+V` w oknie przechwytywane w fazie capture (nie trafia do panelu screenów).
+- Czas wyjścia/partiala: `ExitClockField` w NY i w WAW (`zone`), data od dnia wejścia w tej strefie, „+1” dla następnego dnia.
 - Import historii od brokera (Ustawienia → Eksport, import, kopie; `renderer/features/settings/BrokerImport.tsx`):
   - plik: main `import/broker.ts` (`pickBrokerFile`: XLSX → arkusze przez yauzl, reszta → bajty), renderer dekoduje
     (`decodeText`: BOM UTF-8/16, UTF-8, Windows-1250) i dzieli na wiersze (`shared/import/tables.ts`: CSV/TSV, tabele HTML

@@ -245,6 +245,8 @@ export interface JournalApi {
   savePdf(defaultName: string, html: string): Promise<string | null>
   /** Open dialog for a broker's history (CSV, HTML report, XLSX); null when cancelled. */
   pickBrokerFile(): Promise<BrokerFile | null>
+  /** Offline OCR (Tesseract in a worker thread of the main process) of a PNG: words as Tesseract TSV. */
+  ocrImage(png: Uint8Array): Promise<string>
   /** ZIP of the whole data folder (without backups). */
   exportZip(): Promise<string | null>
   copyText(text: string): Promise<void>

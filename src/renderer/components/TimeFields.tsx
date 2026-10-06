@@ -133,29 +133,34 @@ export function DualTimeField({
 }
 
 /**
- * Exit time typed as New York HH:MM relative to the entry: the date follows the entry day,
- * rolling to the next day when the time is earlier than the entry.
+ * Exit time typed as HH:MM in New York or Warsaw time relative to the entry: the date follows the entry day in that
+ * zone, rolling to the next day when the time is earlier than the entry.
  */
 export function ExitClockField({
   iso,
   referenceIso,
   onChange,
+  zone = 'NY',
+  width = 54,
   testId
 }: {
   iso: string | null
   referenceIso: string
   onChange: (iso: string | null) => void
+  zone?: 'NY' | 'WAW'
+  width?: number
   testId?: string
 }) {
-  const value = iso ? formatClock(iso, 'NY') : ''
-  const title = iso ? `NY ${zoned(iso, 'NY').toFormat('yyyy-MM-dd HH:mm')} · WAW ${zoned(iso, 'WAW').toFormat('yyyy-MM-dd HH:mm')}` : 'Godzina wyjścia (NY)'
+  const value = iso ? formatClock(iso, zone) : ''
+  const nextDay = iso && zoned(iso, zone).toISODate() !== zoned(referenceIso, zone).toISODate()
+  const title = iso ? `NY ${zoned(iso, 'NY').toFormat('yyyy-MM-dd HH:mm')} · WAW ${zoned(iso, 'WAW').toFormat('yyyy-MM-dd HH:mm')}` : `Godzina wyjścia (${ZONE_LABEL[zone]})`
   return (
-    <span title={title}>
+    <span title={title} className="relative">
       <DraftInput
-        width={54}
+        width={width}
         value={value}
-        placeholder="NY"
-        aria-label="Godzina wyjścia NY"
+        placeholder={ZONE_LABEL[zone]}
+        aria-label={`Godzina wyjścia ${ZONE_LABEL[zone]}`}
         data-testid={testId}
         onCommit={(t) => {
           if (t.trim() === '') {
@@ -164,17 +169,18 @@ export function ExitClockField({
           }
           const c = parseClockInput(t)
           if (!c) return false
-          const refDate = zoned(referenceIso, 'NY').toISODate() ?? ''
-          let res = fromLocal(refDate, c, 'NY')
+          const refDate = zoned(referenceIso, zone).toISODate() ?? ''
+          let res = fromLocal(refDate, c, zone)
           if (res && Date.parse(res.iso) < Date.parse(referenceIso)) {
             const next = DateTime.fromISO(refDate).plus({ days: 1 }).toISODate() ?? refDate
-            res = fromLocal(next, c, 'NY')
+            res = fromLocal(next, c, zone)
           }
           if (!res) return false
           onChange(res.iso)
           return true
         }}
       />
+      {nextDay && <span className="pointer-events-none absolute -top-1 right-0.5 text-[9px] text-accent">+1</span>}
     </span>
   )
 }

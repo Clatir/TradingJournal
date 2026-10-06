@@ -24,6 +24,7 @@ import { fetchNbpHistory, fetchNbpTable, nbpSource } from './fx/nbp'
 import { writeXlsx } from './export/xlsx'
 import { htmlToPdf } from './export/pdf'
 import { readBrokerFile } from './import/broker'
+import { ocrImage, stopOcr } from './ocr/ocr'
 import type { XlsxSheet } from '@shared/export/xlsx'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
@@ -405,6 +406,11 @@ function registerIpc(): void {
     if (res.canceled || !file) return null
     return readBrokerFile(file)
   })
+  handle('journal:ocrImage', async (png: Uint8Array) => {
+    if (!(png instanceof Uint8Array) || png.byteLength === 0) throw new Error('Brak obrazu.')
+    if (png.byteLength > 40 * 1024 * 1024) throw new Error('Obraz jest za duży (limit 40 MB).')
+    return ocrImage(png)
+  })
   handle('journal:showPath', async (abs: string) => {
     shell.showItemInFolder(abs)
   })
@@ -563,5 +569,6 @@ app.on('window-all-closed', () => {
 // Last step of quitting (data flushed, folder closed): a downloaded update is installed now; the
 // installer / swap helper finishes after this process has exited.
 app.on('will-quit', () => {
+  stopOcr()
   updater?.applyOnQuit()
 })

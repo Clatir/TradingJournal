@@ -3,6 +3,23 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.6
+
+### Nowe
+- **Uzupełnianie transakcji ze screenu z XTB** (edytor transakcji → „Ze screenu XTB”): wklej (`Ctrl+V`), przeciągnij
+  albo wybierz screen okna „Szczegóły pozycji” z XTB.
+  - Aplikacja odczytuje go sama (OCR na tym komputerze, bez internetu): instrument, typ (Buy / Sell), wolumen,
+    ceny i czasy otwarcia i zamknięcia, Stop Loss, Take Profit, zysk/strata, prowizję, swap i rolowanie.
+  - Przed uzupełnieniem widać tabelę: wartość ze screenu (do poprawienia), wartość w transakcji i pole wyboru.
+    Zaznaczone są tylko pola, które coś zmienią.
+  - Czasy XTB są czasem warszawskim i tak są przeliczane. Wynik netto trafia do kwoty wyniku w walucie konta z
+    ustawień; prowizja i swap – do informacji od brokera („Broker: ze screenu”).
+  - Kontrola spójności: kierunek a wynik i ceny, netto a brutto z kosztami, SL po stronie zysku, cena odczytana bez
+    kropki dziesiętnej.
+  - **Screen nie jest zapisywany** – jest tylko odczytywany w pamięci.
+- **Czas wyjścia także w czasie warszawskim**: w „Wyjście i partiale” obok „Czas NY” jest „Czas WAW”. Oba pola można
+  edytować, drugie przelicza się samo, a wyjście następnego dnia ma znacznik „+1”.
+
 ## 1.4.5
 
 ### Poprawki

@@ -43,7 +43,9 @@ export const brokerFillSchema = z.looseObject({
   swap: nullableNumber,
   net: nullableNumber,
   currency: z.string().regex(/^[A-Z]{3}$/).nullable().default(null),
-  importedAt: isoDateTime.nullable().default(null)
+  importedAt: isoDateTime.nullable().default(null),
+  /** Where the numbers came from: a broker file (default) or a screenshot read by OCR (1.4.6). */
+  source: z.enum(['file', 'screen']).optional()
 })
 export type BrokerFill = z.infer<typeof brokerFillSchema>
 
