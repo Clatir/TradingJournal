@@ -72,7 +72,7 @@ Test aktualizacji na Windows: `playwright.update.config.ts` (`tests/update`) z `
   nowe wpisy jako szkic do pierwszej zmiany; zmiany z dysku nie nadpisują niezapisanych lokalnych edycji.
   Nieudany zapis zostaje w pamięci i jest ponawiany (2 s → … → 60 s); `flushSaves()` zapisuje wszystko, co niezapisane,
   i zwraca `false`, gdy coś zostało – wtedy zamknięcie okna pyta, a zmiana folderu jest wstrzymana.
-  W folderze tylko do odczytu edycje nie są przyjmowane.
+  W folderze tylko do odczytu edycje nie są przyjmowane. Zmiany z drugiego komputera: patrz „Dwa komputery i historia”.
 
 ## Dane (folder wybierany przez użytkownika)
 ```
@@ -82,12 +82,15 @@ days/RRRR/RRRR-MM-DD.json            plan dnia (sekcje per para)
 weeks/RRRR-Wnn.json                  przegląd tygodnia (tydzień ISO)
 library/ULID.json                    biblioteka setupów
 forecasts/ULID.json                  scenariusz prognozy wypłat (z zapisanymi losowaniami)
+drills/ULID.json                     sesja treningu (karty z odpowiedziami, 1.4.0)
 screens/RRRR/MM/ULID_etykieta.webp  (+ .thumb.webp)
 backups/                             kopie ZIP (wyłączone ze skanu)
 .presence/                           heartbeat komputerów (ignorowany przez skan)
+.history/<rodzaj>/<id>/*.json        poprzednie wersje wpisów (ignorowane przez skan, watcher i kopie ZIP)
 ```
 - JSON z wcięciami (2 spacje) i końcowym `\n`; czasy UTC ISO 8601; identyfikatory ULID; ścieżki **względne** z `/`.
-- Każdy rekord: `schemaVersion`, `id`, `createdAt`, `updatedAt`. Nieznane pola są zachowywane (`z.looseObject`).
+- Każdy rekord: `schemaVersion`, `id`, `createdAt`, `updatedAt` (+ `updatedBy` = nazwa komputera, ustawiane przez main
+  przy zapisie, od 1.4.0). Nieznane pola są zachowywane (`z.looseObject`).
 - Transakcja zapisuje informacyjny blok `computed` (pipsy, R, killzone…) – ignorowany przy odczycie.
 - Słowniki: pozycje z ULID, rekordy odwołują się po `id`, usuwanie = archiwizacja.
 - Zapis atomowy: `.nazwa.tmp-xxxx` → fsync → rename (retry na EPERM/EBUSY). Pliki `.tmp-` i ścieżki z kropką są ignorowane.
@@ -223,6 +226,44 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Eksport: `forecastTable` → TSV (schowek), CSV, XLSX (generator XML w `shared/export/xlsx.ts`, ZIP w `main/export/xlsx.ts`).
 - `SCHEMA_VERSION` bez zmian (kolekcja addytywna): 1.2.x pomija `forecasts/` (kopia dzienna i import 1.2.x ich nie zawierają).
 
+## Dwa komputery i historia zmian (1.4.0)
+- Historia: `main/datastore/history.ts` (`RecordHistory`). Przed nadpisaniem/usunięciem main odkłada poprzednią wersję
+  do `.history/<rodzaj>/<id>/<czas>_<powód>_<los>.json` (powody: edit, delete, restore, import, merge, discarded).
+  Edycje z tego komputera najwyżej raz na 10 min, wersje z innego komputera (`updatedBy`), usunięcia, przywrócenia
+  i importy zawsze; max 40 na wpis. IPC `historyList/Read/Deleted/Keep/Restore`; UI `features/history/`.
+- `ChangeSet.origin`: 'external' (watcher / skan / rescan), 'local' (własny zapis, import, rozstrzygnięcie konfliktu).
+- Renderer (`store/journal.ts`): `bases` = wersja z dysku sprzed lokalnych edycji. Zmiana zewnętrzna wpisu z niezapisanymi
+  edycjami → `decideRemote` (`shared/remoteChanges.ts`): tryb `settings.sync.remoteChanges` 'merge' (domyślny) scala
+  trójstronnie `merge3` (`shared/merge.ts`: obiekty pole po polu, tablice obiektów z `id` po `id`, inne tablice w całości,
+  `updatedAt`/`updatedBy`/`computed` bez konfliktu) i pyta tylko o pola zmienione po obu stronach; 'ask' pyta zawsze.
+  Oczekujące decyzje (`store/remote.ts`, `RemoteChangesDialog`) blokują zapis tego wpisu; odrzucona wersja → historia
+  (`historyKeep`, powód 'discarded'). Usunięcie na drugim komputerze przy lokalnych edycjach też jest pytaniem.
+- E2E: hak `__ICTJ_SAVE_DELAY__` (opóźnienie autozapisu) i `journal.rescan()` symulują drugi komputer.
+
+## Sesje analizy, szablony dnia, samopoczucie (1.4.0)
+- Sesje analizy portfolio w planie dnia (`day.sessions`): odcinki stopera (z opcjonalną parą), decyzja per para
+  (trade / watch / reject + `reasonIds` ze słownika `rejectReasons`, stałe ULID domyślnych powodów), minuty, `review`.
+  Obliczenia `shared/calc/sessions.ts` (czas na parę: wpisany > zmierzony odcinek + równa część czasu bez pary;
+  `pendingReviews` po 3 h albo następnego dnia; `selectionStats` = lejek, czas/transakcję, czas/1R, trafność odrzuceń,
+  przedziały czasu a wynik dnia). UI `features/sessions/` (stoper w TopBar, `Ctrl+Shift+A`), sekcja w raporcie miesięcznym.
+- Szablony planu dnia: `settings.dayTemplates` (`shared/dayTemplates.ts`): wstawienie uzupełnia tylko puste pola,
+  ★ domyślny szablon dla nowych planów (`newDayPlan`).
+- Samopoczucie: `day.wellbeing` (sen h, energia i stres 1–5, notatka); pytanie rano w dni handlowe NY
+  (`display.wellbeingPrompt`, odłożenie na dziś w localStorage); `shared/calc/wellbeing.ts` (grupy snu/energii/stresu).
+
+## Trening, mapa godzin, własne pola i filtry (1.4.0)
+- Mapa godzin: `shared/calc/heatmap.ts` (dzień tygodnia × godzina wejścia NY; Σ R, śr. R, win rate bez BE, liczba,
+  błędy = tag błędu albo złamana zasada), komponent `components/charts/WeekdayHourHeatmap.tsx`.
+- Trening (`Ctrl+8`, `features/drill/DrillPage.tsx`, `shared/calc/drills.ts`): karta = zamknięta albo missed z wynikiem
+  i screenem „przed”. Kolejność: nigdy nie ćwiczone → ostatnio błędne → najdawniej powtarzane (losowo w grupach).
+  Odpowiedź zapisuje `truth` z chwili odpowiedzi. Ocena: decyzja (zysk → wziąć w kierunku, strata → odpuścić, BE bez
+  oceny), kierunek (gdy wchodzisz), SL „blisko” ≤ max(2 p, 25% SL). Nowa sesja jest szkicem do pierwszej odpowiedzi.
+- Własne pola: `settings.customFields` (select / number / check / text, opcje jak słownik), wartości `trade.custom[fieldId]`
+  (select = id opcji). `shared/journalView.ts`: `withCustomValue`, `filterRows` (wyszukiwanie obejmuje wartości pól),
+  kolumny (`BUILTIN_COLUMNS`, `cf:<id>`, `settings.journalView.columns`, null = domyślne), zapisane filtry
+  (`settings.savedFilters`, `sameFilter` bez pustych warunków). Analityka `customFieldBreakdowns`, CSV i markdown
+  dopisują pola. Import (scal) dołącza pola i opcje po `id`.
+
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
 - Scenariusz prognozy: nowe `id` (także celów), nazwa „(kopia)”, „(kopia 2)”…, te same losowania; zapisany od razu.
@@ -285,6 +326,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
    lista instrumentów, TP i zysk do ryzyka w kalkulatorze pozycji (`tests/e2e/forecast.spec.ts`); kalkulatory w PLN,
    partiale, kurs z dnia transakcji, wynik z lotów, prognoza z wyników, raport miesięczny, import historii od brokera
    (`tests/e2e/journal-tools.spec.ts`).
+10. ✅ 1.4.0: sesje analizy portfolio (stoper, decyzje, powody odrzucenia, pytanie o odrzucone, analityka i raport),
+    dwa komputery naraz (scalanie / pytanie), historia zmian z przywracaniem, szablony planu dnia, samopoczucie, mapa
+    godzin, trening na kartach, własne pola, kolumny i zapisane filtry (`tests/e2e/v14.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

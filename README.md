@@ -180,3 +180,19 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     → „Zapisz jako raport” (HTML); XTB – xStation → Historia → eksport XLSX. Sprawdź strefę czasu pliku (serwer MT =
     NY + 7 h, XTB = Warszawa) i tolerancję, „Zastosuj” – dopasowane wpisy dostają loty, wyjścia i wynik netto, a numer
     pozycji widać w edytorze transakcji. Ponowny import tego samego pliku pokazuje „już zaimportowana”.
+
+**Wersja 1.4 – analiza portfolio, dwa komputery, trening**
+1. Górny pasek → „Analiza” (albo `Ctrl+Shift+A`): wybierz pary, „Start”, zaznaczaj parę, którą właśnie analizujesz,
+   „Zakończ i zdecyduj” – dla każdej pary handluję / obserwuję / odrzucam z powodami. Odrzucone pary wrócą jako pytanie
+   „Pytania: 1” po kilku godzinach. Analityka → „Czas analizy i selekcja par”; raport miesięczny ma tę samą sekcję.
+2. Ten sam folder otwarty na dwóch komputerach: zmień na jednym transakcję, którą drugi właśnie edytuje – drugi scala
+   zmiany albo pyta o pola zmienione po obu stronach (przycisk „Zmiany z drugiego komputera” w górnym pasku).
+   Ustawienia → Folder danych → „Praca na dwóch komputerach”: „Scalaj zmiany, pytaj tylko przy konflikcie” albo
+   „Zawsze pytaj przed przyjęciem zmian”.
+3. „Historia” w transakcji: poprzednia wersja z różnicami → „Przywróć”. Synchronizacja → „Usunięte wpisy” → przywróć.
+4. Plan dnia → „Szablon ▾” → zapisz plan jako szablon, ustaw ★ domyślny; nowy plan innego dnia startuje z szablonu.
+5. Rano pasek „Jak się dziś czujesz?” (sen, energia, stres) albo te same pola w planie dnia → Analityka „Samopoczucie a wynik”.
+6. Analityka → „Mapa godzin”: przełącz Σ R / Śr. R / Win rate / Liczba / Błędy, najedź na pole.
+7. `Ctrl+8` „Trening”: transakcje ze screenem „przed”, odpowiedz L / S / N, Enter – następna karta; trafność w czasie.
+8. Ustawienia → Słowniki → „Własne pola transakcji”: dodaj „Ocena setupu” (lista A+/A/B), ustaw w transakcji, w dzienniku
+   „Kolumny” → pokaż pole, „Filtry” → wybierz A+, „Zapisane ▾” → zapisz filtr; Analityka → „Własne pole: Ocena setupu”.

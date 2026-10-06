@@ -3,6 +3,47 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.0
+
+### Nowe
+- **Sesje analizy portfolio** (stoper „Analiza” w górnym pasku, `Ctrl+Shift+A`): mierzysz czas przeglądu wszystkich par,
+  możesz zaznaczać parę, którą właśnie analizujesz, a na koniec dla każdej pary wybierasz: handluję / obserwuję /
+  odrzucam (z powodami ze słownika „Powody odrzucenia pary”). Kilka godzin później (albo następnego dnia) aplikacja
+  krótko pyta, czy odrzucona para dała jednak dobry setup.
+  - Analityka i raport miesięczny: lejek (pary → wybrane → wejścia → wygrane), czas analizy na transakcję i na 1R,
+    trafność odrzuceń wg powodów, pary, czas analizy a wynik dnia.
+  - Transakcja z pary wybranej w sesji ma oznaczenie „z analizy”. Sesję można też wpisać ręcznie i poprawić czas.
+- **Dwa komputery naraz**: gdy dziennik jest otwarty na dwóch komputerach i na jednym coś zmienisz, drugi przyjmuje
+  zmianę. Jeśli ten sam wpis był właśnie edytowany, zmiany są scalane pole po polu, a o pola zmienione po obu stronach
+  aplikacja pyta (moja / z drugiego komputera). W Ustawienia → Folder danych można wybrać „Zawsze pytaj przed
+  przyjęciem zmian”. Nic nie ginie – odrzucona
+  wersja zostaje w historii zmian.
+- **Historia zmian wpisu** (przycisk „Historia” w transakcji, planie dnia, tygodniu, bibliotece i ustawieniach): poprzednie
+  wersje z różnicami pole po polu i przywracanie. Usunięte wpisy można przywrócić (Synchronizacja). Historia leży w
+  folderze danych (`.history/`), widać, który komputer zapisał wersję.
+- **Szablony planu dnia** (przycisk „Szablon” w planie dnia): zapisz plan jako szablon (pary, DOL, poziomy, scenariusze,
+  instrumenty), wstaw go do innego dnia (uzupełnia tylko puste pola) albo ustaw ★ szablon domyślny dla nowych planów.
+- **Samopoczucie**: sen (h), energia i stres 1–5 w planie dnia; rano w dni handlowe krótkie pytanie (można wyłączyć).
+  Analityka pokazuje wynik, win rate i błędy wg snu, energii i stresu.
+- **Mapa godzin** (Analityka): dzień tygodnia × godzina wejścia NY – Σ R, średnie R, win rate, liczba transakcji i błędy.
+- **Trening** (`Ctrl+8`): karty z dawnych transakcji – widzisz screen „przed” bez wyniku, decydujesz long / short / nie
+  wchodzę (klawisze L / S / N), opcjonalnie wpisujesz SL, potem odkrywasz wynik i screeny „po”. Najpierw karty nigdy
+  nie ćwiczone, potem te z błędną odpowiedzią. Trafność decyzji, kierunku i SL w czasie i wg pary.
+- **Własne pola transakcji** (Ustawienia → Słowniki): lista opcji (np. ocena setupu A+/A/B), liczba, tak/nie, tekst –
+  w edytorze, jako kolumny listy, w filtrach, w analityce (wynik wg pola), w CSV i w markdownie.
+- **Lista transakcji**: wybór i kolejność kolumn (także nowe: PD array, płynność, godzina wyjścia, czas trwania, loty,
+  ryzyko %, kwota, notatki), filtry (daty, wynik, zasady, błędy, model, własne pola) i **zapisane filtry** pod nazwą –
+  także w palecie `Ctrl+K`.
+
+### Poprawki
+- Import (scal) dołącza powody odrzucenia par i własne pola z importowanego dziennika.
+- Edycja wpisu, który w tym samym czasie zmienił się na drugim komputerze, nie nadpisuje już po cichu tamtej zmiany.
+
+### Ważne przy pracy na kilku komputerach
+- Format danych się nie zmienia (wersja 1.3.x otwiera folder), ale **1.3.x nie zna treningów (`drills/`), historii
+  zmian, własnych pól i sesji analizy** – zachowuje je w plikach, ale ich nie pokazuje, a kopia dzienna i import w 1.3.x
+  pomijają `drills/`. Zaktualizuj aplikację na wszystkich komputerach.
+
 ## 1.3.0
 
 ### Nowe
