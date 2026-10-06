@@ -17,6 +17,7 @@ import { deliverMonthlyReport, latestReportMonth } from '../export/reportActions
 import { checkForUpdates } from '../../store/update'
 import { refreshFxRates } from '../../store/fx'
 import { createScenario } from '../forecast/actions'
+import { addManualSession, setReviewsOpen } from '../sessions/actions'
 
 export function toggleMoney(): void {
   let on = false
@@ -49,6 +50,9 @@ export function CommandPalette() {
       { id: 'duplicate', label: 'Duplikuj bieżący wpis (transakcja, przykład, scenariusz; plan → następny dzień)', keys: 'Ctrl Shift D', run: duplicateCurrent },
       { id: 'journal', label: 'Dziennik transakcji', keys: 'Ctrl 1', run: () => navigate({ page: 'journal' }) },
       { id: 'day', label: 'Plan dnia – dziś', keys: 'Ctrl D', run: () => navigate({ page: 'day', date: todayNy() }) },
+      { id: 'analysis', label: 'Sesja analizy: start / zakończ i zdecyduj', keys: 'Ctrl Shift A', run: () => window.dispatchEvent(new Event('ictj:analysis-toggle')) },
+      { id: 'analysis-manual', label: 'Sesja analizy wpisana ręcznie (dziś)', run: () => addManualSession(todayNy(), 30) },
+      { id: 'reviews', label: 'Odrzucone pary: czy dały dobry setup?', run: () => setReviewsOpen(true) },
       { id: 'analytics', label: 'Analityka', keys: 'Ctrl 3', run: () => navigate({ page: 'analytics' }) },
       { id: 'library', label: 'Biblioteka setupów', keys: 'Ctrl 4', run: () => navigate({ page: 'library' }) },
       { id: 'week', label: 'Przegląd tygodnia', keys: 'Ctrl 5', run: () => navigate({ page: 'week', week: currentWeek() }) },

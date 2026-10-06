@@ -8,6 +8,7 @@ import { closedTrades, mistakeCosts, summaryOf, type AnalyzedTrade, type Mistake
 import type { StatsSummary } from '../calc/stats'
 import { rateFor } from '../fx'
 import { historicalRate, transactionDate } from '../fxHistory'
+import { minutesLabel, selectionStats, type SelectionStats } from '../calc/sessions'
 import type { DayPlan, JournalFile } from '../schema'
 
 const MINUS = '−'
@@ -45,6 +46,10 @@ export interface MonthlyReport {
   plan: { tradingDays: number; daysWithPlan: number; tradesWithoutPlan: number; matched: number; partial: number; missedPlan: number; notReviewed: number }
   best: { date: string; pair: string; r: number } | null
   worst: { date: string; pair: string; r: number } | null
+  /** Analysis sessions of the month (null without any). */
+  selection: SelectionStats | null
+  /** Names of the rejection reasons (for the report text). */
+  rejectReasonNames: Record<string, string>
 }
 
 /** "marzec 2026" for "2026-03". */
@@ -79,7 +84,13 @@ function rowOf(label: string, rows: readonly AnalyzedTrade[], be: number, journa
   return { label, trades: s.count, totalR: s.totalR, winRate: s.winRate, pln: plns.length ? plns.reduce((a, b) => a + b, 0) : null }
 }
 
-export function buildMonthlyReport(rows: readonly AnalyzedTrade[], days: readonly DayPlan[], journal: JournalFile, month: string): MonthlyReport {
+export function buildMonthlyReport(
+  rows: readonly AnalyzedTrade[],
+  days: readonly DayPlan[],
+  journal: JournalFile,
+  month: string,
+  now: string = new Date().toISOString()
+): MonthlyReport {
   const be = journal.settings.stats.breakevenThresholdR
   const inMonth = rows.filter((r) => r.m.tradingDate.startsWith(month))
   const closed = closedTrades(inMonth)
@@ -158,7 +169,12 @@ export function buildMonthlyReport(rows: readonly AnalyzedTrade[], days: readonl
       notReviewed: reviews.filter((v) => v == null).length
     },
     best: closed.length ? pick(sortedByR.at(-1)) : null,
-    worst: closed.length ? pick(sortedByR[0]) : null
+    worst: closed.length ? pick(sortedByR[0]) : null,
+    selection: (() => {
+      const st = selectionStats(days, inMonth, { from: `${month}-01`, to: `${month}-31`, now })
+      return st.sessions ? st : null
+    })(),
+    rejectReasonNames: Object.fromEntries(journal.dictionaries.rejectReasons.map((r) => [r.id, r.name]))
   }
 }
 
@@ -267,6 +283,22 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
         : 'Brak planów dnia w tym miesiącu.'
     ]
   })
+  if (r.selection) {
+    const st = r.selection
+    const pct2 = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`)
+    const topReasons = st.reasons
+      .slice(0, 3)
+      .map((x) => `${r.rejectReasonNames[x.reasonId] ?? 'bez powodu'} (${x.rejected}${x.reviewed ? `, trafne ${pct2(x.noSetup / x.reviewed)}` : ''})`)
+    out.push({
+      heading: 'Czas analizy i selekcja par',
+      lines: [
+        `Sesje analizy: ${st.sessions}, łącznie ${minutesLabel(st.minutes)}. Pary: przeanalizowane ${st.analysed}, wybrane ${st.decisions.trade + st.decisions.watch} (handluję ${st.decisions.trade}, obserwuję ${st.decisions.watch}), odrzucone ${st.decisions.reject}.`,
+        `Wejścia w dni z analizą: ${st.trades} (z wybranych par: ${st.fromSelection}), wygrane: ${st.wins}, Σ ${fmtReportR(st.totalR)}.`,
+        `Czas na wejście: ${st.minutesPerTrade == null ? '—' : minutesLabel(st.minutesPerTrade)}; czas na 1R: ${st.minutesPerR == null ? '—' : minutesLabel(st.minutesPerR)}; trafność odrzuceń: ${pct2(st.rejectAccuracy)}.`,
+        ...(topReasons.length ? [`Najczęstsze powody odrzucenia: ${topReasons.join(', ')}.`] : [])
+      ]
+    })
+  }
   if (r.best && r.worst)
     out.push({
       heading: 'Najlepsza i najgorsza transakcja',

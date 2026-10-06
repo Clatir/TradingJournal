@@ -9,6 +9,7 @@ import { IconSearch } from '../components/icons'
 import { Kbd, cx } from '../components/ui'
 import { SaveIndicator } from './SaveIndicator'
 import { RemoteChangesChip } from '../features/sync/RemoteChangesDialog'
+import { AnalysisTimer } from '../features/sessions/AnalysisTimer'
 
 const NO_KILLZONES: readonly Killzone[] = []
 
@@ -46,6 +47,7 @@ export function TopBar() {
       )}
       <div className="ml-auto flex items-center gap-4">
         <RemoteChangesChip />
+        <AnalysisTimer />
         <SaveIndicator />
         {limits && (
           <button

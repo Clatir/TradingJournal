@@ -25,6 +25,7 @@ import { Banners } from './Banners'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ShortcutsHelp } from './ShortcutsHelp'
 import { RemoteChangesDialog } from '../features/sync/RemoteChangesDialog'
+import { DecisionsDialog, ReviewsDialog } from '../features/sessions/SessionDialogs'
 import { setRemoteDialog, useRemote } from '../store/remote'
 import { flushSaves } from '../store/journal'
 import { initUpdates } from '../store/update'
@@ -65,6 +66,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '5') {
         e.preventDefault()
         navigate({ page: 'week', week: currentWeek() })
+      } else if (k === 'a' && e.shiftKey) {
+        e.preventDefault()
+        window.dispatchEvent(new Event('ictj:analysis-toggle'))
       } else if (k === 'm' && e.shiftKey) {
         e.preventDefault()
         void copyMarkdownForRoute()
@@ -214,6 +218,8 @@ export function App() {
       <CommandPalette />
       <ShortcutsHelp />
       <RemoteChangesDialog />
+      <DecisionsDialog />
+      <ReviewsDialog />
       <Lightbox />
       <Toasts />
     </div>

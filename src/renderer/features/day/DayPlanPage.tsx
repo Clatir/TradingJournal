@@ -11,6 +11,7 @@ import { navigate, toast } from '../../store/ui'
 import { IconBack, IconClose, IconCopy, IconNext, IconPlus } from '../../components/icons'
 import { Badge, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { HistoryButton } from '../history/HistoryDialog'
+import { SessionsSection } from '../sessions/SessionsSection'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { copyDayMarkdown } from '../export/markdownActions'
 import { copyDayPlanToDate } from '../duplicate'
@@ -264,8 +265,9 @@ export function DayPlanPage({ date }: { date: string }) {
             </Section>
           </div>
 
-          {/* ------------------------------------------- trades & screens */}
+          {/* ------------------------------------------- sessions, trades & screens */}
           <div className="flex min-h-0 flex-col overflow-y-auto">
+            {!isDraft && <SessionsSection day={plan} readOnly={readOnly} today={todayNy()} />}
             <DayTrades date={date} />
             <Section title={`Screeny dnia (${plan.screens.length})`}>
               <ScreensPanel

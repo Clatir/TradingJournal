@@ -1,6 +1,6 @@
 import { newId } from './ids'
 import { SCHEMA_VERSION } from './schema/common'
-import { journalSchema, type DictItem, type JournalFile, type Killzone, type PairConfig, type Settings } from './schema/journal'
+import { DEFAULT_REJECT_REASONS, journalSchema, type DictItem, type JournalFile, type Killzone, type PairConfig, type Settings } from './schema/journal'
 import { tradeSchema, type Trade } from './schema/trade'
 import { dayPlanSchema, type DayPlan } from './schema/day'
 import { FORECAST_MAX_MONTHS, forecastSchema, type Forecast, type ForecastDraws } from './schema/forecast'
@@ -73,7 +73,8 @@ export function createDefaultJournal(now = new Date().toISOString()): JournalFil
         'PWL'
       ]),
       mistakeTags: dict(['Przesunięty TP', 'SL za ciasny', 'Wejście poza killzone']),
-      missedReasons: dict(['Brak potwierdzenia', 'Wahanie / strach', 'Poza komputerem', 'Za późno zauważony setup'])
+      missedReasons: dict(['Brak potwierdzenia', 'Wahanie / strach', 'Poza komputerem', 'Za późno zauważony setup']),
+      rejectReasons: DEFAULT_REJECT_REASONS.map((r) => ({ ...r, archived: false }))
     }
   })
 }

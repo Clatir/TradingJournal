@@ -13,6 +13,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl S', 'zapisz teraz (zapis i tak jest automatyczny)'],
       ['Ctrl $', 'pokaż / ukryj kwoty'],
       ['Ctrl Shift M', 'markdown transakcji / planu dnia do schowka'],
+      ['Ctrl Shift A', 'stoper analizy: start / zakończ i zdecyduj'],
       ['? lub F1', 'ta ściąga']
     ]
   },

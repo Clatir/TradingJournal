@@ -53,3 +53,11 @@ export async function stubSaveDialog(app: ElectronApplication, save: string): Pr
     d.showSaveDialog = async (_w: unknown, opts: { defaultPath?: string }) => ({ canceled: false, filePath: path.replace('{name}', opts?.defaultPath ?? 'plik') })
   }, save)
 }
+
+/** Day plan files, parsed. */
+export async function readDays(root: string, year = String(new Date().getUTCFullYear())): Promise<DayPlan[]> {
+  const out: DayPlan[] = []
+  const dir = join(root, 'days', year)
+  for (const name of await fs.readdir(dir).catch(() => [])) if (name.endsWith('.json') && !name.startsWith('.')) out.push(JSON.parse(await fs.readFile(join(dir, name), 'utf8')))
+  return out
+}

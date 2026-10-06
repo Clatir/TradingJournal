@@ -5,6 +5,7 @@ import { validateTrade } from '@shared/calc/validator'
 import type { AnalyzedTrade } from '@shared/calc/analytics'
 import { buildMonthlyReport, monthlyReportHtml, monthlyReportMarkdown, reportLead, reportMonths } from '@shared/export/monthlyReport'
 import type { DayPlan, JournalFile, Trade } from '@shared/schema'
+import { setPairField, startSession, stopSession } from '@shared/calc/sessions'
 
 function analyze(journal: JournalFile, trades: Trade[], days: DayPlan[] = []): AnalyzedTrade[] {
   const ctx = metricsContext(journal.settings)
@@ -159,6 +160,21 @@ describe('raport miesięczny', () => {
     expect(current).toMatchObject({ plnTrades: 2, plnHistorical: 0, plnCurrent: 1 })
     expect(current.pln).toBeCloseTo(200 - 50 * 3.75, 9)
     expect(reportLead(current)).toBe('Wynik: +1.00R · +12.50 PLN (1 po bieżącym kursie (brak archiwum NBP))')
+  })
+
+  it('sekcja czasu analizy i selekcji, gdy w miesiącu są sesje', () => {
+    let session = stopSession(startSession('Przed Londynem', ['EURUSD', 'AUDUSD'], '2026-03-16T06:00:00.000Z', null), '2026-03-16T06:45:00.000Z')
+    session = setPairField(session, 'EURUSD', 'decision', 'trade')
+    session = setPairField(session, 'AUDUSD', 'decision', 'reject')
+    session = setPairField(session, 'AUDUSD', 'reasonIds', [journal.dictionaries.rejectReasons[1]!.id])
+    const withSession = [{ ...days[0]!, sessions: [session] }, days[1]!]
+    const rep = buildMonthlyReport(rows, withSession, journal, '2026-03', '2026-04-01T00:00:00.000Z')
+    expect(rep.selection).toMatchObject({ sessions: 1, minutes: 45, trades: 1, fromSelection: 1 })
+    const md = monthlyReportMarkdown(rep)
+    expect(md).toContain('## Czas analizy i selekcja par')
+    expect(md).toContain('- Sesje analizy: 1, łącznie 45 min. Pary: przeanalizowane 2, wybrane 1 (handluję 1, obserwuję 0), odrzucone 1.')
+    expect(md).toContain('- Najczęstsze powody odrzucenia: Konsolidacja (1).')
+    expect(r.selection).toBeNull()
   })
 
   it('duże kwoty z odstępem tysięcy', () => {

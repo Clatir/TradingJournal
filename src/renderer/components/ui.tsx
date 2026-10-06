@@ -273,7 +273,7 @@ export function Chips({
   )
 }
 
-export function Badge({ children, tone = 'default', title }: { children: ReactNode; tone?: 'default' | 'accent' | 'up' | 'down' | 'warn'; title?: string }) {
+export function Badge({ children, tone = 'default', title, ...rest }: { children: ReactNode; tone?: 'default' | 'accent' | 'up' | 'down' | 'warn'; title?: string; 'data-testid'?: string }) {
   const tones = {
     default: 'border-line-strong text-muted',
     accent: 'border-accent/50 text-accent',
@@ -282,7 +282,7 @@ export function Badge({ children, tone = 'default', title }: { children: ReactNo
     warn: 'border-accent/50 text-accent'
   }
   return (
-    <span title={title} className={cx('inline-flex h-[18px] items-center border px-1.5 text-[10.5px] uppercase tracking-wide', tones[tone])}>
+    <span title={title} data-testid={rest['data-testid']} className={cx('inline-flex h-[18px] items-center border px-1.5 text-[10.5px] uppercase tracking-wide', tones[tone])}>
       {children}
     </span>
   )

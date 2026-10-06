@@ -30,8 +30,21 @@ export const dictItemSchema = z.looseObject({
 })
 export type DictItem = z.infer<typeof dictItemSchema>
 
-export const DICTIONARY_KEYS = ['entryModels', 'pdArrays', 'liquidityPools', 'mistakeTags', 'missedReasons'] as const
+export const DICTIONARY_KEYS = ['entryModels', 'pdArrays', 'liquidityPools', 'mistakeTags', 'missedReasons', 'rejectReasons'] as const
 export type DictionaryKey = (typeof DICTIONARY_KEYS)[number]
+
+/**
+ * Reasons for rejecting a pair in an analysis session (since 1.4.0). Fixed ids: a journal from 1.3.x gets the same
+ * defaults on every computer without writing anything.
+ */
+export const DEFAULT_REJECT_REASONS: ReadonlyArray<{ id: string; name: string }> = [
+  { id: '01K6R00000000000000000RJ01', name: 'Brak biasu' },
+  { id: '01K6R00000000000000000RJ02', name: 'Konsolidacja' },
+  { id: '01K6R00000000000000000RJ03', name: 'News' },
+  { id: '01K6R00000000000000000RJ04', name: 'Płynność już zebrana' },
+  { id: '01K6R00000000000000000RJ05', name: 'Za daleko do POI' },
+  { id: '01K6R00000000000000000RJ06', name: 'Brak czytelnej struktury' }
+]
 
 export const dictionariesSchema = z.looseObject({
   entryModels: z.array(dictItemSchema).default([]),
@@ -39,6 +52,7 @@ export const dictionariesSchema = z.looseObject({
   liquidityPools: z.array(dictItemSchema).default([]),
   mistakeTags: z.array(dictItemSchema).default([]),
   missedReasons: z.array(dictItemSchema).default([]),
+  rejectReasons: z.array(dictItemSchema).default(() => DEFAULT_REJECT_REASONS.map((r) => ({ ...r, archived: false }))),
   timeframes: z.array(z.string().min(1)).default(['W', 'D', 'H4', 'H1', 'M15', 'M5', 'M1'])
 })
 export type Dictionaries = z.infer<typeof dictionariesSchema>

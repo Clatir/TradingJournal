@@ -11,6 +11,7 @@ import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
 import { IconBack, IconClose, IconCopy, IconExternal, IconFolder, IconPlus, IconTrash } from '../../components/icons'
 import { HistoryButton } from '../history/HistoryDialog'
+import { DECISION_LABEL } from '@shared/calc/sessions'
 import { Badge, Chips, CurrencyInput, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
@@ -149,6 +150,17 @@ export function TradeEditor({ id }: { id: string }) {
         ))}
         {isDraft && <Badge title="Nowa transakcja zapisze się przy pierwszej zmianie">szkic</Badge>}
         {entry.readOnly && <Badge tone="warn">nowszy format – tylko odczyt</Badge>}
+        {(() => {
+          // Analysis sessions of the trade's day that selected this pair.
+          const from = (dayEntry?.record.sessions ?? []).filter((x) => x.pairs.some((p) => p.pair === t.pair && (p.decision === 'trade' || p.decision === 'watch')))
+          if (!from.length) return null
+          const d = from[0]!.pairs.find((p) => p.pair === t.pair)!.decision!
+          return (
+            <Badge title={from.map((x) => x.name || 'Analiza').join(', ')} data-testid="trade-from-session">
+              z analizy: {from[0]!.name || 'Analiza'} · {DECISION_LABEL[d]}
+            </Badge>
+          )
+        })()}
         <div className="ml-2">
           <Segmented
             aria-label="Status"

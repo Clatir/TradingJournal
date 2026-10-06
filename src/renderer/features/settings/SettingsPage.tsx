@@ -432,7 +432,8 @@ const DICTS: Array<{ key: DictionaryKey; label: string; hint: string }> = [
   { key: 'pdArrays', label: 'PD arrays', hint: 'np. FVG, OB, Breaker' },
   { key: 'liquidityPools', label: 'Pule płynności', hint: 'np. PDH, EQL' },
   { key: 'mistakeTags', label: 'Tagi błędów', hint: 'np. Przesunięty TP' },
-  { key: 'missedReasons', label: 'Powody missed trades', hint: 'np. Brak potwierdzenia' }
+  { key: 'missedReasons', label: 'Powody missed trades', hint: 'np. Brak potwierdzenia' },
+  { key: 'rejectReasons', label: 'Powody odrzucenia pary (sesje analizy)', hint: 'np. Konsolidacja' }
 ]
 
 function DictionaryEditor({ journal, dictKey, label, hint }: { journal: JournalFile; dictKey: DictionaryKey; label: string; hint: string }) {

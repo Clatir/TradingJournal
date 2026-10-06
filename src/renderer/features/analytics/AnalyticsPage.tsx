@@ -25,6 +25,7 @@ import { HourBars } from '../../components/charts/HourBars'
 import { Panel, Segmented, cx } from '../../components/ui'
 import { todayNy } from '../day/DayPlanPage'
 import { deliverMonthlyReport } from '../export/reportActions'
+import { SelectionPanel } from '../sessions/SelectionPanel'
 
 type Preset = 'all' | '30' | '90' | 'ytd' | '365'
 
@@ -180,6 +181,8 @@ export function AnalyticsPage() {
             )}
           </Section>
         </div>
+
+        <SelectionPanel rows={filtered} from={range.from} to={range.to} />
 
         <Section title="Kalendarz wyników (Σ R dziennie)" className="border-t">
           <CalendarHeatmap days={data.calendar} from={calFrom} to={calTo} onPick={(date) => navigate({ page: 'day', date })} />
