@@ -3,6 +3,13 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.4
+
+### Nowe
+- **Optymalny podział – koszt względem całości na ostatnim celu**: wynik „Optymalnego podziału” pokazuje też, ile ten
+  podział traci względem zamknięcia całej pozycji na ostatnim (najdalszym) celu, gdy cena tam dojdzie – kwota, R i wynik
+  całej pozycji na tym celu (np. 40% teraz / 60% na +60: koszt 120.00 USD, 0.60R). Bez klikania „Zastosuj”.
+
 ## 1.4.3
 
 ### Nowe

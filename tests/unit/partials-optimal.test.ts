@@ -123,3 +123,25 @@ describe('optymalny podział', () => {
     expect(optimalSplit(base({ stopPips: 0 }))).toMatchObject({ ok: false, error: 'Wpisz stop loss w pipsach (większy od zera).' })
   })
 })
+
+describe('optymalny podział: koszt względem całości na ostatnim celu', () => {
+  it('bez straty: 40% teraz / 60% na +60 – cała pozycja na +60 to 600, podział przy celu 480 → koszt 120 (0.6R)', () => {
+    const s = split(base({ criterion: 'noLoss', targets: [{ pips: 60, probability: 70 }] })).split
+    expect(s.final).toMatchObject({ pips: 60, amount: 600 })
+    expect(s.final!.cost).toBeCloseTo(120, 6)
+    expect(s.final!.costR).toBeCloseTo(0.6, 6)
+  })
+
+  it('ostatni cel = najdalszy z wpisanych, także gdy podział go nie używa; całość na nim = brak kosztu', () => {
+    // Highest expectation: everything on +60, but the final target is +100 → 1 lot × 100 − 1 lot × 60 = 400.
+    const ev = split(base()).split
+    expect(ev.final).toMatchObject({ pips: 100, amount: 1000 })
+    expect(ev.final!.cost).toBeCloseTo(400, 6)
+    const one = split(base({ targets: [{ pips: 60, probability: 70 }] })).split
+    expect(one.final!.cost).toBeCloseTo(0, 6)
+    // Everything closed now: the whole cost of not reaching the target.
+    const now = split(base({ targets: [{ pips: 60, probability: 50 }] })).split
+    expect(now.parts.map((p) => p.mode)).toEqual(['now'])
+    expect(now.final!.cost).toBeCloseTo(300, 6)
+  })
+})

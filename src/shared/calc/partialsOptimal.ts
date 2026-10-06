@@ -56,6 +56,11 @@ export interface OptimalSplit {
   best: number
   /** Expected result minus closing everything now. */
   vsNow: number
+  /**
+   * The whole position closed at the final (farthest) target instead: its result, and what this split gives up
+   * when the price gets there (whole position there − this split with every target reached); null without targets.
+   */
+  final: { pips: number; amount: number; cost: number; costR: number } | null
   /** The split as calculator parts (closed now first, targets by distance; the last one takes the rest). */
   specs: PartialSpec[]
 }
@@ -91,6 +96,8 @@ interface Eval {
   expected: number
   worst: number
   best: number
+  /** Every target with lots reached (all parts closed where planned). */
+  allReached: number
 }
 
 /**
@@ -105,6 +112,7 @@ function evaluate(lots: number[], targets: Array<{ pips: number; probability: nu
   let expected = 0
   let worst = Infinity
   let best = -Infinity
+  let allReached = 0
   for (let reached = 0; reached <= pending.length; reached++) {
     const firstProfit = (lots[0]! > EPS && nowPips > 0) || (reached > 0 && pending[0]!.pips > 0)
     const rest = breakeven && firstProfit ? 0 : -stopPips
@@ -119,8 +127,9 @@ function evaluate(lots: number[], targets: Array<{ pips: number; probability: nu
     expected += chance * amount
     if (chance > EPS) worst = Math.min(worst, amount)
     best = Math.max(best, amount)
+    if (reached === pending.length) allReached = amount
   }
-  return { expected, worst, best }
+  return { expected, worst, best, allReached }
 }
 
 /** Every way to put `total` units into `buckets` buckets (at most `maxNonZero` used). */
@@ -238,6 +247,8 @@ export function optimalSplit(i: OptimalInput): OptimalOutcome {
     probability: p.mode === 'target' ? Number((p.probability * 100).toFixed(4)) : 100
   }))
   const nowAmount = i.lots * i.nowPips * perPip
+  const last = targets.at(-1)
+  const finalAmount = last ? i.lots * last.pips * perPip : 0
   return {
     ok: true,
     split: {
@@ -248,6 +259,7 @@ export function optimalSplit(i: OptimalInput): OptimalOutcome {
       worstR: best.e.worst / riskAmount,
       best: best.e.best,
       vsNow: best.e.expected - nowAmount,
+      final: last ? { pips: last.pips, amount: finalAmount, cost: finalAmount - best.e.allReached, costR: (finalAmount - best.e.allReached) / riskAmount } : null,
       specs
     },
     targets: values,

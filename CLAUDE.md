@@ -137,7 +137,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     Optymalny podział (`calc/partialsOptimal.ts`, `optimalSplit`): kubełki „teraz” + cele (dalej niż teraz, szanse
     nierosnące), wszystkie podziały na siatce (≤ ~25k, max 4 części) + dopracowanie w krokach lota; ocena jak w
     `partialPlan` (test zgodności); kryteria 'ev' / 'noLoss' / 'maxLoss' (najgorszy przypadek o szansie > 0 ≥ −X·1R),
-    remis → wyższy najgorszy przypadek, potem mniej części. Bez BE optimum 'ev' = jedno wyjście (liniowe w udziałach). Pola w sesji.
+    remis → wyższy najgorszy przypadek, potem mniej części. Bez BE optimum 'ev' = jedno wyjście (liniowe w udziałach).
+    `split.final` = koszt względem całości na najdalszym wpisanym celu (całość tam − podział przy wszystkich celach). Pola w sesji.
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do

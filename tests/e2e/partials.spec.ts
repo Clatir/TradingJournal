@@ -69,12 +69,16 @@ test('partiale: zamknąć całość teraz czy podzielić (do 4 części), zysk /
     await expect(opt.getByTestId('opt-target-1')).toContainText('62.5%')
     await expect(opt.getByTestId('opt-part-1')).toHaveText('100% (1.00 lota) na +60 pips (szansa 70%)')
     await expect(opt.getByTestId('opt-expected')).toHaveText('+360.00 USD')
+    await expect(opt.getByTestId('opt-final-cost')).toHaveText('Bez kosztu względem całości na +60 pips – cała pozycja zamyka się na ostatnim celu.')
     await expect(opt.getByTestId('opt-worst')).toHaveText(`${M}200.00 USD`)
     await opt.getByRole('radiogroup', { name: 'Kryterium optymalnego podziału' }).getByRole('radio', { name: 'Bez straty' }).click()
     await expect(opt.getByTestId('opt-part-1')).toHaveText('40% (0.40 lota) teraz +30 pips')
     await expect(opt.getByTestId('opt-part-2')).toHaveText('60% (0.60 lota) na +60 pips (szansa 70%)')
     await expect(opt.getByTestId('opt-expected')).toHaveText('+336.00 USD')
     await expect(opt.getByTestId('opt-worst')).toHaveText('0.00 USD')
+    await expect(opt.getByTestId('opt-final-cost')).toHaveText(
+      'Koszt partiali względem całości na +60 pips: 120.00 USD (0.60R) – gdy cena tam dojdzie (cała pozycja: +600.00 USD).'
+    )
     await opt.getByRole('radiogroup', { name: 'Kryterium optymalnego podziału' }).getByRole('radio', { name: 'Strata najwyżej' }).click()
     await expect(opt.getByTestId('opt-maxloss')).toHaveValue('0.5')
     await expect(opt.getByTestId('opt-part-1')).toHaveText('20% (0.20 lota) teraz +30 pips')

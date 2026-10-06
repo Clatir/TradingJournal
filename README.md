@@ -204,4 +204,5 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     +200, podział o 50 więcej.
 11. „Partiale” → „Optymalny podział”: 1 lot, SL 20, teraz +30, cel +60 z szansą 70% – najwyższy oczekiwany wynik:
     całość na +60 (+360); „Bez straty”: 40% teraz / 60% na +60 (+336, najgorszy 0); „Strata najwyżej 0.5 R”: 20% / 80%
-    (+348). „Zastosuj ten podział” wpisuje go do kalkulatora.
+    (+348). Przy każdym wyniku koszt względem całości na ostatnim celu (np. „Bez straty”: 120.00 USD, 0.60R).
+    „Zastosuj ten podział” wpisuje go do kalkulatora.

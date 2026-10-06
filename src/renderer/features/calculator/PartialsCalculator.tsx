@@ -476,6 +476,20 @@ function OptimalSection({
                 </b>{' '}
                 <span className="num text-muted">({fmtR(out.split.worstR)})</span>
               </span>
+              {out.split.final && (
+                <span data-testid="opt-final-cost">
+                  {out.split.final.cost < 0.005 ? (
+                    `Bez kosztu względem całości na ${pipsText(out.split.final.pips)} – cała pozycja zamyka się na ostatnim celu.`
+                  ) : (
+                    <>
+                      Koszt partiali względem całości na {pipsText(out.split.final.pips)}:{' '}
+                      <b className="num font-medium text-down">{abs(out.split.final.cost)}</b>{' '}
+                      <span className="num text-muted">({fmtR(out.split.final.costR).replace(/^[+−-]/, '')})</span> – gdy cena tam dojdzie (cała pozycja:{' '}
+                      <span className="num">{money(out.split.final.amount)}</span>).
+                    </>
+                  )}
+                </span>
+              )}
               <span className="text-muted" data-testid="opt-compare">
                 {Math.abs(out.split.vsNow) < 0.005 ? 'Tyle samo co zamknięcie całości teraz' : `O ${abs(out.split.vsNow)} ${out.split.vsNow > 0 ? 'więcej' : 'mniej'} niż zamknięcie całości teraz`}
                 {currentExpected != null &&
