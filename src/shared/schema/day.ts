@@ -104,6 +104,15 @@ export const dayPlanSchema = z.looseObject({
   notes: text,
   screens: z.array(screenRefSchema).default([]),
   /** Since 1.4.0. */
-  sessions: z.array(analysisSessionSchema).default([])
+  sessions: z.array(analysisSessionSchema).default([]),
+  /** Morning check (since 1.4.0): hours of sleep, energy and stress 1–5. */
+  wellbeing: z
+    .looseObject({
+      sleepHours: z.number().min(0).max(24).nullable().default(null),
+      energy: z.number().int().min(1).max(5).nullable().default(null),
+      stress: z.number().int().min(1).max(5).nullable().default(null),
+      note: text
+    })
+    .prefault({})
 })
 export type DayPlan = z.infer<typeof dayPlanSchema>

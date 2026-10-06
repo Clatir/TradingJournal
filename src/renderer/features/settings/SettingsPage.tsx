@@ -670,6 +670,12 @@ function DisplayTab({ settings }: { settings: Settings }) {
             label="Pokazuj kwoty (domyślnie tylko R i pipsy) – skrót Ctrl+$"
             data-testid="toggle-money"
           />
+          <Toggle
+            checked={settings.display.wellbeingPrompt}
+            onChange={(v) => setSettings((s) => ({ ...s, display: { ...s.display, wellbeingPrompt: v } }))}
+            label="Pytaj rano o sen, energię i stres (pasek pod górnym menu w dni handlowe)"
+            data-testid="toggle-wellbeing"
+          />
           <Field label="Wpisywanie czasu">
             <Segmented
               value={settings.display.timeInputZone}

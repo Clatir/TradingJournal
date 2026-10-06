@@ -22,10 +22,12 @@ import { CalendarHeatmap } from '../../components/charts/CalendarHeatmap'
 import { EquityChart } from '../../components/charts/EquityChart'
 import { GroupTable } from '../../components/charts/GroupTable'
 import { HourBars } from '../../components/charts/HourBars'
+import { WeekdayHourHeatmap } from '../../components/charts/WeekdayHourHeatmap'
 import { Panel, Segmented, cx } from '../../components/ui'
 import { todayNy } from '../day/DayPlanPage'
 import { deliverMonthlyReport } from '../export/reportActions'
 import { SelectionPanel } from '../sessions/SelectionPanel'
+import { WellbeingPanel } from '../wellbeing/Wellbeing'
 
 type Preset = 'all' | '30' | '90' | 'ytd' | '365'
 
@@ -182,7 +184,12 @@ export function AnalyticsPage() {
           </Section>
         </div>
 
+        <Section title="Mapa godzin: dzień tygodnia × godzina wejścia (NY)" className="border-t">
+          <WeekdayHourHeatmap rows={filtered} />
+        </Section>
+
         <SelectionPanel rows={filtered} from={range.from} to={range.to} />
+        <WellbeingPanel rows={filtered} from={range.from} to={range.to} />
 
         <Section title="Kalendarz wyników (Σ R dziennie)" className="border-t">
           <CalendarHeatmap days={data.calendar} from={calFrom} to={calTo} onPick={(date) => navigate({ page: 'day', date })} />

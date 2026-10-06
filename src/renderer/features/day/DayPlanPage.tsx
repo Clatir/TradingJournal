@@ -13,6 +13,7 @@ import { Badge, NumberField, Panel, Segmented, TextArea, TextField, cx } from '.
 import { HistoryButton } from '../history/HistoryDialog'
 import { SessionsSection } from '../sessions/SessionsSection'
 import { TemplatesMenu } from './TemplatesMenu'
+import { WellbeingSection } from '../wellbeing/Wellbeing'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { copyDayMarkdown } from '../export/markdownActions'
 import { copyDayPlanToDate } from '../duplicate'
@@ -181,6 +182,7 @@ export function DayPlanPage({ date }: { date: string }) {
 
           {/* ------------------------------------------- context, news, review */}
           <div className="flex min-h-0 flex-col overflow-y-auto border-r border-line">
+            <WellbeingSection day={plan} readOnly={readOnly} />
             <Section title="Kontekst międzyrynkowy">
               <div className="flex flex-col gap-1">
                 {mergedInstruments(plan, journal.settings.contextInstruments).map((row) => (

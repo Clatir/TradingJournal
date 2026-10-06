@@ -5,7 +5,7 @@ import { tradeRelPath } from '../../src/shared/paths'
 import type { Trade } from '../../src/shared/schema'
 import { createDayPlan, createDefaultJournal, createTrade } from '../../src/shared/defaults'
 import { setPairField, startSession, stopSession } from '../../src/shared/calc/sessions'
-import { shiftTradingDay, tradingDateNy } from '../../src/shared/calc/time'
+import { shiftTradingDay, tradingDateNy, weekdayNy } from '../../src/shared/calc/time'
 import { launch } from './app'
 import { closedTrade, readDays, readTrades, seed } from './seed'
 
@@ -269,6 +269,81 @@ test('szablony planu dnia: zapis planu jako szablonu, wstawienie do innego dnia,
     await page.keyboard.type('wstaw szablon')
     await expect(page.getByText('Plan dnia (dziś): wstaw szablon „London”')).toBeVisible()
     await page.keyboard.press('Escape')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+test('samopoczucie: pytanie rano (dni handlowe) albo plan dnia, analityka wyniku wg snu, energii i stresu', async () => {
+  const nowIso = new Date().toISOString()
+  const today = tradingDateNy(nowIso)
+  const trade = createTrade({
+    pair: 'EURUSD',
+    direction: 'long',
+    entryTime: new Date(Date.now() - 60_000).toISOString(),
+    prices: { entry: 1.08, stopLoss: 1.079, takeProfit1: null, takeProfit2: null },
+    exits: [{ id: '01K6H3Z0W8Q4M2N5P7R9S1T3V5', time: nowIso, price: 1.082, percent: 100, note: '' }]
+  })
+  const dataDir = await seed([trade])
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    const prompt = page.getByTestId('wellbeing-prompt')
+    if (weekdayNy(`${today}T12:00:00.000Z`) <= 5) {
+      await expect(prompt).toBeVisible()
+      await prompt.getByTestId('wb-sleep').fill('6.5')
+      await prompt.getByTestId('wb-sleep').blur()
+      await prompt.getByRole('radiogroup', { name: 'Energia' }).getByRole('radio', { name: '4' }).click()
+      await prompt.getByRole('radiogroup', { name: 'Stres' }).getByRole('radio', { name: '2' }).click()
+      await expect(prompt).toHaveCount(0)
+    } else {
+      // Weekend: no morning question; the day plan has the same fields.
+      await expect(prompt).toHaveCount(0)
+      await page.keyboard.press('Control+d')
+      await page.getByTestId('wb-sleep').fill('6.5')
+      await page.getByTestId('wb-sleep').blur()
+      await page.getByRole('radiogroup', { name: 'Energia' }).getByRole('radio', { name: '4' }).click()
+      await page.getByRole('radiogroup', { name: 'Stres' }).getByRole('radio', { name: '2' }).click()
+    }
+    await expect
+      .poll(async () => (await readDays(dataDir, today.slice(0, 4))).find((d) => d.date === today)?.wellbeing)
+      .toMatchObject({ sleepHours: 6.5, energy: 4, stress: 2 })
+    await page.keyboard.press('Control+3')
+    const sleep = page.getByTestId('wb-sleep-table')
+    await expect(sleep).toContainText('6–7 h')
+    await expect(sleep.getByText('6–7 h').locator('..')).toContainText('100%')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+test('mapa godzin: dzień tygodnia × godzina wejścia NY, miary Σ R, win rate i błędy', async () => {
+  const journal = createDefaultJournal()
+  const mistake = journal.dictionaries.mistakeTags[0]!.id
+  // 12:00 UTC = 08:00 NY (EDT). Two Mondays in one cell, a Wednesday 09:00 NY with a mistake tag.
+  const trades = [
+    closedTrade('2026-09-14', 2),
+    closedTrade('2026-09-21', -1),
+    closedTrade('2026-09-16', 3, { entryTime: '2026-09-16T13:00:00.000Z', psychology: { ...closedTrade('2026-09-16', 3).psychology, mistakeTagIds: [mistake] } })
+  ]
+  const dataDir = await seed(trades, journal)
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    await page.keyboard.press('Control+3')
+    const map = page.getByTestId('hour-heatmap')
+    await expect(map.getByTestId('heat-cell')).toHaveCount(2)
+    await expect(map.locator('title', { hasText: 'pon 08:00–09:00 NY · 2 tr.' })).toHaveCount(1)
+    await expect(map.locator('title', { hasText: 'śr 09:00–10:00 NY · 1 tr.' })).toContainText('z błędem 1')
+    await expect(map.getByTestId('heat-cell').first()).toContainText('1.0') // Σ R of Monday 08:00
+    const metric = page.getByRole('radiogroup', { name: 'Miara mapy godzin' })
+    await metric.getByRole('radio', { name: 'Win rate' }).click()
+    await expect(map.getByTestId('heat-cell').first()).toContainText('50')
+    await metric.getByRole('radio', { name: 'Błędy' }).click()
+    await expect(map.getByTestId('heat-cell').nth(1)).toContainText('1')
+    await expect(map.getByTestId('heat-cell').first()).toContainText('0')
     expect(errors).toEqual([])
   } finally {
     await app.close()

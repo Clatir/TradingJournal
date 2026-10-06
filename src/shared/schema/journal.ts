@@ -259,7 +259,9 @@ export const settingsSchema = z.looseObject({
   display: z
     .looseObject({
       showMoney: z.boolean().default(false),
-      timeInputZone: z.enum(['NY', 'WAW']).default('NY')
+      timeInputZone: z.enum(['NY', 'WAW']).default('NY'),
+      /** Ask about sleep, energy and stress on a trading day until they are filled in (since 1.4.0). */
+      wellbeingPrompt: z.boolean().default(true)
     })
     .prefault({}),
   /** Changes of the data folder made on another computer while this one has it open (since 1.4.0). */

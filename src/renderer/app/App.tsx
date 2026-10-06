@@ -22,6 +22,7 @@ import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, Ic
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
+import { WellbeingPrompt } from '../features/wellbeing/Wellbeing'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ShortcutsHelp } from './ShortcutsHelp'
 import { RemoteChangesDialog } from '../features/sync/RemoteChangesDialog'
@@ -164,6 +165,7 @@ export function App() {
     <div className="flex h-full flex-col">
       <TopBar />
       <Banners />
+      <WellbeingPrompt />
       <div className="flex min-h-0 flex-1">
         <nav className="flex w-[64px] shrink-0 flex-col border-r border-line bg-panel">
           <NavButton active={route.page === 'journal' || route.page === 'trade'} onClick={() => navigate({ page: 'journal' })} label="Dziennik" keys="Ctrl+1" testId="nav-journal">
