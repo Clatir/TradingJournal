@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises'
 import type { Worker } from 'node:worker_threads'
 import createWorker from './worker?nodeWorker'
 import modelPath from '../../../node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?asset'
-import type { OcrReply, OcrRequest } from './worker'
+import type { OcrOptions, OcrReply, OcrRequest } from './worker'
 import { log } from '../log'
 
 const IDLE_MS = 60_000
@@ -55,7 +55,7 @@ async function launch(): Promise<Worker> {
 }
 
 /** Words of a PNG image as Tesseract TSV. */
-export async function ocrImage(png: Uint8Array): Promise<string> {
+export async function ocrImage(png: Uint8Array, options?: OcrOptions): Promise<string> {
   if (idle) clearTimeout(idle)
   const w = await start()
   const id = nextId++
@@ -70,7 +70,7 @@ export async function ocrImage(png: Uint8Array): Promise<string> {
         reject: (e) => (clearTimeout(timer), reject(e))
       })
       const image = new Uint8Array(png)
-      w.postMessage({ kind: 'read', id, image } satisfies OcrRequest, [image.buffer])
+      w.postMessage({ kind: 'read', id, image, options } satisfies OcrRequest, [image.buffer])
     })
   } finally {
     if (idle) clearTimeout(idle)

@@ -213,3 +213,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     wklej `Ctrl+V` w oknie (albo przeciągnij / wybierz plik). Po 1–3 s: kierunek, czas wejścia (WAW), ceny, SL, TP, loty,
     wyjście i wynik netto w walucie konta – popraw, odznacz, „Uzupełnij transakcję”. W folderze `screens/` nic nie
     przybywa. W „Wyjście i partiale” czas wyjścia jest w NY i w WAW – wpisz godzinę z XTB w kolumnie „Czas WAW”.
+14. To samo ze screenem indeksu lub surowca (US500, DE40, OIL.WTI): para dopasowana mimo zniekształconej nazwy
+    („odczytano „USS00” – dopasowano”); instrumentu spoza par – „Dodaj do par” w oknie. Pola z rozbieżnymi odczytami
+    mają „sprawdź – inny odczyt”, a wynik niezgodny z cenami i wolumenem – ostrzeżenie pod tabelą.

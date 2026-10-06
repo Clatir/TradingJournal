@@ -406,10 +406,12 @@ function registerIpc(): void {
     if (res.canceled || !file) return null
     return readBrokerFile(file)
   })
-  handle('journal:ocrImage', async (png: Uint8Array) => {
+  handle('journal:ocrImage', async (png: Uint8Array, options?: { psm?: unknown; whitelist?: unknown }) => {
     if (!(png instanceof Uint8Array) || png.byteLength === 0) throw new Error('Brak obrazu.')
     if (png.byteLength > 40 * 1024 * 1024) throw new Error('Obraz jest za duży (limit 40 MB).')
-    return ocrImage(png)
+    const psm = typeof options?.psm === 'number' && [6, 7, 8, 11].includes(options.psm) ? options.psm : 11
+    const whitelist = typeof options?.whitelist === 'string' ? options.whitelist.replace(/[^\x21-\x7e]/g, '').slice(0, 100) : ''
+    return ocrImage(png, { psm, whitelist })
   })
   handle('journal:showPath', async (abs: string) => {
     shell.showItemInFolder(abs)

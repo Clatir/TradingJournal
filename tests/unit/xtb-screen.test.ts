@@ -3,7 +3,15 @@ import { createTrade } from '@shared/defaults'
 import {
   applyScreenValues,
   changedScreenFields,
+  cleanSymbol,
+  combineXtb,
+  expectedGross,
+  matchInstrument,
   mergeXtb,
+  pairFromDescription,
+  positionFromTexts,
+  resultMismatch,
+  valueCharset,
   ocrNumber,
   ocrTime,
   parseTesseractTsv,
@@ -37,7 +45,8 @@ function xtbPanel(over: Partial<Record<string, string | null>> = {}): OcrWord[] 
     [733, [[v('l.rollover', 'Rolowanie'), v('rollover', '0.00'), null], [v('l.margin', 'Depozyt zabezpiec...'), v('margin', '145.61'), null], [v('l.swap', 'Swap'), v('swap', '0.00'), null], [v('l.commission', 'Prowizja'), v('commission', '0.00'), null]]],
     [939, [[v('l.sl', 'Stop Loss'), v('sl', '1.12643'), null], [v('l.tp', 'Take Profit'), v('tp', '1.10843'), null], [null, null, null], [null, null, null]]]
   ]
-  const words: OcrWord[] = [...line(v('title', 'Szczegóły pozycji')!, 63, 48, 61), ...line(v('symbol', 'EURUSD CFD')!, 155, 157, 60), ...line('Euro to American Dollar currency pair', 160, 228, 24)]
+  const desc = v('desc', 'Euro to American Dollar currency pair')
+  const words: OcrWord[] = [...line(v('title', 'Szczegóły pozycji')!, 63, 48, 61), ...line(v('symbol', 'EURUSD CFD')!, 155, 157, 60), ...(desc ? line(desc, 160, 228, 24) : [])]
   for (const [top, cells] of grid) {
     cells.forEach(([label, value, second], i) => {
       if (label) words.push(...line(label, cols[i]!, top, 33))
@@ -192,7 +201,105 @@ describe('screen XTB → pozycja', () => {
     expect(m.profit).toBe(-7.06)
     expect(m.margin).toBe(145.61)
     expect(m.direction).toBe('short')
-    expect(mergeXtb(null, b)).toBe(b)
+    expect(mergeXtb(null, b)).toMatchObject({ profit: -7.06, direction: null, margin: 145.61 })
+  })
+})
+
+describe('screen XTB – trudniejsze odczyty', () => {
+  it('etykieta z cyfrą z szumu OCR („2Zysk”), obcięta etykieta sklejona z następną („zabezpiec..Swap”)', () => {
+    const tsv = (ws: OcrWord[]) =>
+      ['level\tpage\tblock\tpar\tline\tword\tleft\ttop\twidth\theight\tconf\ttext', ...ws.map((w, i) => `5\t1\t${w.line.replace(/\./g, '\t')}\t${i}\t${w.left}\t${w.top}\t${w.width}\t${w.height}\t${w.conf}\t${w.text}`)].join('\n')
+    const words = xtbPanel({ 'l.gross': '2Zysk brutto', 'l.margin': 'Depozyt zabezpiec..Swap', 'l.swap': null })
+    const p = parseXtbScreen(parseTesseractTsv(tsv(words)))!
+    expect(p.gross).toBe(-7.06)
+    expect(p.margin).toBe(145.61)
+    // "Swap" split off the glued word is a label again; its value is under it.
+    expect(p.raw.swap).toBe('0.00')
+  })
+
+  it('symbole spoza forex: indeksy z cyframi, ropa rozdzielona na kropce; opis instrumentu', () => {
+    expect(parseXtbScreen(xtbPanel({ symbol: 'DE40 CFD', desc: 'Germany 40 index' }))).toMatchObject({ symbol: 'DE40', description: 'Germany 40 index' })
+    expect(parseXtbScreen(xtbPanel({ symbol: 'US500 cro' }))!.symbol).toBe('US500')
+    expect(parseXtbScreen(xtbPanel({ symbol: 'OIL WTI cFD' }))!.symbol).toBe('OIL.WTI')
+    expect(parseXtbScreen(xtbPanel({ symbol: 'EURUSD Cr' }))).toMatchObject({ symbol: 'EURUSD', description: 'Euro to American Dollar currency pair' })
+    expect(parseXtbScreen(xtbPanel({ symbol: 'Szczegoly' }))!.symbol).toBeNull()
+    // XTB's instrument icon in front of the symbol.
+    expect(parseXtbScreen(xtbPanel({ symbol: '‘® EURUSD Cr' }))!.symbol).toBe('EURUSD')
+  })
+
+  it('symbol odczytany osobno: bez znaczka CFD, znaki dozwolone przy drugim odczycie', () => {
+    expect(cleanSymbol('EURUSDCFD')).toBe('EURUSD')
+    expect(cleanSymbol('DE40CRD')).toBe('DE40')
+    expect(cleanSymbol('OIL WTI')).toBe('OIL.WTI')
+    expect(cleanSymbol('us500')).toBe('US500')
+    expect(cleanSymbol('EURCHF')).toBe('EURCHF')
+    expect(cleanSymbol('1.2')).toBeNull()
+    expect(valueCharset('symbol')).toContain('Z')
+    expect(valueCharset('openTime')).toBe('0123456789.:')
+    expect(valueCharset('openPrice')).toBe('0123456789.-')
+  })
+
+  it('głosowanie odczytów: większość wygrywa, cena bez kropki waży mniej, rozbieżności do sprawdzenia', () => {
+    const base = { symbol: 'EURUSD', direction: 'short' as const }
+    const a = positionFromTexts({ openPrice: '1.12414', closePrice: '1.12595', volume: '0.01' }, base)
+    const b = positionFromTexts({ openPrice: '1.12414', closePrice: '1.12696', volume: '0.01' }, base)
+    const c = positionFromTexts({ openPrice: '112414', closePrice: '1.12595', volume: '10' }, { symbol: 'EURUSDCFD', direction: null })
+    const p = combineXtb([
+      { position: c, weight: 1.2 },
+      { position: a, weight: 1 },
+      { position: b, weight: 0.9 }
+    ])!
+    expect(p).toMatchObject({ openPrice: 1.12414, closePrice: 1.12595, volume: 0.01, direction: 'short', symbol: 'EURUSD' })
+    expect(p.undotted).toEqual([])
+    expect(p.uncertain).toEqual({ symbol: ['EURUSDCFD'], closePrice: ['1.12696'], volume: ['10'] })
+    expect(p.symbols).toEqual(['EURUSD', 'EURUSDCFD'])
+    // A doubled digit merged by OCR ("0.84311" → "0.8431"): the longer reading wins even when outvoted.
+    const d = combineXtb([
+      { position: positionFromTexts({ openPrice: '0.8431' }, base), weight: 1.2 },
+      { position: positionFromTexts({ openPrice: '0.8431' }, base), weight: 1 },
+      { position: positionFromTexts({ openPrice: '0.84311' }, base), weight: 0.9 }
+    ])!
+    expect(d.openPrice).toBe(0.84311)
+    expect(d.uncertain.openPrice).toEqual(['0.8431'])
+    expect(combineXtb([{ position: null, weight: 1 }])).toBeNull()
+  })
+
+  it('instrument: dokładnie, z opisu pary walut, albo najbliższy z typowymi pomyłkami OCR', () => {
+    const pairs = ['EURUSD', 'GBPUSD', 'AUDUSD', 'OILWTI', 'US500', 'DE40', 'GOLD']
+    const m = (symbols: string[], description: string | null = null) => matchInstrument({ symbols, symbol: symbols[0] ?? null, description }, pairs)
+    expect(m(['EURUSD'])).toEqual({ pair: 'EURUSD', how: 'exact', read: 'EURUSD' })
+    expect(m(['OIL.WTI'])).toMatchObject({ pair: 'OILWTI', how: 'exact' })
+    expect(m(['GBPUSD.pro'])).toMatchObject({ pair: 'GBPUSD', how: 'exact' })
+    expect(m(['USS00'])).toEqual({ pair: 'US500', how: 'similar', read: 'USS00' })
+    expect(m(['DEA40'])).toMatchObject({ pair: 'DE40', how: 'similar' })
+    expect(m(['DEA4O0'])).toMatchObject({ pair: 'DE40', how: 'similar' })
+    expect(m(['G0LD'])).toMatchObject({ pair: 'GOLD', how: 'similar' })
+    expect(m(['EUPUSO'], 'Euro to American Dollar currency pair')).toMatchObject({ pair: 'EURUSD', how: 'description' })
+    expect(m([], 'British Pound to Amerlcan Dollar currency pair')).toMatchObject({ pair: 'GBPUSD', how: 'description', read: null })
+    // Nothing close enough: the user picks or adds the pair.
+    expect(m(['USDJPY'])).toEqual({ pair: null, how: null, read: 'USDJPY' })
+    expect(m(['XAGUSD'])).toMatchObject({ pair: null })
+  })
+
+  it('para walut z opisu XTB', () => {
+    expect(pairFromDescription('Euro to American Dollar currency pair')).toBe('EURUSD')
+    expect(pairFromDescription('American Dollar to Japanese Yen currency pair')).toBe('USDJPY')
+    expect(pairFromDescription('Euro to Polish Zloty currency pair')).toBe('EURPLN')
+    expect(pairFromDescription('New Zealand Dollar to American Dollar currency pair')).toBe('NZDUSD')
+    expect(pairFromDescription('Germany 40 index')).toBeNull()
+    expect(pairFromDescription('Euro to Euro')).toBeNull()
+    expect(pairFromDescription(null)).toBeNull()
+  })
+
+  it('wynik z cen i wolumenu a wynik odczytany (błędna cyfra w cenie wychodzi na jaw)', () => {
+    // EURUSD short 1.12414 → 1.12595, 0.01 lota, USD→PLN 3.9: −1.81 USD ≈ −7.06 PLN.
+    const v = { direction: 'short' as const, entry: 1.12414, exitPrice: 1.12595, lots: 0.01 }
+    expect(expectedGross(v, 100000, 3.9)).toBeCloseTo(-7.059, 3)
+    expect(resultMismatch(-7.06, expectedGross(v, 100000, 3.9))).toBe(false)
+    // 149.512 read as 140.512: a move 40× bigger.
+    expect(resultMismatch(-7.06, expectedGross({ ...v, entry: 1.08414 }, 100000, 3.9))).toBe(true)
+    expect(resultMismatch(0.4, 0.1)).toBe(false)
+    expect(expectedGross({ ...v, lots: null }, 100000, 3.9)).toBeNull()
   })
 })
 

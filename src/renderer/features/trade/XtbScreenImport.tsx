@@ -3,23 +3,32 @@ import { DateTime } from 'luxon'
 import {
   applyScreenValues,
   changedScreenFields,
+  expectedGross,
+  matchInstrument,
   ocrTime,
+  pairFromDescription,
+  resultMismatch,
   screenValues,
+  wallText,
   warsawText,
   xtbMissing,
   xtbWarnings,
+  type PairMatch,
   type ScreenFieldKey,
   type ScreenValues,
+  type VotedKey,
   type XtbPosition
 } from '@shared/import/xtbScreen'
 import { brokerTimeToUtc } from '@shared/import/match'
 import { lotDecimals } from '@shared/calc/position'
-import type { Trade } from '@shared/schema'
+import { rateFor } from '@shared/fx'
+import { pairPreset } from '@shared/pairs'
+import type { Settings, Trade } from '@shared/schema'
 import { errorMessage } from '../../lib/api'
 import { fmtMoney } from '../../lib/format'
 import { imageFilesFrom } from '../../lib/image'
 import { readXtbScreenshot } from '../../lib/ocr'
-import { updateRecord, useJournal } from '../../store/journal'
+import { updateJournal, updateRecord, useJournal } from '../../store/journal'
 import { toast } from '../../store/ui'
 import { Modal } from '../../components/Modal'
 import { IconImage } from '../../components/icons'
@@ -40,7 +49,50 @@ export function XtbScreenButton({ trade, disabled }: { trade: Trade; disabled?: 
   )
 }
 
-type Phase = { kind: 'wait' } | { kind: 'reading'; pass: number; total: number } | { kind: 'done' } | { kind: 'error'; message: string }
+type Phase = { kind: 'wait' } | { kind: 'reading'; step: string } | { kind: 'done' } | { kind: 'error'; message: string }
+
+/** Values of a review row that the readings disagreed on. */
+const UNCERTAIN_OF: Partial<Record<ScreenFieldKey, VotedKey[]>> = {
+  direction: ['direction'],
+  entryTime: ['openTime'],
+  entry: ['openPrice'],
+  stopLoss: ['stopLoss'],
+  takeProfit: ['takeProfit'],
+  lots: ['volume'],
+  exit: ['closePrice', 'closeTime'],
+  result: ['profit']
+}
+
+const otherText = (key: VotedKey, value: string) =>
+  key === 'openTime' || key === 'closeTime' ? wallText(value) : key === 'direction' ? (value === 'long' ? 'Buy' : 'Sell') : value
+
+/** A pair added from the dialog: the usual preset (oil, JPY…), the quote currency from XTB's description if read. */
+function addPair(symbol: string, description: string | null) {
+  const fromDesc = pairFromDescription(description)
+  const quote = fromDesc?.slice(3) ?? (/^[A-Z]{6}$/.test(symbol) ? symbol.slice(3) : 'USD')
+  const preset = pairPreset(symbol, quote)
+  updateJournal((j) => ({
+    ...j,
+    settings: {
+      ...j.settings,
+      pairs: j.settings.pairs.some((p) => p.symbol === symbol)
+        ? j.settings.pairs
+        : [
+            ...j.settings.pairs,
+            {
+              symbol,
+              pipSize: preset.pipSize,
+              priceDecimals: preset.priceDecimals,
+              quoteCurrency: preset.quoteCurrency,
+              tvSymbol: preset.tvSymbol,
+              archived: false,
+              contractSize: preset.contractSize
+            }
+          ]
+    } satisfies Settings
+  }))
+  toast(`Dodano ${symbol} do par (pips ${preset.pipSize}, waluta ${preset.quoteCurrency}) – sprawdź w Ustawienia → Pary.`, 'success', 6000)
+}
 
 function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void }) {
   const journal = useJournal((s) => s.journal)!
@@ -51,6 +103,8 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [position, setPosition] = useState<XtbPosition | null>(null)
   const [values, setValues] = useState<ScreenValues | null>(null)
+  const [match, setMatch] = useState<PairMatch | null>(null)
+  const [newPair, setNewPair] = useState('')
   const [selected, setSelected] = useState<Set<ScreenFieldKey>>(new Set())
   const [dragOver, setDragOver] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -64,15 +118,18 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
       setImageUrl(URL.createObjectURL(file))
       setPosition(null)
       setValues(null)
-      setPhase({ kind: 'reading', pass: 1, total: 1 })
+      setPhase({ kind: 'reading', step: 'szukam pól' })
       try {
-        const p = await readXtbScreenshot(file, (pass, total) => token === run.current && setPhase({ kind: 'reading', pass, total }))
+        const p = await readXtbScreenshot(file, (step) => token === run.current && setPhase({ kind: 'reading', step }))
         if (token !== run.current) return
         if (!p) {
           setPhase({ kind: 'error', message: 'Nie rozpoznano panelu „Szczegóły pozycji” – wklej screen całego okna pozycji z XTB.' })
           return
         }
         const v = screenValues(p, pairs)
+        const m = matchInstrument(p, pairs)
+        setMatch(m)
+        setNewPair((m.read ?? '').replace(/[^A-Z0-9]/g, ''))
         const changed = changedScreenFields(trade, v, currency)
         // Replacing several partial exits or reinterpreting a risk amount typed in another currency is opt-in.
         const riskInOther = trade.riskAmount != null && (trade.amountCurrency ?? settings.risk.legacyAmountCurrency ?? currency) !== currency
@@ -126,6 +183,25 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
   const missing = position ? xtbMissing(position) : []
   const warnings = position ? xtbWarnings(position) : []
   const riskInOther = trade.riskAmount != null && (trade.amountCurrency ?? settings.risk.legacyAmountCurrency ?? currency) !== currency
+  // Result vs prices × volume (forex, or a pair with its lot size set): a misread digit shows up here.
+  const checkPair = values?.pair ? settings.pairs.find((p) => p.symbol === values.pair) : null
+  const checkable = checkPair && (checkPair.contractSize != null || /^[A-Z]{6}$/.test(checkPair.symbol))
+  const rate = checkPair ? rateFor(checkPair.quoteCurrency, currency, settings) : null
+  const expected = values && checkable && rate ? expectedGross(values, checkPair.contractSize ?? settings.risk.contractSize, rate.rate) : null
+  const actualGross = position ? (position.gross ?? (position.profit != null ? position.profit - (position.commission ?? 0) - (position.swap ?? 0) - (position.rollover ?? 0) : null)) : null
+  const mismatch = resultMismatch(actualGross, expected)
+
+  /** "sprawdź – inne odczytanie: …" for a row whose value the readings disagreed on. */
+  const doubt = (key: ScreenFieldKey): string | undefined => {
+    const others = (UNCERTAIN_OF[key] ?? []).flatMap((k) => (position?.uncertain[k] ?? []).map((v) => otherText(k, v)))
+    return others.length ? `sprawdź – inny odczyt: ${others.join(', ')}` : undefined
+  }
+  const pairNote =
+    match?.how === 'similar'
+      ? `odczytano „${match.read}” – dopasowano, sprawdź`
+      : match?.how === 'description'
+        ? `z opisu „${position?.description ?? ''}”${match.read ? ` (odczytano „${match.read}”)` : ''}`
+        : undefined
 
   const row = (key: ScreenFieldKey, label: string, input: ReactNode, current: ReactNode, note?: ReactNode, available = true) => (
     <div key={key} className={cx('grid grid-cols-[22px_150px_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-2 border-b border-line/60 px-2 py-1 last:border-b-0', !available && 'opacity-50')} data-testid={`xtb-row-${key}`}>
@@ -202,7 +278,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
           {phase.kind === 'wait' && <div className="py-6 text-center text-muted">Czekam na screen.</div>}
           {phase.kind === 'reading' && (
             <div className="py-6 text-center text-muted" data-testid="xtb-reading">
-              Odczytuję screen…{phase.total > 1 && phase.pass > 1 ? ` (próba ${phase.pass} z ${phase.total})` : ''}
+              Odczytuję screen – {phase.step}…
             </div>
           )}
           {phase.kind === 'error' && (
@@ -223,15 +299,37 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   'pair',
                   'Para',
                   <select className="input h-[24px]" value={values.pair ?? ''} onChange={(e) => set({ pair: e.currentTarget.value || null }, 'pair')} data-testid="xtb-pair">
-                    <option value="">{position.symbol ? `(${position.symbol} – brak w parach)` : '(nie odczytano)'}</option>
-                    {pairs.map((p) => (
+                    <option value="">{match?.read ? `(${match.read} – brak w parach)` : '(nie odczytano)'}</option>
+                    {settings.pairs.map((p) => p.symbol).map((p) => (
                       <option key={p} value={p}>
                         {p}
                       </option>
                     ))}
                   </select>,
                   trade.pair,
-                  undefined,
+                  pairNote ??
+                    (values.pair == null && newPair ? (
+                      <span className="flex items-center gap-1 text-muted">
+                        <input
+                          className="input num h-[22px] w-[86px] px-1"
+                          value={newPair}
+                          onChange={(e) => setNewPair(e.currentTarget.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
+                          aria-label="Symbol nowej pary"
+                          data-testid="xtb-new-pair"
+                        />
+                        <button
+                          className="btn h-[22px] px-1.5 text-[11px]"
+                          disabled={newPair.length < 3}
+                          onClick={() => {
+                            addPair(newPair, position.description)
+                            set({ pair: newPair }, 'pair')
+                          }}
+                          data-testid="xtb-add-pair"
+                        >
+                          Dodaj do par
+                        </button>
+                      </span>
+                    ) : undefined),
                   values.pair != null
                 )}
                 {row(
@@ -248,7 +346,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                     <option value="short">{DIRECTION.short}</option>
                   </select>,
                   DIRECTION[trade.direction],
-                  undefined,
+                  doubt('direction'),
                   values.direction != null
                 )}
                 {row(
@@ -256,7 +354,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   'Czas wejścia (WAW)',
                   <WawInput iso={values.entryTime} onChange={(v) => set({ entryTime: v }, 'entryTime')} testId="xtb-entry-time" />,
                   warsawText(trade.entryTime),
-                  undefined,
+                  doubt('entryTime'),
                   values.entryTime != null
                 )}
                 {row(
@@ -264,7 +362,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   'Cena wejścia',
                   <NumberField className="w-[110px]" value={values.entry} onChange={(v) => set({ entry: v }, 'entry')} decimals={decimals} data-testid="xtb-entry" />,
                   price(trade.prices.entry),
-                  undefined,
+                  doubt('entry'),
                   values.entry != null
                 )}
                 {row(
@@ -272,7 +370,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   'Stop loss',
                   <NumberField className="w-[110px]" value={values.stopLoss} onChange={(v) => set({ stopLoss: v }, 'stopLoss')} decimals={decimals} data-testid="xtb-sl" />,
                   price(trade.prices.stopLoss),
-                  undefined,
+                  doubt('stopLoss'),
                   values.stopLoss != null
                 )}
                 {row(
@@ -280,7 +378,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   'TP1 (Take Profit)',
                   <NumberField className="w-[110px]" value={values.takeProfit} onChange={(v) => set({ takeProfit: v }, 'takeProfit')} decimals={decimals} data-testid="xtb-tp" />,
                   price(trade.prices.takeProfit1),
-                  undefined,
+                  doubt('takeProfit'),
                   values.takeProfit != null
                 )}
                 {row(
@@ -288,7 +386,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   'Loty (wolumen)',
                   <NumberField className="w-[110px]" value={values.lots} onChange={(v) => set({ lots: v }, 'lots')} data-testid="xtb-lots" />,
                   trade.lots == null ? '—' : trade.lots.toFixed(lotDecimals(trade.lots)),
-                  undefined,
+                  doubt('lots'),
                   values.lots != null
                 )}
                 {row(
@@ -302,7 +400,7 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                     .filter((x) => x.price != null)
                     .map((x) => `${price(x.price)} (${x.percent}%)`)
                     .join(', ') || '—',
-                  trade.exits.length > 1 ? `zastąpi ${trade.exits.length} wyjścia` : undefined,
+                  [trade.exits.length > 1 ? `zastąpi ${trade.exits.length} wyjścia` : null, doubt('exit')].filter(Boolean).join(' · ') || undefined,
                   values.exitPrice != null
                 )}
                 {row(
@@ -310,13 +408,16 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   `Wynik netto (${currency})`,
                   <NumberField className="w-[110px]" value={values.result} onChange={(v) => set({ result: v }, 'result')} decimals={2} data-testid="xtb-result" />,
                   trade.pnlAmountOverride == null ? '—' : fmtMoney(trade.pnlAmountOverride, trade.amountCurrency ?? currency),
-                  riskInOther ? `kwota ryzyka jest w ${trade.amountCurrency ?? settings.risk.legacyAmountCurrency} – zostanie uznana za ${currency}` : undefined,
+                  [riskInOther ? `kwota ryzyka jest w ${trade.amountCurrency ?? settings.risk.legacyAmountCurrency} – zostanie uznana za ${currency}` : null, doubt('result')]
+                    .filter(Boolean)
+                    .join(' · ') || undefined,
                   values.result != null
                 )}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11.5px] text-muted" data-testid="xtb-extra">
                 <span>
-                  Instrument: <span className="num text-fg">{position.symbol ?? '—'}</span>
+                  Instrument: <span className="num text-fg">{match?.read ?? position.symbol ?? '—'}</span>
+                  {position.description ? <span className="text-dim"> ({position.description})</span> : null}
                 </span>
                 <span>
                   Zysk brutto: <span className="num">{position.gross == null ? '—' : position.gross.toFixed(2)}</span>
@@ -343,6 +444,12 @@ function XtbScreenDialog({ trade, onClose }: { trade: Trade; onClose: () => void
                   {w}
                 </div>
               ))}
+              {mismatch && expected != null && (
+                <div className="text-[11.5px] text-accent" data-testid="xtb-warning">
+                  Wynik brutto ze screenu ({actualGross!.toFixed(2)} {currency}) nie zgadza się z cenami i wolumenem (≈ {expected.toFixed(2)} {currency}) –
+                  sprawdź ceny, wolumen i walutę konta.
+                </div>
+              )}
               <div className="text-[11px] text-dim">
                 Zaznaczone pola zastąpią wartości w transakcji. Kwota wyniku jest w walucie konta z ustawień ({currency}); prowizja i swap trafiają do informacji od brokera.
               </div>

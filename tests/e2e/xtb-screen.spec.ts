@@ -140,3 +140,50 @@ test('screen „Szczegóły pozycji” z XTB uzupełnia transakcję w edytorze (
     await app.close()
   }
 })
+
+test('screen XTB z instrumentem spoza forex: zniekształcona nazwa dopasowana do pary, brakująca para dodana z okna', async () => {
+  const journal = createDefaultJournal()
+  journal.settings.risk.accountCurrency = 'PLN'
+  journal.settings.pairs.push({ symbol: 'US500', pipSize: 0.1, priceDecimals: 1, quoteCurrency: 'USD', tvSymbol: 'SP:SPX', archived: false })
+  const dataDir = await seed([], journal)
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    await page.keyboard.press('Control+n')
+    await expect(page.getByTestId('trade-editor')).toBeVisible()
+
+    // US500 (Inter at 100%: OCR tends to read "USS00"): the pair is matched anyway.
+    await page.getByTestId('xtb-open').click()
+    await page.getByTestId('xtb-file').setInputFiles(join(__dirname, '../fixtures/xtb-position-us500.png'))
+    await expect(page.getByTestId('xtb-values')).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByTestId('xtb-pair')).toHaveValue('US500')
+    await expect(page.getByTestId('xtb-entry')).toHaveValue('5821.4')
+    await expect(page.getByTestId('xtb-exit-price')).toHaveValue('5830.9')
+    await expect(page.getByTestId('xtb-result')).toHaveValue('-27.06')
+    await expect(page.getByTestId('xtb-use-pair')).toBeChecked()
+    await page.screenshot({ path: shots('71-xtb-us500') })
+    await page.getByTestId('xtb-apply').click()
+    await expect(page.getByTestId('xtb-dialog')).toHaveCount(0)
+    await expect(page.getByTestId('trade-editor')).toContainText('US500')
+
+    // DE40 is not among the pairs: added from the dialog (symbol corrected if OCR distorted it).
+    await page.getByTestId('xtb-open').click()
+    await page.getByTestId('xtb-file').setInputFiles(join(__dirname, '../fixtures/xtb-position-de40.png'))
+    await expect(page.getByTestId('xtb-values')).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByTestId('xtb-pair')).toHaveValue('')
+    await page.getByTestId('xtb-new-pair').fill('DE40')
+    await page.getByTestId('xtb-add-pair').click()
+    await expect(page.getByTestId('xtb-pair')).toHaveValue('DE40')
+    await expect(page.getByTestId('xtb-use-pair')).toBeChecked()
+    await expect(page.getByTestId('xtb-entry')).toHaveValue(/^19212\.5/)
+    await page.getByTestId('xtb-apply').click()
+    await expect(page.getByTestId('trade-editor')).toContainText('DE40')
+    await expect
+      .poll(async () => JSON.parse(await fs.readFile(join(dataDir, 'journal.json'), 'utf8')).settings.pairs.map((p: { symbol: string }) => p.symbol), { timeout: 8000 })
+      .toContain('DE40')
+
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})

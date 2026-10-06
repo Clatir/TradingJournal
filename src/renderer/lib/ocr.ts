@@ -1,22 +1,30 @@
 /**
  * Reading an XTB position screenshot: the image is prepared here (canvas) and read by the offline OCR of the main
  * process. Nothing is saved – the image lives only in memory while the dialog is open.
+ *
+ * Three readings are combined (`combineXtb`): the panel binarized (gray labels found best → layout), the panel in
+ * gray (digits keep their shapes), and every value and the symbol cut out and read again with only its characters
+ * allowed. Each value takes the reading most of them agree on; disagreements are shown for checking.
  */
-import { mergeXtb, parseTesseractTsv, parseXtbScreen, xtbMissing, type XtbPosition } from '@shared/import/xtbScreen'
+import {
+  cleanSymbol,
+  combineXtb,
+  parseTesseractTsv,
+  parseXtbScreen,
+  positionFromTexts,
+  valueCharset,
+  type Region,
+  type XtbField,
+  type XtbPosition
+} from '@shared/import/xtbScreen'
 import { api } from './api'
 
-/**
- * Passes: enlargement and binarization threshold. The next pass runs only while a needed value is missing or a price
- * was read without its decimal point (small fonts, different text rendering).
- */
-const PASSES = [
-  { scale: 3, threshold: 200 },
-  { scale: 3, threshold: 170 },
-  { scale: 4, threshold: 200 },
-  { scale: 3, threshold: 225 }
-]
-/** Largest side of the prepared image (Tesseract likes ~30 px letters; small screenshots are enlarged). */
+/** Enlargement (Tesseract likes ~30 px letters) and the largest side of the prepared image. */
+const SCALE = 3
 const MAX_SIDE = 4000
+/** Binarization thresholds for finding the labels (the next one only when no panel was found). */
+const LAYOUT_THRESHOLDS = [200, 170, 225]
+const TIME_KEYS = new Set(['openTime', 'closeTime'])
 
 interface Gray {
   width: number
@@ -67,14 +75,15 @@ async function grayscale(image: Blob, enlarge: number): Promise<Gray> {
   }
 }
 
-/** Black-and-white PNG of the grayscale at a threshold (gray labels become black). */
+/** PNG of the grayscale, black and white at a threshold (gray labels become black); 0 = kept gray. */
 async function binaryPng(gray: Gray, threshold: number): Promise<Uint8Array> {
   const canvas = new OffscreenCanvas(gray.width, gray.height)
   const g = canvas.getContext('2d')!
   const img = g.createImageData(gray.width, gray.height)
   const d = img.data
   for (let i = 0; i < gray.lum.length; i++) {
-    const v = gray.lum[i]! < threshold ? 0 : 255
+    const l = gray.lum[i]!
+    const v = threshold ? (l < threshold ? 0 : 255) : l
     d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v
     d[i * 4 + 3] = 255
   }
@@ -83,17 +92,63 @@ async function binaryPng(gray: Gray, threshold: number): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer())
 }
 
-/** The position read from a screenshot (several passes merged); null when no position panel was found. */
-export async function readXtbScreenshot(image: Blob, onPass?: (pass: number, total: number) => void): Promise<XtbPosition | null> {
-  const grays = new Map<number, Gray>()
-  let result: XtbPosition | null = null
-  for (let i = 0; i < PASSES.length; i++) {
-    const { scale, threshold } = PASSES[i]!
-    onPass?.(i + 1, PASSES.length)
-    if (!grays.has(scale)) grays.set(scale, await grayscale(image, scale))
-    const tsv = await api.ocrImage(await binaryPng(grays.get(scale)!, threshold))
-    result = mergeXtb(result, parseXtbScreen(parseTesseractTsv(tsv)))
-    if (xtbMissing(result).length === 0 && !result?.undotted.length) break
+/** A value cut out of the grayscale with a margin and a white border (Tesseract reads lines better with space). */
+async function cropPng(gray: Gray, r: Region): Promise<Uint8Array> {
+  const pad = Math.round(r.height * 0.35)
+  const x0 = Math.max(0, Math.floor(r.left - pad))
+  const y0 = Math.max(0, Math.floor(r.top - pad))
+  const x1 = Math.min(gray.width, Math.ceil(r.left + r.width + pad))
+  const y1 = Math.min(gray.height, Math.ceil(r.top + r.height + pad))
+  const border = Math.round(r.height * 0.5)
+  const w = x1 - x0 + 2 * border
+  const h = y1 - y0 + 2 * border
+  const canvas = new OffscreenCanvas(w, h)
+  const g = canvas.getContext('2d')!
+  const img = g.createImageData(w, h)
+  const d = img.data
+  d.fill(255)
+  for (let y = y0; y < y1; y++)
+    for (let x = x0; x < x1; x++) {
+      const o = ((y - y0 + border) * w + (x - x0 + border)) * 4
+      d[o] = d[o + 1] = d[o + 2] = gray.lum[y * gray.width + x]!
+    }
+  g.putImageData(img, 0, 0)
+  const blob = await canvas.convertToBlob({ type: 'image/png' })
+  return new Uint8Array(await blob.arrayBuffer())
+}
+
+const read = async (png: Uint8Array) => parseXtbScreen(parseTesseractTsv(await api.ocrImage(png)))
+
+/** The position read from a screenshot (readings combined); null when no position panel was found. */
+export async function readXtbScreenshot(image: Blob, onStep?: (step: string) => void): Promise<XtbPosition | null> {
+  onStep?.('szukam pól')
+  const gray = await grayscale(image, SCALE)
+  let layout: XtbPosition | null = null
+  for (const threshold of LAYOUT_THRESHOLDS) {
+    layout = await read(await binaryPng(gray, threshold))
+    if (layout) break
   }
-  return result
+  onStep?.('czytam wartości')
+  const grayRead = await read(await binaryPng(gray, 0))
+  if (!layout && !grayRead) return null
+
+  onStep?.('sprawdzam każdą wartość osobno')
+  const regions = { ...grayRead?.regions, ...layout?.regions }
+  const texts: Partial<Record<XtbField, string>> = {}
+  let symbol: string | null = null
+  for (const [key, region] of Object.entries(regions) as Array<[XtbField | 'symbol', Region]>) {
+    if (key === 'type') continue
+    const tsv = await api.ocrImage(await cropPng(gray, region), { psm: TIME_KEYS.has(key) ? 6 : 7, whitelist: valueCharset(key) })
+    const text = parseTesseractTsv(tsv)
+      .map((w) => w.text)
+      .join(' ')
+    if (key === 'symbol') symbol = cleanSymbol(text)
+    else texts[key] = text
+  }
+  const crops = positionFromTexts(texts, { symbol, direction: null })
+  return combineXtb([
+    { position: crops, weight: 1.2 },
+    { position: grayRead, weight: 1 },
+    { position: layout, weight: 0.9 }
+  ])
 }

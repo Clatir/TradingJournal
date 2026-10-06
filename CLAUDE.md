@@ -201,18 +201,27 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Import: folder lub ZIP (rozpakowanie bezpieczne – yauzl odrzuca `../`), walidacja każdego pliku bez zmian w danych,
   potem „scal” (polityka kolizji: nowsza / pomiń / nadpisz; słowniki i pary z importu dołączane) albo „otwórz jako osobny”.
 - Screen XTB „Szczegóły pozycji” → transakcja (1.4.6, edytor → „Ze screenu XTB”, `features/trade/XtbScreenImport.tsx`):
-  - renderer (`lib/ocr.ts`): powiększenie (3× / 4×, max 4000 px), skala szarości, ciemny motyw odwracany, rozciągnięcie
-    kontrastu, progowanie → PNG; przebiegi 3×/200, 3×/170, 4×/200, 3×/225 – kolejny tylko, gdy czegoś brakuje albo cenę
-    odczytano bez kropki (`undotted`; wartość z kropką z innego przebiegu wygrywa w `mergeXtb`);
-  - main (`main/ocr/`): IPC `ocrImage` → wątek z Tesseractem (PSM 11 = rozrzucony tekst), TSV; wątek kończy się po 60 s;
-  - `shared/import/xtbScreen.ts`: etykiety (PL/EN, bez ogonków, literówki OCR, „…” = prefiks) → wartość pod etykietą w jej
-    kolumnie (czasy: data + godzina w dwóch wierszach) albo obok w wierszu; cena bez kropki skalowana do pozostałych
-    cen z kropką; `mergeXtb` łączy przebiegi; `xtbWarnings` (kierunek a wynik, netto a brutto, SL po stronie zysku);
-    `screenValues` (czasy WAW → UTC, para przez `pairForSymbol`), `changedScreenFields`, `applyScreenValues`
-    (wyjście = jedno 100%, wynik netto → `pnlAmountOverride` w walucie konta, `trade.broker` z `source: 'screen'`).
+  - renderer (`lib/ocr.ts`): powiększenie 3× (max 4000 px), skala szarości, ciemny motyw odwracany, rozciągnięcie
+    kontrastu; trzy odczyty łączone `combineXtb` (wagi 1,2 / 1 / 0,9): każda wartość i symbol wycięte (`regions`)
+    i czytane osobno (PSM 7, czasy PSM 6, `valueCharset` jako whitelist), cały panel w skali szarości (cyfry), cały
+    panel po progowaniu 200 (szare etykiety; 170 i 225 tylko, gdy nie ma panelu). Pomiar na syntetycznych panelach
+    (14 instrumentów × 2 skale, `Inter`/Liberation/DejaVu): 302/308, 308/308, 308/308 pól, ≈2,5 s na screen;
+    progowanie psuło cyfry przy skali 100% (9 → 0), rozsuwanie znaków w wycinkach pogarszało wynik (gubi kropki);
+  - main (`main/ocr/`): IPC `ocrImage(png, {psm, whitelist})` → wątek z Tesseractem, TSV; wątek kończy się po 60 s;
+  - `shared/import/xtbScreen.ts`: etykiety (PL/EN, bez ogonków, literówki OCR, jedna cyfra szumu, „..”/„…” = prefiks,
+    sklejone „zabezpiec..Swap” rozdzielane) → wartość pod etykietą w jej kolumnie (czasy: data + godzina w dwóch
+    wierszach) albo obok; symbol = pierwszy wiersz nad etykietami z wielkimi literami (ikona przed nim pomijana,
+    „OIL WTI” → „OIL.WTI”), pod nim `description`; cena bez kropki skalowana i ważona ×0,3 (`undotted`); głosowanie:
+    zlana podwójna cyfra („0.8431” vs „0.84311”) → wygrywa dłuższa; rozbieżności w `uncertain` („sprawdź”).
+    `matchInstrument`: dokładnie (`pairForSymbol`) → opis pary walut (`pairFromDescription`) → najbliższa para z tanimi
+    pomyłkami OCR (S↔5, O↔0, A↔4…, wstawiona litera 0,6, doklejony znaczek 0,2/znak; próg 0,3 × długość + 0,3,
+    przewaga ≥ 0,5). `expectedGross`/`resultMismatch`: wynik z cen × loty × kontrakt × kurs vs odczytany (> 25%).
+    `screenValues`, `changedScreenFields`, `applyScreenValues` (wyjście = jedno 100%, wynik netto → `pnlAmountOverride`
+    w walucie konta, `trade.broker` z `source: 'screen'`). „Dodaj do par” w oknie: `pairPreset`, waluta z opisu.
   - Screen nie jest zapisywany. `Ctrl+V` w oknie przechwytywane w fazie capture (nie trafia do panelu screenów).
-  - E2E używa stałego pliku `tests/fixtures/xtb-position.png` (syntetyczny panel): tekst rysowany canvasem jest
-    rasteryzowany inaczej na Windows i Linuksie, więc OCR obrazu narysowanego w teście daje różne wyniki.
+  - E2E używa stałych plików `tests/fixtures/xtb-position*.png` (syntetyczne panele: EURUSD, US500, DE40): tekst
+    rysowany canvasem jest rasteryzowany inaczej na Windows i Linuksie, więc OCR obrazu narysowanego w teście daje
+    różne wyniki.
 - Czas wyjścia/partiala: `ExitClockField` w NY i w WAW (`zone`), data od dnia wejścia w tej strefie, „+1” dla następnego dnia.
 - Import historii od brokera (Ustawienia → Eksport, import, kopie; `renderer/features/settings/BrokerImport.tsx`):
   - plik: main `import/broker.ts` (`pickBrokerFile`: XLSX → arkusze przez yauzl, reszta → bajty), renderer dekoduje

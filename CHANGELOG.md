@@ -3,6 +3,22 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.7
+
+### Poprawki
+- **Dokładniejszy odczyt screenu z XTB** („Ze screenu XTB” w edytorze transakcji).
+  - **Nazwy instrumentów** są dopasowywane do Twoich par mimo typowych pomyłek OCR. Przykłady: „USS00” → US500,
+    „DEA40” → DE40, „OIL WTI” → OIL.WTI, „G0LD” → GOLD. Para walut jest rozpoznawana także z opisu XTB („Euro to
+    American Dollar currency pair” → EURUSD). Przy dopasowaniu przybliżonym okno pokazuje, co odczytano.
+  - **Instrument spoza listy par** można dodać od razu z okna („Dodaj do par”, z poprawką symbolu).
+  - **Każda wartość jest czytana kilka razy**: cały panel w czerni i bieli, cały panel w skali szarości oraz każda
+    liczba i symbol osobno, tylko z dozwolonymi znakami. Wygrywa wartość, na którą wskazuje większość odczytów.
+    Gdy odczyty się różnią, przy polu pojawia się „sprawdź – inny odczyt: …”.
+  - **Kontrola wyniku z cenami i wolumenem** (forex i pary z ustawionym „1 lot”): błędnie odczytana cyfra w cenie albo
+    inna waluta konta niż w XTB daje ostrzeżenie z wynikiem wyliczonym z cen.
+  - Lepiej rozpoznawane etykiety z szumem OCR („2Zysk brutto”, obcięte „Depozyt zabezpiec…” sklejone z „Swap”) i
+    symbol poprzedzony ikoną instrumentu.
+
 ## 1.4.6
 
 ### Nowe
