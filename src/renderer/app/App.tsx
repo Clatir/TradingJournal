@@ -24,6 +24,8 @@ import { TopBar } from './TopBar'
 import { Banners } from './Banners'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ShortcutsHelp } from './ShortcutsHelp'
+import { RemoteChangesDialog } from '../features/sync/RemoteChangesDialog'
+import { setRemoteDialog, useRemote } from '../store/remote'
 import { flushSaves } from '../store/journal'
 import { initUpdates } from '../store/update'
 import { useFxAutoFetch } from '../store/fx'
@@ -77,6 +79,11 @@ function useGlobalHotkeys(): void {
         navigate({ page: 'settings' })
       } else if (k === 's') {
         e.preventDefault()
+        if (useRemote.getState().pending.length) {
+          setRemoteDialog(true)
+          toast('Czekają zmiany z drugiego komputera – te wpisy zapiszą się po Twojej decyzji.', 'info', 5000)
+          return
+        }
         void flushSaves().then((saved) =>
           saved
             ? toast('Zapisano. (Zapis jest automatyczny – Ctrl+S nie jest potrzebne.)', 'success', 2200)
@@ -206,6 +213,7 @@ export function App() {
       </div>
       <CommandPalette />
       <ShortcutsHelp />
+      <RemoteChangesDialog />
       <Lightbox />
       <Toasts />
     </div>

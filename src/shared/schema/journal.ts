@@ -225,6 +225,16 @@ export const settingsSchema = z.looseObject({
       timeInputZone: z.enum(['NY', 'WAW']).default('NY')
     })
     .prefault({}),
+  /** Changes of the data folder made on another computer while this one has it open (since 1.4.0). */
+  sync: z
+    .looseObject({
+      /**
+       * merge: take them; when the same entry has local unsaved edits, merge field by field and ask only about fields
+       * changed on both sides. ask: always ask first (list of changed entries with their differences).
+       */
+      remoteChanges: z.enum(['merge', 'ask']).default('merge')
+    })
+    .prefault({}),
   /** P/L calculator and pip mode of the payout forecast; an empty list is seeded on load. */
   instruments: z.array(instrumentSchema).default([]),
   fx: z

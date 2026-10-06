@@ -3,7 +3,11 @@ import type { AppInfo, ChangeSet, ConflictEntry, FolderStatus, Problem, RecordEn
 import type { Collection } from '@shared/paths'
 import type { RecordTypes } from '@shared/records'
 import type { JournalFile } from '@shared/schema'
+import { chooser, merge3, type Side } from '@shared/merge'
+import { decideRemote, decideRemoteRemoval, type RemoteMode } from '@shared/remoteChanges'
 import { api, errorMessage } from '../lib/api'
+import { useRemote, type PendingRemote } from './remote'
+import { toast } from './ui'
 
 type EntryMap<C extends Collection> = Record<string, RecordEntry<RecordTypes[C]>>
 
@@ -33,9 +37,13 @@ interface JournalState {
   drafts: Record<string, true>
 }
 
-const SAVE_DELAY = 400
+const SAVE_DELAY_DEFAULT = 400
 /** Even while typing continuously, a change is written at most this long after it was made. */
-const SAVE_MAX_WAIT = 2000
+const SAVE_MAX_WAIT_DEFAULT = 2000
+/** E2E hook: a longer autosave delay (window.__ICTJ_SAVE_DELAY__) keeps edits unsaved long enough to test merges. */
+const testDelay = () => (globalThis as { __ICTJ_SAVE_DELAY__?: number }).__ICTJ_SAVE_DELAY__
+const saveDelay = () => testDelay() ?? SAVE_DELAY_DEFAULT
+const saveMaxWait = () => Math.max(testDelay() ?? 0, SAVE_MAX_WAIT_DEFAULT)
 /** A failed save (file locked by OneDrive, pendrive briefly gone…) is retried with backoff. */
 const RETRY_FIRST = 2000
 const RETRY_MAX = 60_000
@@ -48,6 +56,11 @@ const firstDirtyAt = new Map<string, number>()
 const retryDelay = new Map<string, number>()
 /** Keys whose last save attempt failed, with the error message. */
 const failed = new Map<string, string>()
+/**
+ * Version of a dirty record as it is on disk (before the local edits, or the last version this computer wrote):
+ * the base of a three-way merge when the same record changes on another computer.
+ */
+const bases = new Map<string, unknown>()
 
 const saveError = (): string | null => [...failed.values()].at(-1) ?? null
 
@@ -59,6 +72,7 @@ function forget(key: string): void {
   firstDirtyAt.delete(key)
   retryDelay.delete(key)
   failed.delete(key)
+  bases.delete(key)
 }
 
 const keyOf = (collection: Collection | 'journal', id: string) => `${collection}:${id}`
@@ -102,6 +116,8 @@ export function applySnapshot(snapshot: Snapshot): void {
   firstDirtyAt.clear()
   retryDelay.clear()
   failed.clear()
+  bases.clear()
+  useRemote.setState({ pending: [], open: false })
   set({
     phase: 'ready',
     setupMessage: null,
@@ -121,8 +137,25 @@ export function applySnapshot(snapshot: Snapshot): void {
   })
 }
 
-/** Apply changes coming from disk. Local unsaved edits win (they will be written shortly). */
+const pendingFor = (key: string) => useRemote.getState().pending.find((p) => p.key === key)
+
+/**
+ * Apply changes coming from disk.
+ * - Own actions (origin 'local') and anything without local unsaved edits in "merge" mode: taken as they are.
+ * - From outside (another computer): a record with local unsaved edits is merged field by field (shared/merge.ts);
+ *   fields changed on both sides – or every change in "ask" mode – wait for a decision in the dialog
+ *   (store/remote.ts), and the record is not saved until then. Nothing is overwritten silently.
+ */
 export function applyChange(change: ChangeSet): void {
+  const external = change.origin === 'external'
+  const mode: RemoteMode = get().journal?.settings.sync.remoteChanges ?? 'merge'
+  const queued: PendingRemote[] = []
+  const toSave: Array<{ collection: Collection | 'journal'; id: string; from: string | null }> = []
+  const now = new Date().toISOString()
+  const queue = (item: Omit<PendingRemote, 'receivedAt' | 'hadLocalEdits'>, localEdits: boolean) => {
+    const prev = pendingFor(item.key)
+    queued.push({ ...item, base: prev ? prev.base : item.base, hadLocalEdits: localEdits || !!prev?.hadLocalEdits, receivedAt: now })
+  }
   set((s) => {
     const next: Partial<JournalState> = {
       problems: change.problems,
@@ -132,22 +165,138 @@ export function applyChange(change: ChangeSet): void {
     const maps: Partial<Record<Collection, Record<string, RecordEntry<RecordTypes[Collection]>>>> = {}
     const mapFor = (c: Collection) => (maps[c] ??= { ...(s[c] as Record<string, RecordEntry<RecordTypes[Collection]>>) })
     for (const { collection, entry } of change.upserts) {
-      if (dirty.has(keyOf(collection, entry.record.id))) continue
-      mapFor(collection)[entry.record.id] = entry
+      const id = entry.record.id
+      const key = keyOf(collection, id)
+      const local = (s[collection] as Record<string, RecordEntry<RecordTypes[Collection]>>)[id]
+      if (!external) {
+        if (!dirty.has(key)) mapFor(collection)[id] = entry
+        continue
+      }
+      const pending = pendingFor(key)
+      const localEdits = dirty.has(key)
+      const busy = localEdits || !!pending
+      const base = pending ? pending.base : (bases.get(key) ?? (busy ? undefined : local?.record))
+      const d = decideRemote({ mode, dirty: busy, base, mine: local?.record ?? null, theirs: entry.record })
+      if (d.action === 'take') mapFor(collection)[id] = entry
+      else if (d.action === 'ignore') {
+        if (!pending) bases.set(key, entry.record)
+      } else if (d.action === 'merge') {
+        mapFor(collection)[id] = { ...entry, record: d.merged as RecordTypes[Collection] }
+        bases.set(key, entry.record)
+        toSave.push({ collection, id, from: entry.record.updatedBy ?? null })
+      } else queue({ key, collection, id, type: 'update', base, theirs: entry }, localEdits)
     }
     for (const { collection, id } of change.removals) {
-      if (dirty.has(keyOf(collection, id))) continue
-      delete mapFor(collection)[id]
+      const key = keyOf(collection, id)
+      const local = (s[collection] as Record<string, RecordEntry<RecordTypes[Collection]>>)[id]
+      if (!external) {
+        if (!dirty.has(key)) delete mapFor(collection)[id]
+        continue
+      }
+      if (!local) continue
+      const localEdits = dirty.has(key)
+      if (decideRemoteRemoval({ mode, dirty: localEdits || !!pendingFor(key) }) === 'remove') delete mapFor(collection)[id]
+      else queue({ key, collection, id, type: 'removal', base: bases.get(key) ?? local.record, theirs: null }, localEdits)
     }
     Object.assign(next, maps)
-    if (change.journal && !dirty.has(keyOf('journal', 'journal'))) next.journal = change.journal
+    if (change.journal) {
+      const key = keyOf('journal', 'journal')
+      if (!external) {
+        if (!dirty.has(key)) next.journal = change.journal
+      } else if (s.journal) {
+        const pending = pendingFor(key)
+        const localEdits = dirty.has(key)
+        const busy = localEdits || !!pending
+        const base = pending ? pending.base : (bases.get(key) ?? (busy ? undefined : s.journal))
+        const d = decideRemote({ mode, dirty: busy, base, mine: s.journal, theirs: change.journal })
+        if (d.action === 'take') next.journal = change.journal
+        else if (d.action === 'ignore') {
+          if (!pending) bases.set(key, change.journal)
+        } else if (d.action === 'merge') {
+          next.journal = d.merged as JournalFile
+          bases.set(key, change.journal)
+          toSave.push({ collection: 'journal', id: 'journal', from: change.journal.updatedBy ?? null })
+        } else queue({ key, collection: 'journal', id: 'journal', type: 'update', base, theirs: change.journal }, localEdits)
+      } else next.journal = change.journal
+    }
     return next
   })
+  for (const t of toSave) scheduleSave(t.collection, t.id)
+  if (toSave.length) {
+    const from = toSave.find((t) => t.from)?.from
+    toast(`Scalono zmiany${from ? ` z komputera ${from}` : ' z dysku'} z Twoimi niezapisanymi (${toSave.length}).`, 'success', 4500)
+  }
+  if (queued.length) {
+    useRemote.setState((r) => ({
+      pending: [...r.pending.filter((p) => !queued.some((q) => q.key === p.key)), ...queued],
+      open: true
+    }))
+  }
+}
+
+/**
+ * Decide about a change from another computer: merge (fields changed on both sides as `fieldChoices` say, default
+ * mine), keep this computer's version (written over theirs; theirs stays in the history) or take theirs (local
+ * unsaved edits go to the history).
+ */
+export function resolveRemote(key: string, choice: 'merge' | Side, fieldChoices: Record<string, Side> = {}): void {
+  const item = pendingFor(key)
+  if (!item) return
+  useRemote.setState((r) => {
+    const pending = r.pending.filter((p) => p.key !== key)
+    return { pending, open: r.open && pending.length > 0 }
+  })
+  if (item.collection === 'journal') {
+    const mine = get().journal
+    const theirs = item.theirs as JournalFile
+    if (!mine) return
+    if (choice === 'theirs') {
+      if (dirty.has(key)) void api.historyKeep('journal', mine, 'discarded').catch(() => undefined)
+      forget(key)
+      set({ journal: theirs })
+      return
+    }
+    const journal = choice === 'mine' ? mine : merge3(item.base, mine, theirs, chooser(fieldChoices)).merged
+    bases.set(key, theirs)
+    set({ journal })
+    scheduleSave('journal', 'journal', 0)
+    return
+  }
+  const c = item.collection
+  const local = (get()[c] as Record<string, RecordEntry<RecordTypes[Collection]>>)[item.id]
+  const setEntry = (entry: RecordEntry<RecordTypes[Collection]> | null) =>
+    set((s) => {
+      const map = { ...(s[c] as Record<string, RecordEntry<RecordTypes[Collection]>>) }
+      if (entry) map[item.id] = entry
+      else delete map[item.id]
+      return { [c]: map } as Partial<JournalState>
+    })
+  if (item.type === 'removal') {
+    if (choice === 'theirs') {
+      if (dirty.has(key) && local) void api.historyKeep(c, local.record, 'discarded').catch(() => undefined)
+      forget(key)
+      setEntry(null)
+    } else if (local) scheduleSave(c, item.id, 0)
+    return
+  }
+  const theirs = item.theirs as RecordEntry<RecordTypes[Collection]>
+  if (choice === 'theirs' || !local) {
+    if (dirty.has(key) && local) void api.historyKeep(c, local.record, 'discarded').catch(() => undefined)
+    forget(key)
+    setEntry(theirs)
+    return
+  }
+  bases.set(key, theirs.record)
+  const record = choice === 'mine' ? local.record : merge3(item.base, local.record, theirs.record, chooser(fieldChoices)).merged
+  setEntry({ ...theirs, record })
+  scheduleSave(c, item.id, 0)
 }
 
 async function runSave(key: string): Promise<void> {
   const target = dirty.get(key)
   if (!target) return
+  // Waiting for a decision about a change from another computer: writing now would overwrite it.
+  if (pendingFor(key)) return
   const version = versions.get(key) ?? 0
   if (target.collection === 'journal' ? !get().journal : !(get()[target.collection] as Record<string, unknown>)[target.id]) {
     forget(key)
@@ -161,8 +310,9 @@ async function runSave(key: string): Promise<void> {
       const saved = await api.saveJournal(journal)
       if ((versions.get(key) ?? 0) === version) {
         dirty.delete(key)
+        bases.delete(key)
         set({ journal: saved })
-      }
+      } else bases.set(key, saved)
     } else {
       const c = target.collection
       const current = (get()[c] as Record<string, RecordEntry<RecordTypes[Collection]>>)[target.id] as RecordEntry<RecordTypes[Collection]>
@@ -172,9 +322,12 @@ async function runSave(key: string): Promise<void> {
         const latest = map[target.id]
         if ((versions.get(key) ?? 0) === version) {
           dirty.delete(key)
+          bases.delete(key)
           // Deleted while the save was in flight: do not bring it back.
           if (latest) map[target.id] = entry
         } else if (latest) {
+          // Disk now holds what was sent: the base of a later merge.
+          bases.set(key, entry.record)
           // Newer local edits pending: keep them, but adopt the new path.
           map[target.id] = { ...latest, relPath: entry.relPath }
         }
@@ -219,7 +372,7 @@ function scheduleRetry(key: string): void {
   )
 }
 
-function scheduleSave(collection: Collection | 'journal', id: string, delay = SAVE_DELAY): void {
+function scheduleSave(collection: Collection | 'journal', id: string, delay = saveDelay()): void {
   const key = keyOf(collection, id)
   versions.set(key, (versions.get(key) ?? 0) + 1)
   dirty.set(key, { collection, id })
@@ -228,7 +381,7 @@ function scheduleSave(collection: Collection | 'journal', id: string, delay = SA
   const now = Date.now()
   if (!firstDirtyAt.has(key)) firstDirtyAt.set(key, now)
   const waited = now - (firstDirtyAt.get(key) ?? now)
-  const wait = Math.min(delay, Math.max(0, SAVE_MAX_WAIT - waited))
+  const wait = Math.min(delay, Math.max(0, saveMaxWait() - waited))
   timers.set(
     key,
     setTimeout(() => {
@@ -246,6 +399,8 @@ export function updateRecord<C extends Collection>(collection: C, id: string, up
   const current = (get()[collection] as EntryMap<C>)[id]
   // Read-only folder (newer format, unavailable drive) or file: no edits that could never be saved.
   if (!current || current.readOnly || folderReadOnly()) return
+  const key = keyOf(collection, id)
+  if (!dirty.has(key) && !bases.has(key) && !get().drafts[id]) bases.set(key, current.record)
   const record = updater(current.record)
   set((s) => {
     // The first edit turns a draft into a real record (saved shortly), so leaving the page never discards it.
@@ -287,6 +442,7 @@ export function discardDraft(collection: Collection, id: string): void {
 export async function deleteRecord(collection: Collection, id: string): Promise<void> {
   const key = keyOf(collection, id)
   forget(key)
+  useRemote.setState((r) => ({ pending: r.pending.filter((p) => p.key !== key) }))
   bumpPending(0, { error: saveError() })
   const wasDraft = !!get().drafts[id]
   set((s) => {
@@ -311,6 +467,8 @@ export function adoptJournal(journal: JournalFile): void {
 export function updateJournal(updater: (j: JournalFile) => JournalFile): void {
   const j = get().journal
   if (!j || folderReadOnly()) return
+  const key = keyOf('journal', 'journal')
+  if (!dirty.has(key) && !bases.has(key)) bases.set(key, j)
   set({ journal: updater(j) })
   scheduleSave('journal', 'journal')
 }

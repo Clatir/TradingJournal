@@ -123,6 +123,7 @@ function FolderTab() {
           </p>
         </div>
       </Panel>
+      <TwoComputersPanel />
       <Panel title="Informacje">
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
           <Field label="Format danych">
@@ -188,6 +189,39 @@ function FolderTab() {
         </Panel>
       )}
     </>
+  )
+}
+
+/** What happens when the folder changes on another computer while it is open here (settings.sync.remoteChanges). */
+function TwoComputersPanel() {
+  const mode = useJournal((s) => s.journal?.settings.sync.remoteChanges ?? 'merge')
+  const others = useJournal((s) => s.status?.otherMachines ?? [])
+  return (
+    <Panel title="Praca na dwóch komputerach">
+      <div className="flex flex-col gap-2 text-[12px]">
+        <Segmented
+          size="sm"
+          value={mode}
+          onChange={(remoteChanges) =>
+            updateJournal((j) => ({ ...j, settings: { ...j.settings, sync: { ...j.settings.sync, remoteChanges } } }))
+          }
+          options={[
+            { value: 'merge', label: 'Scalaj zmiany, pytaj tylko przy konflikcie' },
+            { value: 'ask', label: 'Zawsze pytaj przed przyjęciem zmian' }
+          ]}
+          aria-label="Zmiany z drugiego komputera"
+        />
+        <p className="text-[11.5px] text-muted">
+          Gdy dziennik jest otwarty na dwóch komputerach i na jednym zmienisz wpis, drugi dostaje tę zmianę przez synchronizację folderu. „Scalaj”:
+          zmiana jest przyjmowana od razu, a gdy ten sam wpis edytujesz właśnie tutaj, zmiany z obu komputerów łączą się pole po polu – pytanie pojawia
+          się tylko o pola zmienione po obu stronach. „Zawsze pytaj”: każdą zmianę z drugiego komputera najpierw widzisz (różnice pole po polu) i wybierasz
+          scal / zachowaj moją / weź z drugiego. Odrzucona wersja zostaje w historii wpisu.
+        </p>
+        {others.length > 0 && (
+          <div className="text-[11.5px] text-accent">Teraz pracuje też: {others.map((m) => m.machine).join(', ')}.</div>
+        )}
+      </div>
+    </Panel>
   )
 }
 
