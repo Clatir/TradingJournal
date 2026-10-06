@@ -230,3 +230,47 @@ test('sesje analizy: stoper, para w trakcie, decyzje z powodami, pytanie o odrzu
     await app.close()
   }
 })
+
+test('szablony planu dnia: zapis planu jako szablonu, wstawienie do innego dnia, szablon domyślny dla nowych planów', async () => {
+  const dataDir = await seed([])
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    const goTo = async (date: string) => {
+      await page.getByTestId('day-date').fill(date)
+      await page.getByTestId('day-date').press('Enter')
+      await expect(page.getByTestId('day-date')).toHaveValue(date)
+    }
+    await expect(page.getByTestId('journal-table')).toBeVisible()
+    await page.keyboard.press('Control+d')
+    await goTo('2026-10-05')
+    await page.getByTestId('scenario-primary').fill('sweep Asia low → long z FVG')
+    await page.getByTestId('template-menu').click()
+    await page.getByTestId('template-name').fill('London')
+    await page.getByTestId('template-save').click()
+    await expect(page.getByTestId('template-row')).toHaveCount(1)
+    await page.keyboard.press('Escape')
+
+    // Another day: insert the template – the empty scenario gets filled.
+    await goTo('2026-10-07')
+    await expect(page.getByTestId('scenario-primary')).toHaveValue('')
+    await page.getByTestId('template-menu').click()
+    await page.getByTestId('template-apply').click()
+    await expect(page.getByTestId('scenario-primary')).toHaveValue('sweep Asia low → long z FVG')
+
+    // Default template: every new plan starts from it.
+    await page.getByTestId('template-menu').click()
+    await page.getByTestId('template-default').click()
+    await expect(page.getByTestId('template-default')).toHaveText('★')
+    await page.getByTestId('template-menu').click()
+    await expect(page.getByTestId('template-panel')).toHaveCount(0)
+    await goTo('2026-10-09')
+    await expect(page.getByTestId('scenario-primary')).toHaveValue('sweep Asia low → long z FVG')
+    await page.keyboard.press('Control+k')
+    await page.keyboard.type('wstaw szablon')
+    await expect(page.getByText('Plan dnia (dziś): wstaw szablon „London”')).toBeVisible()
+    await page.keyboard.press('Escape')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})

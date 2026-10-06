@@ -18,6 +18,7 @@ import { checkForUpdates } from '../../store/update'
 import { refreshFxRates } from '../../store/fx'
 import { createScenario } from '../forecast/actions'
 import { addManualSession, setReviewsOpen } from '../sessions/actions'
+import { insertTemplate } from '../day/TemplatesMenu'
 
 export function toggleMoney(): void {
   let on = false
@@ -53,6 +54,14 @@ export function CommandPalette() {
       { id: 'analysis', label: 'Sesja analizy: start / zakończ i zdecyduj', keys: 'Ctrl Shift A', run: () => window.dispatchEvent(new Event('ictj:analysis-toggle')) },
       { id: 'analysis-manual', label: 'Sesja analizy wpisana ręcznie (dziś)', run: () => addManualSession(todayNy(), 30) },
       { id: 'reviews', label: 'Odrzucone pary: czy dały dobry setup?', run: () => setReviewsOpen(true) },
+      ...(journal?.settings.dayTemplates ?? []).map((t) => ({
+        id: `template-${t.id}`,
+        label: `Plan dnia (dziś): wstaw szablon „${t.name}”`,
+        run: () => {
+          navigate({ page: 'day', date: todayNy() })
+          insertTemplate(t.id, todayNy())
+        }
+      })),
       { id: 'analytics', label: 'Analityka', keys: 'Ctrl 3', run: () => navigate({ page: 'analytics' }) },
       { id: 'library', label: 'Biblioteka setupów', keys: 'Ctrl 4', run: () => navigate({ page: 'library' }) },
       { id: 'week', label: 'Przegląd tygodnia', keys: 'Ctrl 5', run: () => navigate({ page: 'week', week: currentWeek() }) },
@@ -106,7 +115,7 @@ export function CommandPalette() {
       },
       { id: 'help', label: 'Skróty klawiszowe', keys: '?', run: () => window.dispatchEvent(new Event('ictj:shortcuts')) }
     ],
-    []
+    [journal?.settings.dayTemplates]
   )
 
   if (!open) return null

@@ -156,6 +156,29 @@ function seedInstruments<S extends { instruments: Instrument[]; risk: { customIn
   }
 }
 
+/** Layout of a day plan to start from (since 1.4.0): pairs with their skeleton, intermarket, notes. */
+export const dayTemplateSchema = z.looseObject({
+  id: ulidSchema,
+  name: z.string().min(1),
+  pairs: z
+    .array(
+      z.looseObject({
+        pair: z.string().min(1),
+        drawOnLiquidity: z.string().default(''),
+        /** Labels of key levels to fill in (prices empty). */
+        levelLabels: z.array(z.string()).default([]),
+        scenarioPrimary: z.string().default(''),
+        scenarioAlternative: z.string().default('')
+      })
+    )
+    .default([]),
+  intermarket: z.array(z.string().min(1)).default([]),
+  notes: z.string().default(''),
+  /** Used for every new day plan. */
+  isDefault: z.boolean().default(false)
+})
+export type DayTemplate = z.infer<typeof dayTemplateSchema>
+
 export const settingsSchema = z.looseObject({
   pairs: z.array(pairConfigSchema).default([]),
   contextInstruments: z.array(z.string().min(1)).default(['DXY', 'EURX', 'FGBL1!', 'ZB1!']),
@@ -249,6 +272,7 @@ export const settingsSchema = z.looseObject({
       remoteChanges: z.enum(['merge', 'ask']).default('merge')
     })
     .prefault({}),
+  dayTemplates: z.array(dayTemplateSchema).default([]),
   /** P/L calculator and pip mode of the payout forecast; an empty list is seeded on load. */
   instruments: z.array(instrumentSchema).default([]),
   fx: z

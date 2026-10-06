@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createDayPlan } from '@shared/defaults'
+import { newDayPlan } from '@shared/dayTemplates'
 import { startSession } from '@shared/calc/sessions'
 import { tradingDateNy } from '@shared/calc/time'
 import type { AnalysisSession, DayPlan } from '@shared/schema'
@@ -32,8 +32,7 @@ export function ensureDayPlan(date: string): string | null {
   if (!journal || status?.readOnly) return null
   const existing = Object.values(days).find((e) => e.record.date === date)
   if (existing) return existing.record.id
-  const pairs = watchlist()
-  const plan = createDayPlan(date, pairs.length ? pairs : ['EURUSD'], journal.settings.contextInstruments)
+  const plan = newDayPlan(date, journal.settings, watchlist())
   addRecord('days', plan)
   return plan.id
 }

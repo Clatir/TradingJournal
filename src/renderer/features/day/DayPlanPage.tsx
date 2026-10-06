@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DateTime } from 'luxon'
-import { createDayPlan } from '@shared/defaults'
+import { newDayPlan } from '@shared/dayTemplates'
 import { newId } from '@shared/ids'
 import { formatClock, fromLocal, shiftTradingDay, tradingDateNy } from '@shared/calc/time'
 import { BIAS_TIMEFRAMES, type BiasDirection, type DayPair, type DayPlan, type NewsItem, type ScreenRef } from '@shared/schema'
@@ -12,6 +12,7 @@ import { IconBack, IconClose, IconCopy, IconNext, IconPlus } from '../../compone
 import { Badge, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { HistoryButton } from '../history/HistoryDialog'
 import { SessionsSection } from '../sessions/SessionsSection'
+import { TemplatesMenu } from './TemplatesMenu'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { copyDayMarkdown } from '../export/markdownActions'
 import { copyDayPlanToDate } from '../duplicate'
@@ -43,8 +44,7 @@ export function DayPlanPage({ date }: { date: string }) {
       .map((e) => e.record)
       .filter((d) => d.date < date)
       .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
-    const pairs = previous?.pairs.map((p) => p.pair) ?? ['EURUSD']
-    const plan = createDayPlan(date, pairs.length ? pairs : ['EURUSD'], journal.settings.contextInstruments)
+    const plan = newDayPlan(date, journal.settings, previous?.pairs.map((p) => p.pair) ?? ['EURUSD'])
     addRecord('days', plan, { draft: true })
   }, [entry, journal, date, days, readOnly])
 
@@ -120,6 +120,7 @@ export function DayPlanPage({ date }: { date: string }) {
         )}
         {plan && !isDraft && !readOnly && <CopyPlanTo date={date} />}
         {plan && !isDraft && <HistoryButton kind="days" id={plan.id} current={plan} small />}
+        {plan && <TemplatesMenu plan={plan} readOnly={readOnly} />}
         <DayStrip date={date} />
       </div>
 
