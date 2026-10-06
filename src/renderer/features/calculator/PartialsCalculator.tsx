@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 import { MAX_PARTIALS, partialPercents, partialPlan, type PartialSpec, type PlanScenario } from '@shared/calc/partials'
+import { optimalSplit, type OptimalCriterion } from '@shared/calc/partialsOptimal'
 import { lotDecimals, shownDecimals } from '@shared/calc/position'
 import { findInstrument, instrumentPipValue, missingPipValue, selectableInstruments } from '@shared/instruments'
 import { calculatorCurrency } from '@shared/risk'
@@ -15,6 +16,9 @@ interface PartialsInputs {
   nowPips: number | null
   breakeven: boolean
   parts: PartialSpec[]
+  /** "Optymalny podział": criterion and the allowed loss (R) of 'maxLoss'. */
+  optCriterion: OptimalCriterion
+  optMaxLossR: number | null
 }
 
 /** Kept for the session, so leaving the screen does not reset the comparison. */
@@ -24,6 +28,8 @@ const usePartials = create<PartialsInputs>(() => ({
   stopPips: 20,
   nowPips: 30,
   breakeven: false,
+  optCriterion: 'ev',
+  optMaxLossR: 0.5,
   parts: [
     { mode: 'now', percent: 50, targetPips: null },
     { mode: 'target', percent: null, targetPips: 60, probability: 100 }
@@ -340,8 +346,157 @@ export function PartialsCalculator({ settings, from }: { settings: Settings; fro
             </>
           )}
         </div>
+        {pip && lots != null && stopPips != null && nowPips != null && (
+          <OptimalSection
+            input={{ lots, lotStep, minLot: pip.minLot, pipValueMinLot: pip.value, stopPips, nowPips, breakevenAfterFirst: breakeven, parts }}
+            currentExpected={plan?.expected.amount ?? null}
+            money={money}
+            lotDec={lotDec}
+          />
+        )}
       </div>
     </Panel>
+  )
+}
+
+const CRITERIA: Array<{ value: OptimalCriterion; label: string; title: string }> = [
+  { value: 'ev', label: 'Najwyższy oczekiwany wynik', title: 'Maksimum Σ szansa × wynik – bez ograniczenia ryzyka' },
+  { value: 'noLoss', label: 'Bez straty', title: 'Najwyższy oczekiwany wynik, przy którym najgorszy możliwy przypadek nie jest stratą' },
+  { value: 'maxLoss', label: 'Strata najwyżej', title: 'Najwyższy oczekiwany wynik, przy którym najgorszy możliwy przypadek traci najwyżej podaną liczbę R' }
+]
+
+/**
+ * "Optymalny podział": how much to close now and at each target (from the targets and chances above) for the chosen
+ * criterion; the value of every target on its own and the chance it needs to beat closing now; "Zastosuj" puts the
+ * split into the calculator.
+ */
+function OptimalSection({
+  input,
+  currentExpected,
+  money,
+  lotDec
+}: {
+  input: { lots: number; lotStep: number; minLot: number; pipValueMinLot: number; stopPips: number; nowPips: number; breakevenAfterFirst: boolean; parts: PartialSpec[] }
+  currentExpected: number | null
+  money: (v: number) => string
+  lotDec: number
+}) {
+  const criterion = usePartials((s) => s.optCriterion)
+  const maxLossR = usePartials((s) => s.optMaxLossR)
+  const targets = input.parts.filter((p) => p.mode === 'target' && p.targetPips != null).map((p) => ({ pips: p.targetPips!, probability: p.probability ?? 100 }))
+  const key = JSON.stringify([input.lots, input.lotStep, input.minLot, input.pipValueMinLot, input.stopPips, input.nowPips, input.breakevenAfterFirst, targets, criterion, maxLossR])
+  // Recomputed only when an input of the search changes (the key), not on every render.
+  const out = useMemo(() => optimalSplit({ ...input, targets, criterion, maxLossR: maxLossR ?? undefined }), [key])
+  const abs = (v: number) => money(Math.abs(v)).replace(/^[+−-]/, '')
+  const pct = (p: number) => `${Number((p * 100).toFixed(1))}%`
+  return (
+    <div className="col-span-2 flex flex-col gap-2 border-t border-line pt-3" data-testid="part-optimal">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="label">Optymalny podział</span>
+        <Segmented size="sm" value={criterion} options={CRITERIA} onChange={(v) => set({ optCriterion: v })} aria-label="Kryterium optymalnego podziału" />
+        {criterion === 'maxLoss' && (
+          <span className="flex items-center gap-1">
+            <NumberField
+              value={maxLossR}
+              onChange={(v) => set({ optMaxLossR: v != null && v >= 0 ? v : null })}
+              isValid={(v) => v == null || v >= 0}
+              decimals={shownDecimals(maxLossR, 1)}
+              step={0.1}
+              className="w-[56px]"
+              aria-label="Dopuszczalna strata w R"
+              data-testid="opt-maxloss"
+            />
+            <span className="text-[11.5px] text-muted">R</span>
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-[1fr_1fr] gap-4">
+        <div className="flex flex-col gap-1.5">
+          <table className="num w-full border-collapse text-[12px]" data-testid="opt-targets">
+            <thead>
+              <tr className="text-[11px] text-muted">
+                <th className="border-b border-line py-1 text-left font-medium">Wyjście</th>
+                <th className="border-b border-line py-1 pl-2 text-right font-medium">Szansa</th>
+                <th className="border-b border-line py-1 pl-2 text-right font-medium" title="Oczekiwany wynik 1 lota trzymanego do tego celu (bez celu – na SL): p·(cel + SL) − SL">
+                  Oczekiwany / 1 lot
+                </th>
+                <th className="border-b border-line py-1 pl-2 text-right font-medium" title="Szansa, od której cel daje więcej niż zamknięcie teraz: (teraz + SL) / (cel + SL)">
+                  Próg szansy
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border-b border-line/60 py-1 font-sans">teraz {pipsText(input.nowPips)}</td>
+                <td className="border-b border-line/60 py-1 pl-2 text-right">pewne</td>
+                <td className={cx('border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap', toneClass[tone(out.nowPerLot)])}>{money(out.nowPerLot)}</td>
+                <td className="border-b border-line/60 py-1 pl-2 text-right text-dim">—</td>
+              </tr>
+              {out.targets.map((t, k) => (
+                <tr key={t.pips} data-testid={`opt-target-${k + 1}`}>
+                  <td className="border-b border-line/60 py-1 font-sans">cel {pipsText(t.pips)}</td>
+                  <td className="border-b border-line/60 py-1 pl-2 text-right">{pct(t.probability)}</td>
+                  <td className={cx('border-b border-line/60 py-1 pl-2 text-right whitespace-nowrap', toneClass[tone(t.evPerLot)])}>{money(t.evPerLot)}</td>
+                  <td className={cx('border-b border-line/60 py-1 pl-2 text-right', t.breakEven != null && t.probability > t.breakEven ? 'text-fg-strong' : 'text-muted')}>
+                    {t.breakEven == null ? 'nigdy' : pct(t.breakEven)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {out.targets.length === 0 && <span className="text-[11.5px] text-muted">Dodaj cele (część „Cel” z szansą) – optymalizacja wybiera spośród nich i zamknięcia teraz.</span>}
+          <span className="text-[11px] text-dim">
+            Cel daje więcej niż zamknięcie teraz, gdy jego szansa przekracza próg (pogrubiony = przekracza). Bez SL na BE najwyższy oczekiwany wynik daje zawsze
+            jedno wyjście – partiale go nie podnoszą, tylko zmniejszają ryzyko.
+          </span>
+        </div>
+        <div className="flex flex-col gap-1.5 text-[12px]">
+          {!out.ok ? (
+            <p className="text-accent" data-testid="opt-error">
+              {out.error}
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-0.5 border border-accent/60 bg-accent-soft px-2.5 py-2" data-testid="opt-result">
+                {out.split.parts.map((p, k) => (
+                  <span key={k} className="num text-[13px] text-fg-strong" data-testid={`opt-part-${k + 1}`}>
+                    {Number(p.percent.toFixed(2))}% ({p.lots.toFixed(lotDec)} lota) {p.mode === 'now' ? `teraz ${pipsText(p.pips)}` : `na ${pipsText(p.pips)} (szansa ${pct(p.probability)})`}
+                  </span>
+                ))}
+              </div>
+              <span>
+                oczekiwany{' '}
+                <b className={cx('num font-medium', toneClass[tone(out.split.expected)])} data-testid="opt-expected">
+                  {money(out.split.expected)}
+                </b>{' '}
+                <span className="num text-muted">({fmtR(out.split.expectedR)})</span>
+                {' · '}najgorszy możliwy{' '}
+                <b className={cx('num font-medium', toneClass[tone(out.split.worst)])} data-testid="opt-worst">
+                  {money(out.split.worst)}
+                </b>{' '}
+                <span className="num text-muted">({fmtR(out.split.worstR)})</span>
+              </span>
+              <span className="text-muted" data-testid="opt-compare">
+                {Math.abs(out.split.vsNow) < 0.005 ? 'Tyle samo co zamknięcie całości teraz' : `O ${abs(out.split.vsNow)} ${out.split.vsNow > 0 ? 'więcej' : 'mniej'} niż zamknięcie całości teraz`}
+                {currentExpected != null &&
+                  (Math.abs(out.split.expected - currentExpected) < 0.005
+                    ? '; tyle samo co Twój podział.'
+                    : `; o ${abs(out.split.expected - currentExpected)} ${out.split.expected > currentExpected ? 'więcej' : 'mniej'} niż Twój podział.`)}
+              </span>
+              <button className="btn btn-accent self-start" onClick={() => set({ parts: out.split.specs })} data-testid="opt-apply">
+                Zastosuj ten podział
+              </button>
+              {input.breakevenAfterFirst && (
+                <span className="text-[11px] text-dim">
+                  Z SL na BE model premiuje mały pierwszy partial (odblokowuje BE dla reszty). Szanse dalszych celów wpisz takie, jakie są przy SL na BE – zwykle
+                  niższe.
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

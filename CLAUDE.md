@@ -133,7 +133,11 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     domyślnie 100%; dalszy cel ≤ bliższy, inaczej obniżana i `probabilityLowered`) → szansa scenariusza = szansa
     k-tego celu − szansa (k+1)-ego, `expected` = Σ szansa × wynik, `suggestion` split / now / equal (±0,005).
     `final` = cała pozycja na najdalszym celu: `cost` (= całość tam − podział przy wszystkich celach = Σ `costVsFinal`
-    części), oczekiwany wynik trzymania całości (szansa ostatniego celu, reszta = cała pozycja na SL), `splitVsHold`. Pola w sesji.
+    części), oczekiwany wynik trzymania całości (szansa ostatniego celu, reszta = cała pozycja na SL), `splitVsHold`.
+    Optymalny podział (`calc/partialsOptimal.ts`, `optimalSplit`): kubełki „teraz” + cele (dalej niż teraz, szanse
+    nierosnące), wszystkie podziały na siatce (≤ ~25k, max 4 części) + dopracowanie w krokach lota; ocena jak w
+    `partialPlan` (test zgodności); kryteria 'ev' / 'noLoss' / 'maxLoss' (najgorszy przypadek o szansie > 0 ≥ −X·1R),
+    remis → wyższy najgorszy przypadek, potem mniej części. Bez BE optimum 'ev' = jedno wyjście (liniowe w udziałach). Pola w sesji.
   - Pola liczb pokazują tyle miejsc po przecinku, ile ma wartość: `shownDecimals`, `lotDecimals` w `calc/position.ts`.
     Dotyczy też lotów w kalkulatorze pozycji, edytorze transakcji i CSV.
 - Waluta konta: `switchAccountCurrency` (`src/shared/risk.ts`) odkłada `conversionRates` i `pipValuesPerLot` do

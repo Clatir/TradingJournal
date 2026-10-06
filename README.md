@@ -202,3 +202,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 10. Ten sam panel „Partiale”: ramka „Całość na ostatnim celu (+60 pips)” – cała pozycja tam +600, „Na partialach tracisz
     wtedy 150.00 USD (0.75R)”, kolumna „vs TP” przy każdej części; przy szansie 50% trzymanie całości daje oczekiwany
     +200, podział o 50 więcej.
+11. „Partiale” → „Optymalny podział”: 1 lot, SL 20, teraz +30, cel +60 z szansą 70% – najwyższy oczekiwany wynik:
+    całość na +60 (+360); „Bez straty”: 40% teraz / 60% na +60 (+336, najgorszy 0); „Strata najwyżej 0.5 R”: 20% / 80%
+    (+348). „Zastosuj ten podział” wpisuje go do kalkulatora.

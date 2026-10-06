@@ -3,6 +3,20 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.3
+
+### Nowe
+- **Partiale – optymalny podział** (`Ctrl+6`, panel „Partiale”, sekcja „Optymalny podział”): ile pozycji zamknąć teraz,
+  a ile na każdym celu (w procentach i lotach, w krokach lota), przy szansach dojścia do celów wpisanych wyżej.
+  Kryteria:
+  - **Najwyższy oczekiwany wynik** – bez SL na BE to zawsze jedno wyjście (całość na celu o największym
+    szansa × (cel + SL) albo zamknięcie teraz); partiale nie podnoszą oczekiwanego wyniku, tylko zmniejszają ryzyko.
+  - **Bez straty** – najwyższy oczekiwany wynik, przy którym najgorszy możliwy przypadek nie jest stratą
+    (np. SL 20, teraz +30: 40% teraz, reszta na najlepszym celu).
+  - **Strata najwyżej X R** – to samo z dopuszczalną stratą.
+  Tabela celów: oczekiwany wynik 1 lota trzymanego do celu i próg szansy, od którego cel daje więcej niż zamknięcie
+  teraz ((teraz + SL) / (cel + SL)). Porównanie z zamknięciem teraz i z Twoim podziałem, przycisk „Zastosuj ten podział”.
+
 ## 1.4.2
 
 ### Nowe
