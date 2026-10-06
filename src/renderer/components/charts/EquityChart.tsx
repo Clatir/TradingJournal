@@ -5,8 +5,20 @@ import type { EquityPointSec } from '@shared/calc/analytics'
 const UP = '#2ebd85'
 const DOWN = '#f6465d'
 
-/** Cumulative R (baseline at 0: green above, red below) with a drawdown pane underneath. */
-export function EquityChart({ points, height = 300 }: { points: EquityPointSec[]; height?: number }) {
+const formatR = (p: number) => `${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(2)}R`
+
+/** Cumulative result (baseline at 0: green above, red below) with a drawdown pane underneath; in R unless `format`. */
+export function EquityChart({
+  points,
+  height = 300,
+  format = formatR,
+  testId = 'equity-chart'
+}: {
+  points: ReadonlyArray<Pick<EquityPointSec, 'time' | 'equity' | 'drawdown'>>
+  height?: number
+  format?: (value: number) => string
+  testId?: string
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
 
@@ -27,7 +39,7 @@ export function EquityChart({ points, height = 300 }: { points: EquityPointSec[]
       rightPriceScale: { borderColor: '#1e232a' },
       timeScale: { borderColor: '#1e232a', timeVisible: false },
       crosshair: { mode: CrosshairMode.Magnet, vertLine: { color: '#4f5862', labelBackgroundColor: '#2b323b' }, horzLine: { color: '#4f5862', labelBackgroundColor: '#2b323b' } },
-      localization: { locale: 'pl-PL', priceFormatter: (p: number) => `${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(2)}R` }
+      localization: { locale: 'pl-PL', priceFormatter: format }
     })
     chartRef.current = chart
     const equity = chart.addSeries(BaselineSeries, {
@@ -52,7 +64,7 @@ export function EquityChart({ points, height = 300 }: { points: EquityPointSec[]
       chart.remove()
       chartRef.current = null
     }
-  }, [points, height])
+  }, [points, height, format])
 
-  return <div ref={ref} style={{ height }} className="w-full" data-testid="equity-chart" />
+  return <div ref={ref} style={{ height }} className="w-full" data-testid={testId} />
 }

@@ -15,7 +15,9 @@ import {
 } from '@shared/calc/analytics'
 import type { Outcome } from '@shared/calc/trade'
 import { buildMonthlyReport, reportLead, reportMonthLabel, reportMonths } from '@shared/export/monthlyReport'
-import { fmtMoney, fmtNum, fmtPercent, fmtR, parseDateInput, tone, toneClass } from '../../lib/format'
+import { plnCurve, type PlnCurve } from '@shared/calc/plnCurve'
+import { fmtMoney, fmtMoneyGrouped, fmtNum, fmtPercent, fmtR, parseDateInput, tone, toneClass } from '../../lib/format'
+import { toggleMoney } from '../money'
 import { useTradeRows } from '../../store/derived'
 import { useJournal } from '../../store/journal'
 import { navigate } from '../../store/ui'
@@ -45,6 +47,7 @@ export function AnalyticsPage() {
   const [preset, setPreset] = useState<Preset>('all')
   const [range, setRange] = useState<{ from: string | null; to: string | null }>({ from: null, to: null })
   const [pairs, setPairs] = useState<string[]>([])
+  const [plnEstimates, setPlnEstimates] = useState(true)
 
   const filtered = useMemo(() => applyFilter(rows, { from: range.from, to: range.to, pairs }), [rows, range, pairs])
 
@@ -64,6 +67,7 @@ export function AnalyticsPage() {
       missed: missedSummary(filtered, journal)
     }
   }, [filtered, journal])
+  const pln = useMemo(() => (journal ? plnCurve(filtered, journal, { estimates: plnEstimates }) : null), [filtered, journal, plnEstimates])
 
   if (!journal || !data) return null
   const { summary: s, extra, be } = data
@@ -139,6 +143,8 @@ export function AnalyticsPage() {
             <div className="mt-3 text-[11.5px] text-muted">„Zgodna” = żadna oceniana zasada nie została złamana. Bez danych = nie dało się ocenić żadnej zasady.</div>
           </Section>
         </div>
+
+        {pln && <PlnSection curve={pln} showMoney={showMoney} estimates={plnEstimates} onEstimates={setPlnEstimates} />}
 
         <div className="grid grid-cols-3 border-t border-line">
           <Section title="Para" className="border-r">
@@ -272,6 +278,71 @@ function Section({ title, children, className }: { title: ReactNode; children: R
     <Panel title={title} className={cx('border-0 border-line', className)}>
       {children}
     </Panel>
+  )
+}
+
+const formatPln = (v: number) => fmtMoneyGrouped(v, 'PLN')
+
+/** Earnings curve in PLN: cumulative money result of closed trades (NBP rates), drawdown, and how it was counted. */
+function PlnSection({ curve: c, showMoney, estimates, onEstimates }: { curve: PlnCurve; showMoney: boolean; estimates: boolean; onEstimates: (v: boolean) => void }) {
+  if (!showMoney)
+    return (
+      <div className="border-t border-line">
+        <Section title="Krzywa zarobków (PLN)">
+          <div className="flex items-center justify-center gap-3 py-4 text-[12px] text-muted" data-testid="pln-hidden">
+            Kwoty są ukryte (Ctrl+$).
+            <button className="btn" onClick={toggleMoney} data-testid="pln-show">
+              Pokaż kwoty
+            </button>
+          </div>
+        </Section>
+      </div>
+    )
+  const left = c.noAmount + c.withoutRate
+  const line = (label: string, value: ReactNode, testId?: string) => (
+    <div className="flex items-baseline justify-between gap-3 border-b border-line/60 py-[3px]">
+      <span className="text-muted">{label}</span>
+      <span className="num text-right" data-testid={testId}>
+        {value}
+      </span>
+    </div>
+  )
+  const money = (v: number | null) => <span className={toneClass[tone(v)]}>{v == null ? '—' : formatPln(v)}</span>
+  return (
+    <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] border-t border-line" data-testid="pln-curve">
+      <Section title="Krzywa zarobków (PLN) i drawdown" className="border-r">
+        {c.points.length ? (
+          <EquityChart points={c.points} format={formatPln} testId="pln-chart" />
+        ) : (
+          <EmptyNote>Brak zamkniętych transakcji z kwotą w wybranym zakresie – wpisz w transakcjach wynik w kwocie albo loty.</EmptyNote>
+        )}
+      </Section>
+      <Section title="Zarobki w PLN">
+        <div className="text-[12px]" data-testid="pln-stats">
+          {line('Wynik', <span className="text-[15px] font-medium">{money(c.points.length ? c.total : null)}</span>, 'pln-total')}
+          {line('Max drawdown', <span className={c.maxDrawdown ? 'text-down' : ''}>{c.maxDrawdown ? formatPln(-c.maxDrawdown) : formatPln(0)}</span>, 'pln-dd')}
+          {line('Najlepsza / najgorsza', <>{money(c.best)} / {money(c.worst)}</>)}
+          {line('Śr. wygrana / strata', <>{money(c.avgWin)} / {money(c.avgLoss)}</>)}
+          {line('Transakcje w krzywej', `${c.points.length} z ${c.closed}`, 'pln-count')}
+        </div>
+        <label className="mt-2 flex items-center gap-1.5 text-[12px]">
+          <input type="checkbox" checked={estimates} onChange={(e) => onEstimates(e.currentTarget.checked)} data-testid="pln-estimates" />
+          Szacuj transakcje bez kwoty: R × ryzyko % × saldo konta
+        </label>
+        <div className="mt-2 flex flex-col gap-0.5 text-[11px] text-dim" data-testid="pln-notes">
+          {c.estimated > 0 && <span className="text-accent">≈ {c.estimated} z szacunku (saldo konta z kalkulatora pozycji, nie z dnia transakcji).</span>}
+          {c.historical > 0 && <span>{c.historical} przeliczono kursem NBP z dnia przed zamknięciem.</span>}
+          {c.current > 0 && <span>{c.current} przeliczono dzisiejszym kursem (brak kursu z dnia transakcji).</span>}
+          {left > 0 && (
+            <span className="text-accent">
+              Pominięto {left}:{c.noAmount ? ` ${c.noAmount} bez kwoty${estimates ? ' i bez danych do szacunku' : ''}` : ''}
+              {c.noAmount && c.withoutRate ? ',' : ''}
+              {c.withoutRate ? ` ${c.withoutRate} bez kursu ${c.missingRates.join('/')} → PLN` : ''}.
+            </span>
+          )}
+        </div>
+      </Section>
+    </div>
   )
 }
 

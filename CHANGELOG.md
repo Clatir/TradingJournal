@@ -3,6 +3,19 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.4.9
+
+### Nowe
+- **Krzywa zarobków w PLN** (Analityka, pod krzywą equity w R): skumulowany wynik zamkniętych transakcji w złotych,
+  w kolejności zamknięć, z drawdownem w PLN pod wykresem. Działa z filtrami dat i par jak cała strona.
+  - Obok podsumowanie: wynik, max drawdown, najlepsza i najgorsza transakcja, średnia wygrana i strata oraz liczba
+    transakcji w krzywej („3 z 4”).
+  - Kwoty w innej walucie są przeliczane jak w raporcie miesięcznym: kursem NBP z dnia przed zamknięciem, a gdy
+    archiwum go nie ma – dzisiejszym. Podsumowanie mówi, ile przeliczono którym kursem.
+  - Transakcje bez kwoty i lotów można szacować (R × ryzyko % × saldo konta, oznaczone „≈”). Szacowanie wyłącza
+    pole wyboru w panelu. Pominięte transakcje (bez danych albo bez kursu) są policzone i opisane.
+  - Gdy kwoty są ukryte (Ctrl+$), panel ma przycisk „Pokaż kwoty”.
+
 ## 1.4.8
 
 ### Poprawki

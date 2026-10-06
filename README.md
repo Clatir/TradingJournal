@@ -219,3 +219,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 15. Dziennik → „Kolumny” → „Kwota”: kwoty włączają się same, kolumna staje obok R. Transakcja z wpisanym wynikiem
     albo lotami – kwota; z samym ryzykiem % (saldo konta wpisane w kalkulatorze) – „≈” szacunek; bez danych – „—”
     z podpowiedzią po najechaniu. Pasek nad tabelą: „Σ kwota”. Ctrl+$ ukrywa kwoty, klik w „Kwota •••” je pokazuje.
+16. `Ctrl+3` → „Krzywa zarobków (PLN) i drawdown” pod krzywą w R: transakcje z kwotą w PLN, w USD (kurs NBP z dnia
+    przed zamknięciem albo dzisiejszy) i z samym ryzykiem % („≈”, pole „Szacuj transakcje bez kwoty”); obok wynik,
+    max drawdown, najlepsza / najgorsza i „Transakcje w krzywej: N z M”.

@@ -181,7 +181,11 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - `src/shared/calc/analytics.ts`: populacja statystyk = zamknięte z wynikiem (missed osobno). Sesja = pierwsza pasująca
   killzone rodzaju „killzone”, inaczej SB, inaczej „poza KZ”. Koszt tagu = Σ R z tagiem − n × średnie R transakcji bez tagów.
 - Equity: lightweight-charts BaselineSeries (zielone nad 0, czerwone pod 0) + histogram drawdown w drugim panelu.
-  Słupki/heatmapy: własne SVG (`components/charts`).
+  Słupki/heatmapy: własne SVG (`components/charts`). `EquityChart` ma `format` osi (R domyślnie, PLN).
+- Krzywa zarobków w PLN (1.4.9, `shared/calc/plnCurve.ts`, `PlnSection` w `AnalyticsPage`): zamknięte transakcje wg
+  czasu zamknięcia; kwota własna → PLN jak w raporcie (`resultInPln`: NBP z dnia przed zamknięciem, inaczej dzisiejszy),
+  bez kwoty → opcjonalnie `estimateAmount` (R × ryzyko % × saldo, waluta konta → PLN), reszta pominięta i policzona
+  (`noAmount`, `withoutRate`, `missingRates`); drawdown = equity − szczyt. Ukryte kwoty → przycisk `toggleMoney`.
 - Dane przykładowe: `src/shared/sample/generate.ts` (deterministyczne, ziarno 1234, 30 wpisów, 3 missed), screeny
   rysowane canvasem (`features/sample/drawChart.ts`). Folder `userData/sample-journal` – osobny od prawdziwych danych;
   `config.lastRealDir` pamięta prawdziwy folder. Status `isSample` → baner DEMO.

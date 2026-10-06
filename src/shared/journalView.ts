@@ -241,6 +241,16 @@ export interface AmountShown {
 const money = (v: number, currency: string) => `${v.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} ${currency}`
 
 /**
+ * Estimate of the money result of a closed trade without amounts or lots: R × risk % × the current account balance
+ * (in the account currency, 2 places); null without a risk %, a balance or a result in R.
+ */
+export function estimateAmount(trade: Trade, m: TradeMetrics, risk: Pick<Settings['risk'], 'accountBalance'>): number | null {
+  const balance = risk.accountBalance
+  if (!m.countsInStats || m.resultR == null || trade.riskPercent == null || trade.riskPercent <= 0 || balance == null || balance <= 0) return null
+  return Number(((m.resultR * trade.riskPercent * balance) / 100).toFixed(2))
+}
+
+/**
  * The money result of a trade for the journal list: the computed amount (typed result, R × risk amount, or from the
  * lots), else an estimate R × risk % × account balance (marked), else nothing – with a hint what to fill in.
  */
@@ -263,8 +273,8 @@ export function tradeAmount(trade: Trade, m: TradeMetrics, risk: Pick<Settings['
     }
   if (trade.status === 'open') return { value: null, estimated: false, hint: 'Otwarta – kwota po zamknięciu.' }
   const balance = risk.accountBalance
-  if (m.countsInStats && m.resultR != null && trade.riskPercent != null && trade.riskPercent > 0 && balance != null && balance > 0) {
-    const value = Number(((m.resultR * trade.riskPercent * balance) / 100).toFixed(2))
+  const value = estimateAmount(trade, m, risk)
+  if (value != null && m.resultR != null && balance != null) {
     return {
       value,
       estimated: true,
