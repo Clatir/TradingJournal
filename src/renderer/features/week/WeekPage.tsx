@@ -12,6 +12,7 @@ import { addRecord, discardDraft, updateRecord, useJournal } from '../../store/j
 import { navigate, toast } from '../../store/ui'
 import { IconBack, IconNext } from '../../components/icons'
 import { Badge, NumberField, Panel, Segmented, TextArea, cx } from '../../components/ui'
+import { HistoryButton } from '../history/HistoryDialog'
 import { todayNy } from '../day/DayPlanPage'
 
 const DAY_LABEL: Record<Weekday, string> = { mon: 'Pon', tue: 'Wt', wed: 'Śr', thu: 'Czw', fri: 'Pt' }
@@ -99,6 +100,11 @@ export function WeekPage({ week }: { week: string }) {
             Bieżący tydzień
           </button>
         )}
+        {review && entry?.relPath ? (
+          <span className="ml-auto">
+            <HistoryButton kind="weeks" id={review.id} current={review} small />
+          </span>
+        ) : null}
       </div>
       {!review ? (
         <div className="p-6 text-muted">{readOnly ? 'Brak przeglądu tego tygodnia.' : 'Tworzenie przeglądu…'}</div>

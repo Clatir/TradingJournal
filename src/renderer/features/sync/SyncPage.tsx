@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import type { ConflictEntry } from '@shared/api'
+import type { ConflictEntry, HistoryEntry } from '@shared/api'
+import { COLLECTIONS, type Collection } from '@shared/paths'
+import { recordTitle } from '../../lib/recordTitle'
+import { HistoryButton } from '../history/HistoryDialog'
+import { restoreVersion } from '../history/actions'
 import { api, errorMessage } from '../../lib/api'
 import { flushSaves, useJournal } from '../../store/journal'
 import { toast } from '../../store/ui'
@@ -108,10 +112,68 @@ function ConflictCard({ c }: { c: ConflictEntry }) {
   )
 }
 
+type Deleted = HistoryEntry & { id: string; record: unknown; kind: Collection }
+
+/** Records deleted on any computer whose last version is kept in the history: each can be brought back. */
+function DeletedRecords() {
+  const [items, setItems] = useState<Deleted[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const readOnly = useJournal((s) => !!s.status?.readOnly)
+  const load = async () => {
+    setBusy(true)
+    try {
+      const lists = await Promise.all(COLLECTIONS.map(async (kind) => (await api.historyDeleted(kind)).map((d) => ({ ...d, kind }))))
+      setItems(lists.flat().sort((a, b) => (a.savedAt < b.savedAt ? 1 : -1)))
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Panel
+      title="Usunięte wpisy"
+      actions={
+        <button className="btn h-[22px]" disabled={busy} onClick={() => void load()} data-testid="deleted-load">
+          {items ? 'Odśwież' : 'Pokaż'}
+        </button>
+      }
+    >
+      {!items ? (
+        <div className="text-[11.5px] text-muted">Usunięte transakcje, plany, przeglądy, przykłady i scenariusze można przywrócić z historii (folder .history).</div>
+      ) : items.length === 0 ? (
+        <div className="text-[12px] text-muted">Brak usuniętych wpisów w historii.</div>
+      ) : (
+        <div className="flex flex-col" data-testid="deleted-list">
+          {items.map((d) => (
+            <div key={`${d.kind}:${d.id}`} className="flex items-center gap-3 border-b border-line/60 py-1 text-[12px] last:border-b-0" data-testid="deleted-row">
+              <span className="min-w-0 flex-1 truncate">{recordTitle(d.kind, d.record)}</span>
+              <span className="num text-[11px] text-muted">
+                usunięty {new Date(d.savedAt).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })} · {d.savedBy ?? '?'}
+              </span>
+              <button
+                className="btn h-[22px]"
+                disabled={readOnly}
+                onClick={async () => {
+                  if (await restoreVersion(d.kind, d.id, d.file, recordTitle(d.kind, d.record))) setItems((xs) => xs?.filter((x) => x !== d) ?? null)
+                }}
+                data-testid="deleted-restore"
+              >
+                Przywróć
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  )
+}
+
 export function SyncPage() {
   const conflicts = useJournal((s) => s.conflicts)
   const problems = useJournal((s) => s.problems)
   const status = useJournal((s) => s.status)
+  const journal = useJournal((s) => s.journal)
   return (
     <div className="h-full overflow-y-auto p-3">
       <div className="mx-auto flex max-w-[1080px] flex-col gap-3">
@@ -133,6 +195,13 @@ export function SyncPage() {
               </div>
             ))}
           </Panel>
+        )}
+        <DeletedRecords />
+        {journal && (
+          <div className="flex items-center gap-2 text-[12px] text-muted">
+            Ustawienia i słowniki (journal.json) też mają historię:
+            <HistoryButton kind="journal" id={journal.id} current={journal} small />
+          </div>
         )}
         <h2 className="label mt-1">Konflikty ({conflicts.length})</h2>
         {conflicts.length === 0 && <div className="border border-line bg-panel p-3 text-muted">Brak konfliktów.</div>}

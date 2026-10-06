@@ -8,6 +8,7 @@ import { navigate, openLightbox, toast } from '../../store/ui'
 import { AnnotationLayer } from '../../components/annotations'
 import { IconClose, IconCopy, IconPlus, IconTrash } from '../../components/icons'
 import { Badge, Chips, Field, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
+import { HistoryButton } from '../history/HistoryDialog'
 import { errorMessage } from '../../lib/api'
 import { parseDateInput } from '../../lib/format'
 import { ScreensPanel } from '../screens/ScreensPanel'
@@ -187,6 +188,7 @@ function LibraryDetail({ item, readOnly }: { item: LibraryItem; readOnly: boolea
     <aside className="flex w-[480px] shrink-0 flex-col border-l border-line bg-panel" data-testid="library-detail">
       <div className="flex h-[36px] shrink-0 items-center gap-2 border-b border-line px-2">
         <span className="label flex-1">Przykład setupu</span>
+        <HistoryButton kind="library" id={item.id} current={item} small />
         {!readOnly && (
           <button className="btn h-[22px]" onClick={() => duplicateLibraryEntry(item.id)} title="Utwórz kopię przykładu (Ctrl+Shift+D)" data-testid="duplicate-library">
             <IconCopy size={12} /> Duplikuj

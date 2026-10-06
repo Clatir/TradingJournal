@@ -10,6 +10,7 @@ import { deleteRecord, discardDraft, updateRecord, useJournal } from '../../stor
 import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
 import { IconBack, IconClose, IconCopy, IconExternal, IconFolder, IconPlus, IconTrash } from '../../components/icons'
+import { HistoryButton } from '../history/HistoryDialog'
 import { Badge, Chips, CurrencyInput, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
@@ -170,6 +171,7 @@ export function TradeEditor({ id }: { id: string }) {
               <IconCopy size={13} /> Duplikuj
             </button>
           )}
+          {!isDraft && <HistoryButton kind="trades" id={id} current={t} />}
           {!isDraft && (
             <button className="btn" onClick={() => addTradeToLibrary(t)} title="Dodaj jako przykład do biblioteki setupów" data-testid="to-library">
               Do biblioteki

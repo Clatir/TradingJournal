@@ -56,5 +56,7 @@ export const recordBase = {
   schemaVersion: z.number().int(),
   id: ulidSchema,
   createdAt: isoDateTime,
-  updatedAt: isoDateTime
+  updatedAt: isoDateTime,
+  /** Computer that wrote this version (since 1.4.0; null = older file or edited outside the app). */
+  updatedBy: z.string().max(200).nullable().optional()
 }

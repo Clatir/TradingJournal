@@ -2,6 +2,9 @@ import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type {
   ChangeSet,
+  HistoryEntry,
+  HistoryKind,
+  HistoryReason,
   ConflictEntry,
   ConflictSide,
   FolderStatus,
@@ -39,6 +42,7 @@ import { SCHEMA_VERSION, type JournalFile, type ScreenRef } from '@shared/schema
 import { tradingDateNy } from '@shared/calc/time'
 import { pathExists, removeFile, sha1, withRetry, writeFileAtomic } from './atomic'
 import { mapLimit, walkFiles } from './fsutil'
+import { RecordHistory } from './history'
 import { zipFolder } from './zip'
 
 interface FileState {
@@ -127,6 +131,7 @@ export class DataStore {
   migratedFrom: number | null = null
   backupPath: string | null = null
   otherMachines: FolderStatus['otherMachines'] = []
+  readonly history: RecordHistory
 
   constructor(root: string, opts: DataStoreOptions) {
     this.root = root
@@ -137,6 +142,7 @@ export class DataStore {
       backupDir: opts.backupDir ?? null,
       isSample: opts.isSample ?? false
     }
+    this.history = new RecordHistory(root, this.opts.machineName, this.opts.now)
   }
 
   // ---------------------------------------------------------------- folder lifecycle
@@ -557,14 +563,15 @@ export class DataStore {
     this.prevMeta = this.metaKey(views)
   }
 
-  private diff(views: Views, journalChanged: boolean): ChangeSet | null {
+  private diff(views: Views, journalChanged: boolean, origin: 'external' | 'local' = 'local'): ChangeSet | null {
     const change: ChangeSet = {
       upserts: [],
       removals: [],
       journal: journalChanged ? this.journal : null,
       problems: views.problems,
       conflicts: views.conflicts,
-      status: this.status()
+      status: this.status(),
+      origin
     }
     for (const c of COLLECTIONS) {
       const prev = this.prevKeys[c]
@@ -583,15 +590,15 @@ export class DataStore {
 
   /**
    * Re-read changed files. `paths` = relative paths reported by the watcher; omit for a full rescan.
-   * Returns null when nothing visible changed.
+   * Returns null when nothing visible changed. `origin` 'local' marks a refresh after this app's own action.
    */
-  refresh(paths?: string[]): Promise<ChangeSet | null> {
+  refresh(paths?: string[], origin: 'external' | 'local' = 'external'): Promise<ChangeSet | null> {
     return this.mutex.run(async () => {
       const wasAvailable = this.available
       this.available = (await DataStore.inspect(this.root)) === 'journal'
       if (!this.available) {
         // Keep everything in memory; the folder may come back (pendrive, network drive).
-        return wasAvailable ? this.diff(this.buildViews(), false) : null
+        return wasAvailable ? this.diff(this.buildViews(), false, origin) : null
       }
       const journalBefore = this.files.get(JOURNAL_FILE)?.hash
       const needsFull = !paths || !wasAvailable || paths.some((p) => !p.toLowerCase().endsWith('.json'))
@@ -618,7 +625,7 @@ export class DataStore {
           for (const s of migrated) await this.rewrite(s)
         }
       }
-      return this.diff(this.buildViews(), journalChanged)
+      return this.diff(this.buildViews(), journalChanged, origin)
     })
   }
 
@@ -679,7 +686,12 @@ export class DataStore {
       this.assertWritable()
       const existing = this.currentState(collection, input.id)
       if (existing?.readOnly) throw new ReadOnlyError('Ten wpis zapisała nowsza wersja aplikacji - jest tylko do odczytu.')
-      const parsed = SCHEMAS[collection].safeParse({ ...input, schemaVersion: SCHEMA_VERSION, updatedAt: this.opts.now() })
+      const parsed = SCHEMAS[collection].safeParse({
+        ...input,
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: this.opts.now(),
+        updatedBy: this.opts.machineName
+      })
       if (!parsed.success) throw new Error(`Niepoprawne dane: ${parsed.error.issues[0]?.path.join('.')}: ${parsed.error.issues[0]?.message}`)
       const record = parsed.data as RecordTypes[C]
       const rel = recordRelPath(collection, record as unknown as Record<string, unknown>)
@@ -689,6 +701,7 @@ export class DataStore {
       }
       if (occupant?.status === 'problem') await this.setAsideProblem(occupant)
       if (existing) await this.preserveExternalChange(existing)
+      if (existing?.record) await this.history.snapshot(collection, existing.record as AnyRecord, 'edit')
       const text = serializeRecord(collection, record, this.ctxFor(collection, record))
       const state = await this.writeState(rel, collection, record, text)
       if (existing && existing.relPath !== rel) {
@@ -706,6 +719,7 @@ export class DataStore {
       const state = this.currentState(collection, id)
       if (!state) return null
       if (state.readOnly) throw new ReadOnlyError('Ten wpis jest tylko do odczytu.')
+      await this.history.snapshot(collection, state.record as AnyRecord, 'delete')
       await this.opts.trash(this.abs(state.relPath))
       this.files.delete(state.relPath)
       // Screens shared with another record (e.g. a library example) stay.
@@ -745,6 +759,7 @@ export class DataStore {
           if (occupant.problemKind === 'too-new') continue
           await this.setAsideProblem(occupant)
         }
+        if (existing?.record) await this.history.snapshot(kind, existing.record as AnyRecord, 'import')
         await this.writeState(rel, kind, parsed, serializeRecord(kind, parsed, this.ctxFor(kind, parsed)))
         if (existing && existing.relPath !== rel) {
           await removeFile(this.abs(existing.relPath))
@@ -758,10 +773,11 @@ export class DataStore {
   saveJournal(input: JournalFile): Promise<JournalFile> {
     return this.mutex.run(async () => {
       this.assertWritable()
-      const journal = SCHEMAS.journal.parse({ ...input, schemaVersion: SCHEMA_VERSION, updatedAt: this.opts.now() })
+      const journal = SCHEMAS.journal.parse({ ...input, schemaVersion: SCHEMA_VERSION, updatedAt: this.opts.now(), updatedBy: this.opts.machineName })
       const existing = this.files.get(JOURNAL_FILE)
       if (existing?.status === 'problem') await this.setAsideProblem(existing)
       else if (existing) await this.preserveExternalChange(existing)
+      if (existing?.status === 'record' && existing.record) await this.history.snapshot('journal', existing.record as JournalFile, 'edit')
       await this.writeState(JOURNAL_FILE, 'journal', journal, serializeRecord('journal', journal))
       this.journal = journal
       this.commit(this.buildViews())
@@ -902,7 +918,7 @@ export class DataStore {
         }
       }
     })
-    return this.refresh()
+    return this.refresh(undefined, 'local')
   }
 
   async trashFile(relPath: string): Promise<ChangeSet | null> {
@@ -913,7 +929,71 @@ export class DataStore {
       await this.opts.trash(this.abs(relPath))
       this.files.delete(relPath)
     })
-    return this.refresh()
+    return this.refresh(undefined, 'local')
+  }
+
+  // ---------------------------------------------------------------- history
+
+  historyList(kind: HistoryKind, id: string): Promise<HistoryEntry[]> {
+    return this.history.list(kind, id)
+  }
+
+  historyRead(kind: HistoryKind, id: string, file: string): Promise<unknown> {
+    return this.history.read(kind, id, file)
+  }
+
+  historyDeleted(collection: Collection): Promise<Array<HistoryEntry & { id: string; record: unknown }>> {
+    return this.mutex.run(async () => {
+      const existing = new Set(this.buildViews().records[collection].keys())
+      return this.history.deleted(collection, existing)
+    })
+  }
+
+  /** Keep a version that is dropped without ever being written (local edits discarded when merging). */
+  async historyKeep(kind: HistoryKind, record: unknown, reason: HistoryReason): Promise<void> {
+    if (this.status().readOnly) return
+    if (!record || typeof record !== 'object') return
+    await this.history.snapshot(kind, record as AnyRecord, reason)
+  }
+
+  /**
+   * Make a kept version current again: the current version (if any) is kept first, the old one is written with a
+   * new updatedAt at its canonical path (a deleted record comes back).
+   */
+  historyRestore(kind: HistoryKind, id: string, file: string): Promise<{ change: ChangeSet | null; journal: JournalFile | null }> {
+    return this.mutex.run(async () => {
+      this.assertWritable()
+      const old = await this.history.read(kind, id, file)
+      if (!old) throw new Error('Tej wersji nie ma już w historii (mogła zostać usunięta na innym komputerze).')
+      const stampNow = { schemaVersion: SCHEMA_VERSION, updatedAt: this.opts.now(), updatedBy: this.opts.machineName }
+      if (kind === 'journal') {
+        const journal = SCHEMAS.journal.parse({ ...old, ...stampNow })
+        const existing = this.files.get(JOURNAL_FILE)
+        if (existing?.status === 'record' && existing.record) await this.history.snapshot('journal', existing.record as JournalFile, 'restore')
+        await this.writeState(JOURNAL_FILE, 'journal', journal, serializeRecord('journal', journal))
+        this.journal = journal
+        this.commit(this.buildViews())
+        return { change: null, journal }
+      }
+      const parsed = SCHEMAS[kind].safeParse({ ...old, id, ...stampNow })
+      if (!parsed.success) throw new Error(`Tej wersji nie da się odtworzyć: ${parsed.error.issues[0]?.path.join('.')}: ${parsed.error.issues[0]?.message}`)
+      const record = parsed.data as AnyRecord
+      const existing = this.currentState(kind, id)
+      if (existing?.readOnly) throw new ReadOnlyError('Ten wpis jest tylko do odczytu.')
+      const rel = recordRelPath(kind, record as unknown as Record<string, unknown>)
+      const occupant = this.files.get(rel)
+      if (occupant?.status === 'record' && (occupant.record as AnyRecord).id !== id) {
+        throw new Error(`Plik ${rel} należy do innego wpisu (np. plan dla tej daty już istnieje) – usuń go albo zmień datę.`)
+      }
+      if (occupant?.status === 'problem') await this.setAsideProblem(occupant)
+      if (existing?.record) await this.history.snapshot(kind, existing.record as AnyRecord, 'restore')
+      await this.writeState(rel, kind, record, serializeRecord(kind, record, this.ctxFor(kind, record)))
+      if (existing && existing.relPath !== rel) {
+        await removeFile(this.abs(existing.relPath))
+        this.files.delete(existing.relPath)
+      }
+      return { change: this.diff(this.buildViews(), false), journal: null }
+    })
   }
 
   /** Snapshot of everything currently loaded (used after reconnecting the renderer). */

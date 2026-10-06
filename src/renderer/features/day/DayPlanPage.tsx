@@ -10,6 +10,7 @@ import { addRecord, discardDraft, updateRecord, useJournal } from '../../store/j
 import { navigate, toast } from '../../store/ui'
 import { IconBack, IconClose, IconCopy, IconNext, IconPlus } from '../../components/icons'
 import { Badge, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
+import { HistoryButton } from '../history/HistoryDialog'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { copyDayMarkdown } from '../export/markdownActions'
 import { copyDayPlanToDate } from '../duplicate'
@@ -117,6 +118,7 @@ export function DayPlanPage({ date }: { date: string }) {
           </button>
         )}
         {plan && !isDraft && !readOnly && <CopyPlanTo date={date} />}
+        {plan && !isDraft && <HistoryButton kind="days" id={plan.id} current={plan} small />}
         <DayStrip date={date} />
       </div>
 

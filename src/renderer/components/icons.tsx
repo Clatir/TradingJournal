@@ -141,3 +141,26 @@ export const IconForecast = base(
     <circle cx="13" cy="4.6" r="1.3" />
   </>
 )
+/** Clock with a back arrow: version history. */
+export const IconHistory = base(
+  <>
+    <path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8" />
+    <path d="M2.2 2.6v2.2h2.2" />
+    <path d="M8 5v3.2l2.1 1.4" />
+  </>
+)
+/** Stopwatch: analysis sessions. */
+export const IconTimer = base(
+  <>
+    <circle cx="8" cy="9" r="5" />
+    <path d="M8 9V6.4M6.5 1.8h3M12.2 4.4l1-1" />
+  </>
+)
+/** Target: review drills. */
+export const IconTarget = base(
+  <>
+    <circle cx="8" cy="8" r="5.6" />
+    <circle cx="8" cy="8" r="3" />
+    <circle cx="8" cy="8" r=".6" />
+  </>
+)

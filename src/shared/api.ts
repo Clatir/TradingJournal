@@ -83,7 +83,30 @@ export interface ChangeSet {
   problems: Problem[]
   conflicts: ConflictEntry[]
   status: FolderStatus
+  /**
+   * 'external': files changed outside this app instance (another computer through cloud sync, a manual edit, a
+   * rescan); 'local': the result of this app's own action (save, delete, import, conflict resolution).
+   */
+  origin?: 'external' | 'local'
 }
+
+/** Why a version was kept in the history. */
+export type HistoryReason = 'edit' | 'delete' | 'restore' | 'import' | 'merge' | 'discarded'
+
+/** One kept version of a record (`.history/`). */
+export interface HistoryEntry {
+  file: string
+  /** When the version was put into the history (= when it was replaced or deleted). */
+  savedAt: string
+  /** Computer that replaced it. */
+  savedBy: string | null
+  reason: HistoryReason
+  /** updatedAt / updatedBy of the kept version itself. */
+  updatedAt: string | null
+  updatedBy: string | null
+}
+
+export type HistoryKind = Collection | 'journal'
 
 export interface SaveScreenInput {
   /** Date used for the screens/YYYY/MM folder (trading date of the record). */
@@ -188,6 +211,16 @@ export interface JournalApi {
   openDataDir(dir: string, createIfEmpty: boolean): Promise<OpenFolderResult>
   saveRecord<C extends Collection>(collection: C, record: RecordTypes[C]): Promise<RecordEntry<RecordTypes[C]>>
   deleteRecord(collection: Collection, id: string): Promise<void>
+  /** Kept versions of a record, newest first (`id` = 'journal' for the settings). */
+  historyList(kind: HistoryKind, id: string): Promise<HistoryEntry[]>
+  /** The record of one kept version (null when gone). */
+  historyRead(kind: HistoryKind, id: string, file: string): Promise<unknown>
+  /** Deleted records of a collection that can be brought back. */
+  historyDeleted(collection: Collection): Promise<Array<HistoryEntry & { id: string; record: unknown }>>
+  /** Make a kept version the current one (the current version goes to the history first); restored settings are returned. */
+  historyRestore(kind: HistoryKind, id: string, file: string): Promise<JournalFile | null>
+  /** Keep a version that is about to be dropped without being written (e.g. local edits discarded in a merge). */
+  historyKeep(kind: HistoryKind, record: unknown, reason: HistoryReason): Promise<void>
   saveJournal(journal: JournalFile): Promise<JournalFile>
   saveScreen(input: SaveScreenInput): Promise<SavedScreen>
   screensStats(): Promise<ScreensStats>

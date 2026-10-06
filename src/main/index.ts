@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
-import { FILE_URL_SCHEME, type AppInfo, type ChangeSet, type ImportPolicy, type OpenFolderResult } from '@shared/api'
+import { FILE_URL_SCHEME, type AppInfo, type ChangeSet, type HistoryKind, type HistoryReason, type ImportPolicy, type OpenFolderResult } from '@shared/api'
 import { isIgnoredPath } from '@shared/paths'
 import type { Collection } from '@shared/paths'
 import { sanitizeRelPath } from '@shared/paths'
@@ -249,6 +249,16 @@ function registerIpc(): void {
   handle('journal:deleteRecord', async (collection: Collection, id: string) => {
     send(await requireStore().deleteRecord(collection, id))
   })
+  handle('journal:historyList', (kind: HistoryKind, id: string) => requireStore().historyList(kind, id))
+  handle('journal:historyRead', (kind: HistoryKind, id: string, file: string) => requireStore().historyRead(kind, id, file))
+  handle('journal:historyDeleted', (collection: Collection) => requireStore().historyDeleted(collection))
+  handle('journal:historyKeep', (kind: HistoryKind, record: unknown, reason: HistoryReason) => requireStore().historyKeep(kind, record, reason))
+  handle('journal:historyRestore', async (kind: HistoryKind, id: string, file: string) => {
+    const { change, journal } = await requireStore().historyRestore(kind, id, file)
+    send(change)
+    // Restored settings go back to the caller (they are not part of a change set's upserts).
+    return journal
+  })
   handle('journal:saveJournal', (journal: never) => requireStore().saveJournal(journal))
   handle('journal:saveScreen', (input: never) => requireStore().saveScreen(input))
   handle('journal:screensStats', () => requireStore().screensStats())
@@ -343,7 +353,7 @@ function registerIpc(): void {
     const inspected = imports.get(token)
     if (!inspected) throw new Error('Import wygasł – wybierz plik ponownie.')
     const result = await applyImport(s, inspected, policy)
-    send(await s.refresh())
+    send(await s.refresh(undefined, 'local'))
     return result
   })
   handle('journal:openImportAsNew', async (token: string) => {

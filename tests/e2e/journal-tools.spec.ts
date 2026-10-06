@@ -1,37 +1,10 @@
 import { promises as fs, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { expect, test, type ElectronApplication } from '@playwright/test'
-import { DataStore } from '../../src/main/datastore/store'
+import { expect, test } from '@playwright/test'
 import { createDefaultJournal, createTrade } from '../../src/shared/defaults'
-import { serializeRecord } from '../../src/shared/records'
-import { tradeRelPath } from '../../src/shared/paths'
-import type { JournalFile, Trade } from '../../src/shared/schema'
 import { launch } from './app'
-
-/** A closed EURUSD long with SL 10 pips and the given result in R (risk 1%). */
-function closedTrade(date: string, r: number, over: Partial<Trade> = {}): Trade {
-  return createTrade({
-    pair: 'EURUSD',
-    direction: 'long',
-    entryTime: `${date}T12:00:00.000Z`,
-    riskPercent: 1,
-    prices: { entry: 1.08, stopLoss: 1.079, takeProfit1: 1.083, takeProfit2: null },
-    exits: [{ id: '01K6H3Z0W8Q4M2N5P7R9S1T3V5', time: `${date}T15:00:00.000Z`, price: Number((1.08 + r * 0.001).toFixed(5)), percent: 100, note: '' }],
-    ...over
-  })
-}
-
-async function seed(trades: Trade[], journal: JournalFile = createDefaultJournal()): Promise<string> {
-  const root = join(await fs.mkdtemp(join(tmpdir(), 'ictj-tools-')), 'Dziennik')
-  await DataStore.initialize(root, journal)
-  for (const t of trades) {
-    const rel = tradeRelPath(t)
-    await fs.mkdir(join(root, rel, '..'), { recursive: true })
-    await fs.writeFile(join(root, rel), serializeRecord('trades', t, { settings: journal.settings }))
-  }
-  return root
-}
+import { closedTrade, readTrades, seed, stubSaveDialog } from './seed'
 
 test('prognoza: „Weź z moich wyników” – zwrot i miesiące stratne z dziennika', async () => {
   // January +2%, February −1%, March +3% (R × 1%).
@@ -70,13 +43,6 @@ test('prognoza: „Weź z moich wyników” przy za małej liczbie miesięcy', a
     await app.close()
   }
 })
-
-async function stubSaveDialog(app: ElectronApplication, save: string): Promise<void> {
-  await app.evaluate(({ dialog }, path) => {
-    const d = dialog as unknown as Record<string, unknown>
-    d.showSaveDialog = async (_w: unknown, opts: { defaultPath?: string }) => ({ canceled: false, filePath: path.replace('{name}', opts?.defaultPath ?? 'plik') })
-  }, save)
-}
 
 test('raport miesięczny: wynik w R i PLN, wybór miesiąca, markdown do schowka, pliki .md i PDF', async () => {
   const journal = createDefaultJournal()
@@ -125,13 +91,6 @@ test('raport miesięczny: wynik w R i PLN, wybór miesiąca, markdown do schowka
     await app.close()
   }
 })
-
-async function readTrades(root: string): Promise<Trade[]> {
-  const out: Trade[] = []
-  const year = join(root, 'trades', '2026')
-  for (const name of await fs.readdir(year).catch(() => [])) if (name.endsWith('.json') && !name.startsWith('.')) out.push(JSON.parse(await fs.readFile(join(year, name), 'utf8')))
-  return out
-}
 
 test('import historii od brokera (raport MT4, UTF-16): dopasowanie, uzupełnienie wpisu, nowy wpis, ponowny import bez dubli', async () => {
   const journal = createDefaultJournal()

@@ -300,6 +300,14 @@ export async function deleteRecord(collection: Collection, id: string): Promise<
   if (!wasDraft) await api.deleteRecord(collection, id)
 }
 
+/** Settings written by the main process (restored from the history): replace the in-memory copy. */
+export function adoptJournal(journal: JournalFile): void {
+  const key = keyOf('journal', 'journal')
+  forget(key)
+  set({ journal })
+  bumpPending(0, { error: saveError() })
+}
+
 export function updateJournal(updater: (j: JournalFile) => JournalFile): void {
   const j = get().journal
   if (!j || folderReadOnly()) return
