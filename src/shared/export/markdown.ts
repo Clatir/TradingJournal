@@ -1,4 +1,5 @@
 /** Markdown of a single trade or day plan – to paste into a chat or a note. */
+import { customValueText } from '../journalView'
 import { formatClock, zoned } from '../calc/time'
 import { metricsContext, tradeMetrics } from '../calc/trade'
 import { validateTrade } from '../calc/validator'
@@ -58,6 +59,7 @@ export function tradeToMarkdown(t: Trade, journal: JournalFile, day: DayPlan | n
     `**Zasady${v.score == null ? '' : ` (${Math.round(v.score * 100)}%)`}:** ${v.rules.map((r) => `${r.status === 'pass' ? '✓' : r.status === 'fail' ? '✗' : r.status === 'info' ? '!' : '–'} ${r.label} (${r.detail})`).join(' · ') || '—'}`,
     `**Psychologia:** przed ${t.psychology.before.score ?? '—'}/5${t.psychology.before.note ? ` (${t.psychology.before.note})` : ''} · w trakcie ${t.psychology.during.score ?? '—'}/5${t.psychology.during.note ? ` (${t.psychology.during.note})` : ''} · po ${t.psychology.after.score ?? '—'}/5${t.psychology.after.note ? ` (${t.psychology.after.note})` : ''} · błędy: ${names(journal, 'mistakeTags', t.psychology.mistakeTagIds)}`,
     t.status === 'missed' ? `**Powód (missed):** ${names(journal, 'missedReasons', [t.missed.reasonId])}` : null,
+    customLine(t, journal),
     text('Co zrobiłem dobrze', t.psychology.didWell),
     text('Następnym razem', t.psychology.nextTime),
     text('Notatki', t.notes),
@@ -65,6 +67,12 @@ export function tradeToMarkdown(t: Trade, journal: JournalFile, day: DayPlan | n
     t.screens.length ? `**Screeny:** ${screensLine(t.screens)}` : null
   ]
   return `${lines.filter((l) => l !== null).join('\n')}\n`
+}
+
+/** "Własne pola: Ocena setupu A+ · Konfluencje 3" (only fields with a value), or null. */
+function customLine(t: Trade, journal: JournalFile): string | null {
+  const parts = journal.settings.customFields.map((f) => [f.name, customValueText(f, t.custom[f.id])] as const).filter(([, v]) => v)
+  return parts.length ? `**Własne pola:** ${parts.map(([n, v]) => `${n}: ${v}`).join(' · ')}` : null
 }
 
 export function dayPlanToMarkdown(d: DayPlan, journal: JournalFile, trades: readonly Trade[] = []): string {

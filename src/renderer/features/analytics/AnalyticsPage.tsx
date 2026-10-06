@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import {
   applyFilter,
   breakdowns,
+  customFieldBreakdowns,
   calendarDays,
   complianceMatrix,
   equitySeries,
@@ -56,6 +57,7 @@ export function AnalyticsPage() {
       extra: extraStats(filtered),
       equity: equitySeries(filtered),
       breakdowns: breakdowns(filtered, journal),
+      custom: customFieldBreakdowns(filtered, journal),
       matrix: complianceMatrix(filtered, be),
       mistakes: mistakeCosts(filtered, journal),
       calendar: calendarDays(filtered),
@@ -158,6 +160,16 @@ export function AnalyticsPage() {
             <HourBars groups={data.breakdowns.hour} />
           </Section>
         </div>
+
+        {data.custom.length > 0 && (
+          <div className="grid grid-cols-3 border-t border-line" data-testid="custom-breakdowns">
+            {data.custom.map(({ field, groups }, i) => (
+              <Section key={field.id} title={`Własne pole: ${field.name}`} className={cx(i % 3 < 2 && 'border-r', i >= 3 && 'border-t')}>
+                <GroupTable groups={groups} be={be} labelHeader={field.name} />
+              </Section>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-t border-line">
           <Section title="Koszt tagów błędów" className="border-r">

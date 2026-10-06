@@ -19,6 +19,8 @@ import { refreshFxRates } from '../../store/fx'
 import { createScenario } from '../forecast/actions'
 import { addManualSession, setReviewsOpen } from '../sessions/actions'
 import { insertTemplate } from '../day/TemplatesMenu'
+import { EMPTY_FILTER, filterOf } from '@shared/journalView'
+import { useJournalFilter } from '../journal/JournalTools'
 
 export function toggleMoney(): void {
   let on = false
@@ -50,6 +52,22 @@ export function CommandPalette() {
       { id: 'missed', label: 'Nowy missed trade', keys: 'Ctrl Shift N', run: () => newTrade('missed') },
       { id: 'duplicate', label: 'Duplikuj bieżący wpis (transakcja, przykład, scenariusz; plan → następny dzień)', keys: 'Ctrl Shift D', run: duplicateCurrent },
       { id: 'journal', label: 'Dziennik transakcji', keys: 'Ctrl 1', run: () => navigate({ page: 'journal' }) },
+      ...(journal?.settings.savedFilters ?? []).map((f) => ({
+        id: `filter-${f.id}`,
+        label: `Dziennik: zapisany filtr „${f.name}”`,
+        run: () => {
+          useJournalFilter.setState({ filter: filterOf(f) })
+          navigate({ page: 'journal' })
+        }
+      })),
+      {
+        id: 'filters-clear',
+        label: 'Dziennik: wyczyść filtry',
+        run: () => {
+          useJournalFilter.setState({ filter: EMPTY_FILTER })
+          navigate({ page: 'journal' })
+        }
+      },
       { id: 'day', label: 'Plan dnia – dziś', keys: 'Ctrl D', run: () => navigate({ page: 'day', date: todayNy() }) },
       { id: 'analysis', label: 'Sesja analizy: start / zakończ i zdecyduj', keys: 'Ctrl Shift A', run: () => window.dispatchEvent(new Event('ictj:analysis-toggle')) },
       { id: 'analysis-manual', label: 'Sesja analizy wpisana ręcznie (dziś)', run: () => addManualSession(todayNy(), 30) },
@@ -116,7 +134,7 @@ export function CommandPalette() {
       },
       { id: 'help', label: 'Skróty klawiszowe', keys: '?', run: () => window.dispatchEvent(new Event('ictj:shortcuts')) }
     ],
-    [journal?.settings.dayTemplates]
+    [journal?.settings.dayTemplates, journal?.settings.savedFilters]
   )
 
   if (!open) return null

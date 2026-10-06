@@ -14,6 +14,7 @@ import { InstrumentsTab } from './InstrumentsTab'
 import { FxPanel } from './FxPanel'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
 import { CurrencyInput, Field, NameInput, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
+import { CustomFieldsPanel } from './CustomFieldsPanel'
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'folder', label: 'Folder danych' },
@@ -486,6 +487,7 @@ function DictionariesTab({ journal }: { journal: JournalFile }) {
         statystykach.
       </p>
       <div className="grid grid-cols-2 gap-3">
+        <CustomFieldsPanel journal={journal} />
         {DICTS.map((d) => (
           <DictionaryEditor key={d.key} journal={journal} dictKey={d.key} label={d.label} hint={d.hint} />
         ))}

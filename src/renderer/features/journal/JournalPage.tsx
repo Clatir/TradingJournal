@@ -1,10 +1,12 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { fileUrl } from '@shared/api'
+import { shownDecimals } from '@shared/calc/position'
 import { summarize } from '@shared/calc/stats'
 import { formatClock, weekdayNy } from '@shared/calc/time'
-import type { TradeStatus } from '@shared/schema'
-import { fmtPercent, fmtPips, fmtR, fmtRatio, tone, toneClass, WEEKDAY_PL, fmtPrice } from '../../lib/format'
+import { customValueText, filterRows, gridTemplate, resolveColumns, type ColumnDef } from '@shared/journalView'
+import type { JournalFile, TradeStatus } from '@shared/schema'
+import { fmtMoney, fmtNum, fmtPercent, fmtPips, fmtR, fmtRatio, tone, toneClass, WEEKDAY_PL, fmtPrice } from '../../lib/format'
 import { dictName, useTradeRows, type TradeRow } from '../../store/derived'
 import { useJournal } from '../../store/journal'
 import { navigate, openLightbox, useUi } from '../../store/ui'
@@ -12,45 +14,103 @@ import { IconCopy, IconImage, IconPlus, IconSearch } from '../../components/icon
 import { Badge, Kbd, Segmented, cx } from '../../components/ui'
 import { newTrade } from '../trade/actions'
 import { duplicateTradeEntry } from '../duplicate'
+import { ColumnsMenu, FiltersButton, SavedFiltersMenu, setFilter, useJournalFilter } from './JournalTools'
 
-const COLS = 'grid-cols-[82px_28px_40px_40px_60px_40px_minmax(64px,0.7fr)_minmax(84px,1.2fr)_50px_40px_38px_50px_58px_44px_minmax(60px,1fr)_24px]'
 const STATUS_LABEL: Record<TradeStatus, string> = { closed: 'zamkn.', open: 'otwarta', missed: 'missed' }
 
-type StatusFilter = 'all' | TradeStatus
+function duration(from: string, to: string | null): string {
+  if (!to) return '—'
+  const min = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 60_000))
+  if (min < 60) return `${min}m`
+  if (min < 24 * 60) return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m`
+  return `${Math.floor(min / 1440)}d ${Math.floor((min % 1440) / 60)}h`
+}
+
+/** One cell of the list. */
+function cell(col: ColumnDef, row: TradeRow, journal: JournalFile | null, be: number): ReactNode {
+  const { trade: t, m } = row
+  if (col.field) {
+    const text = customValueText(col.field, t.custom[col.field.id])
+    return <span className={cx('truncate', col.field.type === 'number' && 'num text-right', !text && 'text-dim')}>{text || '—'}</span>
+  }
+  switch (col.id) {
+    case 'date':
+      return <span className="num text-fg-strong">{m.tradingDate}</span>
+    case 'weekday':
+      return <span className="text-muted">{WEEKDAY_PL[weekdayNy(t.entryTime)]}</span>
+    case 'ny':
+      return <span className="num">{formatClock(t.entryTime, 'NY')}</span>
+    case 'waw':
+      return <span className="num text-muted">{formatClock(t.entryTime, 'WAW')}</span>
+    case 'pair':
+      return <span className="num text-fg-strong">{t.pair}</span>
+    case 'direction':
+      return <span className={t.direction === 'long' ? 'text-fg-strong' : 'text-fg'}>{t.direction === 'long' ? 'Long' : 'Short'}</span>
+    case 'killzone':
+      return <span className="truncate text-muted">{m.killzoneNames.join(', ') || '—'}</span>
+    case 'model':
+      return <span className="truncate">{dictName(journal, 'entryModels', t.entryModelId) || <span className="text-dim">—</span>}</span>
+    case 'status':
+      return <span className={cx('text-[11px]', t.status === 'closed' ? 'text-muted' : 'text-accent')}>{STATUS_LABEL[t.status]}</span>
+    case 'sl':
+      return <span className="num text-right">{m.riskPips != null ? m.riskPips.toFixed(1) : '—'}</span>
+    case 'rr':
+      return <span className="num text-right">{fmtRatio(m.rrTp1)}</span>
+    case 'pips':
+      return <span className={cx('num text-right', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.resultPips)])}>{fmtPips(m.resultPips)}</span>
+    case 'r':
+      return <span className={cx('num text-right font-medium', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.resultR, be)])}>{fmtR(m.resultR)}</span>
+    case 'score':
+      return (
+        <span
+          className={cx('num text-right text-[11px]', row.v.compliant === false ? 'text-accent' : 'text-muted')}
+          title={row.v.broken.map((b) => `${b.label}: ${b.detail}`).join('\n') || 'zgodna z zasadami'}
+        >
+          {row.v.score == null ? '—' : `${Math.round(row.v.score * 100)}%`}
+        </span>
+      )
+    case 'mistakes':
+      return <span className="truncate text-[11px] text-muted">{t.psychology.mistakeTagIds.map((id) => dictName(journal, 'mistakeTags', id)).join(', ')}</span>
+    case 'pdArray':
+      return <span className="truncate text-muted">{[dictName(journal, 'pdArrays', t.entryPdArrayId), dictName(journal, 'pdArrays', t.htfPdArrayId)].filter(Boolean).join(' · ') || '—'}</span>
+    case 'liquidity':
+      return <span className="truncate text-muted">{t.liquidityTakenIds.map((id) => dictName(journal, 'liquidityPools', id)).join(', ') || '—'}</span>
+    case 'exitNy':
+      return <span className="num text-muted">{m.exitTime ? formatClock(m.exitTime, 'NY') : '—'}</span>
+    case 'duration':
+      return <span className="num text-right text-muted">{duration(t.entryTime, m.exitTime)}</span>
+    case 'lots':
+      return <span className="num text-right">{t.lots != null ? fmtNum(t.lots, shownDecimals(t.lots, 2)) : '—'}</span>
+    case 'risk':
+      return <span className="num text-right">{t.riskPercent != null ? `${fmtNum(t.riskPercent, shownDecimals(t.riskPercent, 1))}%` : '—'}</span>
+    case 'amount':
+      return journal?.settings.display.showMoney ? (
+        <span className={cx('num truncate text-right', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.pnlAmount)])}>{fmtMoney(m.pnlAmount, journal.settings.risk.accountCurrency)}</span>
+      ) : (
+        <span className="num text-right text-dim" title="Kwoty są ukryte (Ctrl+$)">•••</span>
+      )
+    case 'notes':
+      return <span className="truncate text-muted">{t.notes.split('\n')[0]}</span>
+    default:
+      return <span />
+  }
+}
 
 export function JournalPage() {
   const rows = useTradeRows()
   const journal = useJournal((s) => s.journal)
   const selectedId = useUi((s) => s.selectedTradeId)
-  const [query, setQuery] = useState('')
-  const [pair, setPair] = useState<string | null>(null)
-  const [status, setStatus] = useState<StatusFilter>('all')
+  const filter = useJournalFilter((s) => s.filter)
+  const { pair, status } = filter
   const [hover, setHover] = useState<{ row: TradeRow; x: number; y: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const be = journal?.settings.stats.breakevenThresholdR ?? 0.1
+  const columns = useMemo(() => resolveColumns(journal?.settings.journalView.columns ?? null, journal?.settings.customFields ?? []), [journal])
+  const template = gridTemplate(columns)
 
-  const deferredQuery = useDeferredValue(query)
-  const filtered = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase()
-    return rows.filter((r) => {
-      if (pair && r.trade.pair !== pair) return false
-      if (status !== 'all' && r.trade.status !== status) return false
-      if (!q) return true
-      const hay = [
-        r.trade.pair,
-        r.m.tradingDate,
-        r.trade.notes,
-        dictName(journal, 'entryModels', r.trade.entryModelId),
-        dictName(journal, 'pdArrays', r.trade.entryPdArrayId),
-        ...r.m.killzoneNames,
-        ...r.trade.psychology.mistakeTagIds.map((id) => dictName(journal, 'mistakeTags', id))
-      ]
-        .join(' ')
-        .toLowerCase()
-      return q.split(/\s+/).every((part) => hay.includes(part))
-    })
-  }, [rows, deferredQuery, pair, status, journal])
+  const deferredFilter = useDeferredValue(filter)
+  const filtered = useMemo(() => filterRows(rows, deferredFilter, journal), [rows, deferredFilter, journal])
 
   const summary = useMemo(
     () => summarize(filtered.filter((r) => r.m.countsInStats).map((r) => ({ r: r.m.resultR as number, time: r.m.exitTime ?? r.trade.entryTime })), be),
@@ -100,29 +160,37 @@ export function JournalPage() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* filters */}
         <div className="flex h-[36px] shrink-0 items-center gap-2 border-b border-line bg-panel px-2">
-          <div className="relative w-[210px] shrink-0">
+          <div className="relative w-[200px] shrink-0">
             <IconSearch size={13} className="absolute top-1/2 left-2 -translate-y-1/2 text-dim" />
             <input
               ref={searchRef}
               className="input pl-7"
               placeholder="Szukaj: para, model, notatki…  ( / )"
-              value={query}
-              onChange={(e) => setQuery(e.currentTarget.value)}
+              value={filter.query}
+              onChange={(e) => setFilter({ query: e.currentTarget.value })}
               data-testid="journal-search"
             />
           </div>
-          <div className="flex min-w-0 gap-1 overflow-hidden">
+          <select
+            className={cx('input num w-[112px] shrink-0', pair && 'border-accent/60 text-accent')}
+            value={pair ?? ''}
+            onChange={(e) => setFilter({ pair: e.currentTarget.value || null })}
+            aria-label="Para"
+            data-testid="journal-pair"
+          >
+            <option value="">wszystkie pary</option>
             {pairs.map((p) => (
-              <button key={p.symbol} className="chip num" aria-pressed={pair === p.symbol} onClick={() => setPair(pair === p.symbol ? null : p.symbol)}>
+              <option key={p.symbol} value={p.symbol}>
                 {p.symbol}
-              </button>
+              </option>
             ))}
-          </div>
+            {pair && !pairs.some((p) => p.symbol === pair) && <option value={pair}>{pair}</option>}
+          </select>
           <Segmented
             size="sm"
             className="shrink-0"
             value={status}
-            onChange={setStatus}
+            onChange={(v) => setFilter({ status: v })}
             options={[
               { value: 'all', label: 'Wszystkie' },
               { value: 'closed', label: 'Zamknięte' },
@@ -130,7 +198,11 @@ export function JournalPage() {
               { value: 'missed', label: 'Missed' }
             ]}
           />
-          <button className="btn btn-accent ml-auto shrink-0" onClick={() => newTrade()} data-testid="new-trade" title="Nowa transakcja (Ctrl+N)">
+          <FiltersButton />
+          <SavedFiltersMenu />
+          <span className="ml-auto" />
+          <ColumnsMenu />
+          <button className="btn btn-accent shrink-0" onClick={() => newTrade()} data-testid="new-trade" title="Nowa transakcja (Ctrl+N)">
             <IconPlus size={13} /> Nowa
           </button>
         </div>
@@ -146,22 +218,16 @@ export function JournalPage() {
         </div>
 
         {/* table */}
-        <div className={cx('grid h-[26px] shrink-0 items-center gap-x-1.5 border-b border-line bg-panel px-2 text-[10.5px] tracking-wide text-muted uppercase', COLS)}>
-          <span>Data NY</span>
-          <span>Dz.</span>
-          <span>NY</span>
-          <span>WAW</span>
-          <span>Para</span>
-          <span>Kier.</span>
-          <span>Killzone</span>
-          <span>Model</span>
-          <span>Status</span>
-          <span className="text-right">SL p</span>
-          <span className="text-right">R:R</span>
-          <span className="text-right">Pips</span>
-          <span className="text-right">R</span>
-          <span className="text-right" title="Zgodność z zasadami">Zas.</span>
-          <span>Błędy</span>
+        <div
+          className="grid h-[26px] shrink-0 items-center gap-x-1.5 border-b border-line bg-panel px-2 text-[10.5px] tracking-wide text-muted uppercase"
+          style={{ gridTemplateColumns: template }}
+          data-testid="journal-header"
+        >
+          {columns.map((c) => (
+            <span key={c.id} className={cx('truncate', c.align === 'right' && 'text-right', c.field && 'normal-case')} title={c.title ?? c.label}>
+              {c.label}
+            </span>
+          ))}
           <span />
         </div>
         <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="journal-table">
@@ -182,7 +248,7 @@ export function JournalPage() {
             <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
               {virtualizer.getVirtualItems().map((v) => {
                 const row = filtered[v.index] as TradeRow
-                const { trade: t, m } = row
+                const t = row.trade
                 const isSel = selected?.trade.id === t.id
                 return (
                   <div
@@ -192,33 +258,15 @@ export function JournalPage() {
                     onDoubleClick={() => navigate({ page: 'trade', id: t.id })}
                     className={cx(
                       'absolute left-0 grid w-full items-center gap-x-1.5 border-b border-line/70 px-2 text-[12px]',
-                      COLS,
                       isSel ? 'bg-accent-soft' : v.index % 2 ? 'bg-white/[0.012] hover:bg-hover' : 'hover:bg-hover'
                     )}
-                    style={{ top: v.start, height: 26 }}
+                    style={{ top: v.start, height: 26, gridTemplateColumns: template }}
                   >
-                    <span className="num text-fg-strong">{m.tradingDate}</span>
-                    <span className="text-muted">{WEEKDAY_PL[weekdayNy(t.entryTime)]}</span>
-                    <span className="num">{formatClock(t.entryTime, 'NY')}</span>
-                    <span className="num text-muted">{formatClock(t.entryTime, 'WAW')}</span>
-                    <span className="num text-fg-strong">{t.pair}</span>
-                    <span className={t.direction === 'long' ? 'text-fg-strong' : 'text-fg'}>{t.direction === 'long' ? 'Long' : 'Short'}</span>
-                    <span className="truncate text-muted">{m.killzoneNames.join(', ') || '—'}</span>
-                    <span className="truncate">{dictName(journal, 'entryModels', t.entryModelId) || <span className="text-dim">—</span>}</span>
-                    <span className={cx('text-[11px]', t.status === 'closed' ? 'text-muted' : 'text-accent')}>{STATUS_LABEL[t.status]}</span>
-                    <span className="num text-right">{m.riskPips != null ? m.riskPips.toFixed(1) : '—'}</span>
-                    <span className="num text-right">{fmtRatio(m.rrTp1)}</span>
-                    <span className={cx('num text-right', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.resultPips)])}>{fmtPips(m.resultPips)}</span>
-                    <span className={cx('num text-right font-medium', t.status === 'missed' ? 'text-dim' : toneClass[tone(m.resultR, be)])}>{fmtR(m.resultR)}</span>
-                    <span
-                      className={cx('num text-right text-[11px]', row.v.compliant === false ? 'text-accent' : 'text-muted')}
-                      title={row.v.broken.map((b) => `${b.label}: ${b.detail}`).join('\n') || 'zgodna z zasadami'}
-                    >
-                      {row.v.score == null ? '—' : `${Math.round(row.v.score * 100)}%`}
-                    </span>
-                    <span className="truncate text-[11px] text-muted">
-                      {t.psychology.mistakeTagIds.map((id) => dictName(journal, 'mistakeTags', id)).join(', ')}
-                    </span>
+                    {columns.map((c) => (
+                      <span key={c.id} className={cx('min-w-0 truncate', c.align === 'right' && 'text-right')}>
+                        {cell(c, row, journal, be)}
+                      </span>
+                    ))}
                     <span
                       className="flex items-center justify-end gap-0.5 text-dim"
                       onMouseEnter={(e) => t.screens.length && setHover({ row, x: e.clientX, y: e.clientY })}

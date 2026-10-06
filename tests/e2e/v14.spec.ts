@@ -451,3 +451,92 @@ test('trening: screen „przed” bez wyniku, odpowiedź, odkrycie, podsumowanie
     await app.close()
   }
 })
+
+test('własne pola, kolumny i zapisane filtry dziennika; rozbicie w analityce', async () => {
+  const trades = [
+    closedTrade('2026-09-03', 2), // newest: EURUSD win
+    closedTrade('2026-09-02', -1, { pair: 'GBPUSD' }),
+    closedTrade('2026-09-01', 1)
+  ]
+  const dataDir = await seed(trades)
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(3)
+    // Settings → dictionaries: a list field with two options and a number field.
+    await page.getByTestId('nav-settings').click()
+    await page.getByTestId('settings-tab-dictionaries').click()
+    const cf = page.getByTestId('cf-settings')
+    await page.getByTestId('cf-add-name').fill('Ocena setupu')
+    await page.getByTestId('cf-add').click()
+    await cf.getByTestId('cf-option-new').fill('A+')
+    await cf.getByTestId('cf-option-new').press('Enter')
+    await cf.getByTestId('cf-option-new').fill('B')
+    await cf.getByTestId('cf-option-new').press('Enter')
+    await page.getByTestId('cf-add-name').fill('Konfluencje')
+    await page.getByRole('radiogroup', { name: 'Typ nowego pola' }).getByRole('radio', { name: 'Liczba' }).click()
+    await page.getByTestId('cf-add').click()
+    await expect(cf.getByTestId('cf-row')).toHaveCount(2)
+
+    // The newest trade: A+ and 3 confluences.
+    await page.keyboard.press('Control+1')
+    await page.getByTestId('journal-row').first().dblclick()
+    const fields = page.getByTestId('custom-fields')
+    await fields.getByRole('radio', { name: 'A+' }).click()
+    await fields.getByTestId('cf-Konfluencje').fill('3')
+    await fields.getByTestId('cf-Konfluencje').blur()
+    await expect
+      .poll(async () => {
+        const t = (await readTrades(dataDir)).find((x) => x.id === trades[0]!.id)
+        return t ? Object.values(t.custom ?? {}).length : 0
+      })
+      .toBe(2)
+
+    // Columns: show the custom field, hide the weekday.
+    await page.keyboard.press('Control+1')
+    await page.getByTestId('columns-button').click()
+    await page.getByTestId('columns-panel').getByRole('checkbox', { name: 'Pokaż Ocena setupu' }).check()
+    await page.getByTestId('columns-panel').getByRole('checkbox', { name: 'Pokaż Dz.' }).uncheck()
+    await page.keyboard.press('Escape')
+    const header = page.getByTestId('journal-header')
+    await expect(header).toContainText('Ocena setupu')
+    await expect(header).not.toContainText('Dz.')
+    await expect(page.getByTestId('journal-row').first()).toContainText('A+')
+
+    // Filter by the custom field and save it.
+    await page.getByTestId('filters-button').click()
+    await page.getByTestId('filters-panel').getByRole('combobox', { name: 'Ocena setupu' }).selectOption({ label: 'A+' })
+    await expect(page.getByTestId('journal-row')).toHaveCount(1)
+    await expect(page.getByTestId('filters-button')).toHaveText('Filtry (1)')
+    await page.keyboard.press('Escape')
+    await page.getByTestId('saved-filters').click()
+    await page.getByTestId('saved-filter-name').fill('Setupy A+')
+    await page.getByTestId('saved-filter-save').click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('saved-filters')).toHaveText('★ Setupy A+')
+    await page.getByTestId('filters-button').click()
+    await page.getByTestId('filters-clear').click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('journal-row')).toHaveCount(3)
+    await expect(page.getByTestId('saved-filters')).toHaveText('Zapisane ▾')
+    await page.getByTestId('saved-filters').click()
+    await page.getByTestId('saved-filter-apply').click()
+    await expect(page.getByTestId('journal-row')).toHaveCount(1)
+
+    await expect
+      .poll(async () => {
+        const j = JSON.parse(await fs.readFile(join(dataDir, 'journal.json'), 'utf8'))
+        return { filters: j.settings.savedFilters?.map((f: { name: string }) => f.name), columns: (j.settings.journalView?.columns ?? []).includes('weekday') }
+      })
+      .toEqual({ filters: ['Setupy A+'], columns: false })
+
+    // Analytics: result by the custom field.
+    await page.keyboard.press('Control+3')
+    const custom = page.getByTestId('custom-breakdowns')
+    await expect(custom).toContainText('Własne pole: Ocena setupu')
+    await expect(custom).toContainText('A+')
+    await expect(custom).toContainText('— brak —')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})

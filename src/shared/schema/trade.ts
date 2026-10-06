@@ -88,6 +88,8 @@ export const tradeSchema = z.looseObject({
   notes: text,
   screens: z.array(screenRefSchema).default([]),
   /** Since 1.3.0; null = not imported from a broker's history. */
-  broker: brokerFillSchema.nullable().default(null)
+  broker: brokerFillSchema.nullable().default(null),
+  /** Values of the user's own fields by field id (since 1.4.0): text, number, option id or yes/no. */
+  custom: z.record(z.string().max(40), z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])).default({})
 })
 export type Trade = z.infer<typeof tradeSchema>

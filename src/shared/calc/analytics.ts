@@ -1,5 +1,5 @@
 /** Aggregations for the analytics screen. Pure functions over already-computed trade metrics. */
-import type { DictionaryKey, JournalFile, Killzone, Trade } from '../schema'
+import type { CustomField, DictionaryKey, JournalFile, Killzone, Trade } from '../schema'
 import { equityCurve, summarize, type StatsSummary } from './stats'
 import { weekdayNy, zoned } from './time'
 import { classifyOutcome, type Outcome, type TradeMetrics } from './trade'
@@ -150,6 +150,35 @@ export function breakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile)
     model: group(rows, be, (r) => ({ key: r.trade.entryModelId ?? '-', label: dictLabel(journal, 'entryModels', r.trade.entryModelId) })).sort(byTotal),
     pdArray: group(rows, be, (r) => ({ key: r.trade.entryPdArrayId ?? '-', label: dictLabel(journal, 'pdArrays', r.trade.entryPdArrayId) })).sort(byTotal)
   }
+}
+
+/**
+ * Results by the user's own fields (1.4.0): options of a list, yes / no, values of a number (text fields are not
+ * grouped). Only active fields that have a value on at least one trade.
+ */
+export function customFieldBreakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile): Array<{ field: CustomField; groups: Group[] }> {
+  const be = journal.settings.stats.breakevenThresholdR
+  const out: Array<{ field: CustomField; groups: Group[] }> = []
+  for (const field of journal.settings.customFields) {
+    if (field.archived || field.type === 'text' || !rows.some((r) => r.trade.custom[field.id] != null)) continue
+    const groups = group(rows, be, (r) => {
+      const v = r.trade.custom[field.id]
+      if (v == null) return { key: '~', label: '— brak —' }
+      if (field.type === 'select') return { key: String(v), label: field.options.find((o) => o.id === v)?.name ?? '(usunięta opcja)' }
+      if (field.type === 'check') return { key: v === true ? 'yes' : 'no', label: v === true ? 'Tak' : 'Nie' }
+      return { key: String(v), label: String(v) }
+    })
+    if (field.type === 'number') groups.sort((a, b) => (a.key === '~' ? 1 : b.key === '~' ? -1 : Number(a.key) - Number(b.key)))
+    else if (field.type === 'select') {
+      const order = new Map(field.options.map((o, i) => [o.id, i]))
+      groups.sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999))
+    } else {
+      const order: Record<string, number> = { yes: 0, no: 1, '~': 2 }
+      groups.sort((a, b) => (order[a.key] ?? 3) - (order[b.key] ?? 3))
+    }
+    out.push({ field, groups })
+  }
+  return out
 }
 
 export type ComplianceRow = 'compliant' | 'broken' | 'unrated'

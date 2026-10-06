@@ -2,6 +2,7 @@
  * CSV export of all trades for Excel with Polish regional settings:
  * semicolon separator, UTF-8 with BOM, CRLF line endings, decimal comma.
  */
+import { customValueText } from '../journalView'
 import { formatClock, zoned } from '../calc/time'
 import { tradeMetrics, metricsContext } from '../calc/trade'
 import { validateTrade } from '../calc/validator'
@@ -81,6 +82,8 @@ const HEADERS = [
 export function tradesToCsv(trades: readonly Trade[], journal: JournalFile, days: readonly DayPlan[] = []): string {
   const ctx = metricsContext(journal.settings)
   const byDate = new Map(days.map((d) => [d.date, d]))
+  // Own fields (1.4.0) as extra columns at the end: active ones and archived ones that still hold values.
+  const fields = journal.settings.customFields.filter((f) => !f.archived || trades.some((t) => t.custom[f.id] != null))
   const rows = [...trades]
     .sort((a, b) => (a.entryTime < b.entryTime ? -1 : 1))
     .map((t) => {
@@ -134,8 +137,10 @@ export function tradesToCsv(trades: readonly Trade[], journal: JournalFile, days
         csvText(t.status === 'missed' ? names(journal, 'missedReasons', [t.missed.reasonId]) : ''),
         csvText(t.notes),
         csvText(t.tradingViewUrl),
-        String(t.screens.length)
+        String(t.screens.length),
+        ...fields.map((f) => (f.type === 'number' && typeof t.custom[f.id] === 'number' ? csvNumber(t.custom[f.id] as number) : csvText(customValueText(f, t.custom[f.id]))))
       ].join(';')
     })
-  return `﻿${[HEADERS.join(';'), ...rows].join('\r\n')}\r\n`
+  const headers = [...HEADERS, ...fields.map((f) => csvText(f.name))]
+  return `﻿${[headers.join(';'), ...rows].join('\r\n')}\r\n`
 }

@@ -126,10 +126,10 @@ export async function inspectFolder(store: DataStore, dir: string, source: strin
   }
 }
 
-/** Merge dictionaries, pairs and killzones that the imported records reference (by id / symbol). */
+/** Merge dictionaries, pairs, killzones, instruments and custom fields that the imported records reference (by id / symbol). */
 export function mergeJournal(current: JournalFile, incoming: JournalFile): JournalFile {
   const dicts = { ...current.dictionaries }
-  for (const key of ['entryModels', 'pdArrays', 'liquidityPools', 'mistakeTags', 'missedReasons'] as const) {
+  for (const key of ['entryModels', 'pdArrays', 'liquidityPools', 'mistakeTags', 'missedReasons', 'rejectReasons'] as const) {
     const have = new Set(dicts[key].map((d) => d.id))
     dicts[key] = [...dicts[key], ...incoming.dictionaries[key].filter((d) => !have.has(d.id))]
   }
@@ -141,7 +141,13 @@ export function mergeJournal(current: JournalFile, incoming: JournalFile): Journ
   // Forecast scenarios refer to instruments by id.
   const instruments = [...current.settings.instruments]
   for (const i of incoming.settings.instruments) if (!instruments.some((x) => x.id === i.id)) instruments.push(i)
-  return { ...current, dictionaries: dicts, settings: { ...current.settings, pairs, killzones, instruments } }
+  // Trades keep values of custom fields by field id (select fields: by option id).
+  const customFields = current.settings.customFields.map((f) => {
+    const other = incoming.settings.customFields.find((x) => x.id === f.id)
+    return other ? { ...f, options: [...f.options, ...other.options.filter((o) => !f.options.some((x) => x.id === o.id))] } : f
+  })
+  for (const f of incoming.settings.customFields) if (!customFields.some((x) => x.id === f.id)) customFields.push(f)
+  return { ...current, dictionaries: dicts, settings: { ...current.settings, pairs, killzones, instruments, customFields } }
 }
 
 export async function applyImport(store: DataStore, inspected: Inspected, policy: ImportPolicy): Promise<{ imported: number; skipped: number; screensCopied: number }> {

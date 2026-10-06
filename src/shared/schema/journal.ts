@@ -179,6 +179,50 @@ export const dayTemplateSchema = z.looseObject({
 })
 export type DayTemplate = z.infer<typeof dayTemplateSchema>
 
+/** A field of the user's own on every trade (since 1.4.0): text, number, a choice from a list or a yes/no box. */
+export const customFieldSchema = z.looseObject({
+  id: ulidSchema,
+  name: z.string().min(1).max(40),
+  type: z.enum(['text', 'number', 'select', 'check']).default('text'),
+  /** Choices of a "select" field (archived = not offered for new values). */
+  options: z.array(dictItemSchema).default([]),
+  archived: z.boolean().default(false)
+})
+export type CustomField = z.infer<typeof customFieldSchema>
+export type CustomFieldType = CustomField['type']
+
+/** A condition on a custom field: text contains, the chosen option, a number range or yes/no. */
+export const customConditionSchema = z.looseObject({
+  fieldId: ulidSchema,
+  text: z.string().max(200).nullable().default(null),
+  optionId: z.string().max(40).nullable().default(null),
+  min: z.number().finite().nullable().default(null),
+  max: z.number().finite().nullable().default(null),
+  checked: z.boolean().nullable().default(null)
+})
+export type CustomCondition = z.infer<typeof customConditionSchema>
+
+/** Filters of the journal list (since 1.4.0; saved under a name in `savedFilters`). */
+export const journalFilterSchema = z.looseObject({
+  query: text,
+  pair: z.string().max(20).nullable().default(null),
+  status: z.enum(['all', 'closed', 'open', 'missed']).default('all'),
+  from: isoDate.nullable().default(null),
+  to: isoDate.nullable().default(null),
+  outcome: z.enum(['all', 'win', 'loss', 'breakeven']).default('all'),
+  compliance: z.enum(['all', 'compliant', 'broken']).default('all'),
+  mistakes: z.enum(['all', 'with', 'without']).default('all'),
+  modelId: z.string().max(40).nullable().default(null),
+  custom: z.array(customConditionSchema).default([])
+})
+export type JournalFilter = z.infer<typeof journalFilterSchema>
+
+export const savedFilterSchema = journalFilterSchema.extend({
+  id: ulidSchema,
+  name: z.string().min(1).max(40)
+})
+export type SavedFilter = z.infer<typeof savedFilterSchema>
+
 export const settingsSchema = z.looseObject({
   pairs: z.array(pairConfigSchema).default([]),
   contextInstruments: z.array(z.string().min(1)).default(['DXY', 'EURX', 'FGBL1!', 'ZB1!']),
@@ -275,6 +319,15 @@ export const settingsSchema = z.looseObject({
     })
     .prefault({}),
   dayTemplates: z.array(dayTemplateSchema).default([]),
+  /** Own fields of trades, columns of the journal list and saved filters (since 1.4.0). */
+  customFields: z.array(customFieldSchema).default([]),
+  journalView: z
+    .looseObject({
+      /** Column ids in order (built-in ids, `cf:<field id>` for custom fields); null = the default set. */
+      columns: z.array(z.string().max(60)).max(60).nullable().default(null)
+    })
+    .prefault({}),
+  savedFilters: z.array(savedFilterSchema).default([]),
   /** P/L calculator and pip mode of the payout forecast; an empty list is seeded on load. */
   instruments: z.array(instrumentSchema).default([]),
   fx: z

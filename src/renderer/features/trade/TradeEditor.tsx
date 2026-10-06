@@ -15,6 +15,7 @@ import { DECISION_LABEL } from '@shared/calc/sessions'
 import { Badge, Chips, CurrencyInput, Empty, Field, NumberField, Panel, Segmented, TextArea, TextField, cx } from '../../components/ui'
 import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
+import { CustomFieldsEditor } from './CustomFields'
 import { addTradeToLibrary } from '../library/LibraryPage'
 import { copyTradeMarkdown } from '../export/markdownActions'
 import { duplicateTradeEntry } from '../duplicate'
@@ -481,6 +482,10 @@ export function TradeEditor({ id }: { id: string }) {
                 <TextField value={t.tradingViewUrl} onChange={(v) => setField('tradingViewUrl', v.trim())} placeholder="https://www.tradingview.com/x/…" />
               </Field>
             </div>
+          </Section>
+
+          <Section title="Własne pola">
+            <CustomFieldsEditor trade={t} onChange={up} />
           </Section>
 
           <Section title="Psychologia">
