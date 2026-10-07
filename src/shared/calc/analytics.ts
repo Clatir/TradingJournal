@@ -71,14 +71,29 @@ export interface Group {
   winRate: number | null
   totalR: number
   expectancy: number | null
+  /** Σ in PLN of the trades with a known PLN result (null when `plnOf` is not given or none has one). */
+  pln: number | null
+  /** How many of the group's trades have a PLN result. */
+  plnCount: number
 }
 
-function group(rows: readonly AnalyzedTrade[], be: number, keyOf: (r: AnalyzedTrade) => { key: string; label: string }): Group[] {
-  const map = new Map<string, { label: string; rs: number[] }>()
+/** Sums of amounts rounded to grosze (floating point leaves −0.00000000002 where 0 is meant). */
+export const grosze = (v: number): number => Math.round(v * 100) / 100 + 0
+
+/** PLN result of a trade by id (see `plnByTrade`). */
+export type PlnOf = ReadonlyMap<string, number>
+
+function group(rows: readonly AnalyzedTrade[], be: number, keyOf: (r: AnalyzedTrade) => { key: string; label: string }, plnOf?: PlnOf): Group[] {
+  const map = new Map<string, { label: string; rs: number[]; pln: number; plnCount: number }>()
   for (const r of closedTrades(rows)) {
     const { key, label } = keyOf(r)
-    const g = map.get(key) ?? { label, rs: [] }
+    const g = map.get(key) ?? { label, rs: [], pln: 0, plnCount: 0 }
     g.rs.push(r.m.resultR as number)
+    const pln = plnOf?.get(r.trade.id)
+    if (pln != null) {
+      g.pln += pln
+      g.plnCount++
+    }
     map.set(key, g)
   }
   return [...map.entries()].map(([key, g]) => {
@@ -101,7 +116,9 @@ function group(rows: readonly AnalyzedTrade[], be: number, keyOf: (r: AnalyzedTr
       breakevens,
       winRate: wins + losses ? wins / (wins + losses) : null,
       totalR,
-      expectancy: g.rs.length ? totalR / g.rs.length : null
+      expectancy: g.rs.length ? totalR / g.rs.length : null,
+      pln: g.plnCount ? grosze(g.pln) : null,
+      plnCount: g.plnCount
     }
   })
 }
@@ -130,25 +147,25 @@ export interface Breakdowns {
   pdArray: Group[]
 }
 
-export function breakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile): Breakdowns {
+export function breakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile, plnOf?: PlnOf): Breakdowns {
   const be = journal.settings.stats.breakevenThresholdR
   const kzs = journal.settings.killzones
   return {
-    pair: group(rows, be, (r) => ({ key: r.trade.pair, label: r.trade.pair })).sort(byTotal),
+    pair: group(rows, be, (r) => ({ key: r.trade.pair, label: r.trade.pair }), plnOf).sort(byTotal),
     session: group(rows, be, (r) => {
       const s = primarySession(r, kzs)
       return { key: s, label: s }
-    }).sort(byTotal),
+    }, plnOf).sort(byTotal),
     weekday: group(rows, be, (r) => {
       const d = weekdayNy(r.trade.entryTime)
       return { key: String(d), label: WEEKDAYS[d] ?? String(d) }
-    }).sort((a, b) => Number(a.key) - Number(b.key)),
+    }, plnOf).sort((a, b) => Number(a.key) - Number(b.key)),
     hour: group(rows, be, (r) => {
       const h = zoned(r.trade.entryTime, 'NY').hour
       return { key: String(h).padStart(2, '0'), label: `${String(h).padStart(2, '0')}:00` }
-    }).sort((a, b) => a.key.localeCompare(b.key)),
-    model: group(rows, be, (r) => ({ key: r.trade.entryModelId ?? '-', label: dictLabel(journal, 'entryModels', r.trade.entryModelId) })).sort(byTotal),
-    pdArray: group(rows, be, (r) => ({ key: r.trade.entryPdArrayId ?? '-', label: dictLabel(journal, 'pdArrays', r.trade.entryPdArrayId) })).sort(byTotal)
+    }, plnOf).sort((a, b) => a.key.localeCompare(b.key)),
+    model: group(rows, be, (r) => ({ key: r.trade.entryModelId ?? '-', label: dictLabel(journal, 'entryModels', r.trade.entryModelId) }), plnOf).sort(byTotal),
+    pdArray: group(rows, be, (r) => ({ key: r.trade.entryPdArrayId ?? '-', label: dictLabel(journal, 'pdArrays', r.trade.entryPdArrayId) }), plnOf).sort(byTotal)
   }
 }
 
@@ -156,7 +173,7 @@ export function breakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile)
  * Results by the user's own fields (1.4.0): options of a list, yes / no, values of a number (text fields are not
  * grouped). Only active fields that have a value on at least one trade.
  */
-export function customFieldBreakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile): Array<{ field: CustomField; groups: Group[] }> {
+export function customFieldBreakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile, plnOf?: PlnOf): Array<{ field: CustomField; groups: Group[] }> {
   const be = journal.settings.stats.breakevenThresholdR
   const out: Array<{ field: CustomField; groups: Group[] }> = []
   for (const field of journal.settings.customFields) {
@@ -167,7 +184,7 @@ export function customFieldBreakdowns(rows: readonly AnalyzedTrade[], journal: J
       if (field.type === 'select') return { key: String(v), label: field.options.find((o) => o.id === v)?.name ?? '(usunięta opcja)' }
       if (field.type === 'check') return { key: v === true ? 'yes' : 'no', label: v === true ? 'Tak' : 'Nie' }
       return { key: String(v), label: String(v) }
-    })
+    }, plnOf)
     if (field.type === 'number') groups.sort((a, b) => (a.key === '~' ? 1 : b.key === '~' ? -1 : Number(a.key) - Number(b.key)))
     else if (field.type === 'select') {
       const order = new Map(field.options.map((o, i) => [o.id, i]))
@@ -243,16 +260,21 @@ export interface CalendarDay {
   date: string
   totalR: number
   count: number
+  /** Σ PLN of the day's trades with a PLN result (null without `plnOf` or any). */
+  pln: number | null
 }
 
-export function calendarDays(rows: readonly AnalyzedTrade[]): Map<string, CalendarDay> {
+export function calendarDays(rows: readonly AnalyzedTrade[], plnOf?: PlnOf): Map<string, CalendarDay> {
   const map = new Map<string, CalendarDay>()
   for (const r of closedTrades(rows)) {
-    const d = map.get(r.m.tradingDate) ?? { date: r.m.tradingDate, totalR: 0, count: 0 }
+    const d = map.get(r.m.tradingDate) ?? { date: r.m.tradingDate, totalR: 0, count: 0, pln: null }
     d.totalR += r.m.resultR as number
     d.count++
+    const pln = plnOf?.get(r.trade.id)
+    if (pln != null) d.pln = (d.pln ?? 0) + pln
     map.set(r.m.tradingDate, d)
   }
+  for (const d of map.values()) if (d.pln != null) d.pln = grosze(d.pln)
   return map
 }
 

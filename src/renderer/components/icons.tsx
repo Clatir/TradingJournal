@@ -157,6 +157,13 @@ export const IconTimer = base(
   </>
 )
 /** Target: review drills. */
+export const IconReport = base(
+  <>
+    <path d="M3.5 1.8h6.2l2.8 2.8v9.6h-9z" />
+    <path d="M9.6 1.8v2.9h2.9" />
+    <path d="M5.4 11.6V9.4M7.9 11.6V7.6M10.4 11.6V8.6" />
+  </>
+)
 export const IconTarget = base(
   <>
     <circle cx="8" cy="8" r="5.6" />

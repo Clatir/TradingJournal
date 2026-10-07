@@ -3,6 +3,37 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.5.0
+
+### Nowe
+- **Raporty jako osobna strona** (ikona na pasku po lewej, `Ctrl+9`):
+  - **Okres do wyboru:** miesiąc, kwartał, rok albo własne daty od–do.
+  - **Sekcje do wyboru** (zapamiętywane na tym komputerze): podsumowanie, porównanie z poprzednim okresem,
+    tygodnie / miesiące, pary, sesje, dni tygodnia, błędy, zgodność, plan dnia, sesje analizy, najlepsza i
+    najgorsza, lista transakcji, PIT-38.
+  - **Podgląd na żywo** i eksport tego, co zaznaczone: PDF, plik `.md` albo markdown do schowka. Raport roczny i
+    kwartalny dzieli wyniki na miesiące.
+- **PIT-38 (orientacyjnie):** sekcja raportu za wybrany okres, liczona według daty zamknięcia (czas polski).
+  - Przychód to suma zysków, koszty to suma strat, w PLN.
+  - Przeliczenie kursem NBP z ostatniego dnia roboczego przed zamknięciem; gdy archiwum go nie ma, kursem
+    dzisiejszym (oznaczone).
+  - W zestawieniu: tabela miesięcy i lista transakcji z kursem. Pominięte transakcje (bez kwoty, bez kursu) są
+    policzone.
+  - To pomoc do rozliczenia, nie deklaracja. Wiążący jest PIT-8C od brokera.
+- **Cele i limity** (Kalkulator → „Limity i cele”):
+  - nowe limity: dzienny limit straty w % konta (Σ R × ryzyko %) oraz tygodniowy limit straty w R;
+  - cele: tygodniowy i miesięczny w R;
+  - postęp tygodnia i miesiąca widać w pasku u góry obok wyniku dnia; osiągnięty cel jest na zielono.
+  - Po przekroczeniu limitu nowa transakcja (`Ctrl+N`) najpierw pyta: „Kończę na dziś” albo „Mimo to dodaj
+    transakcję”. Pytanie można wyłączyć; wtedy zostaje samo ostrzeżenie.
+- **Porównanie okresów** (Analityka): ten tydzień, miesiąc, kwartał albo rok obok poprzedniego, albo dwa własne
+  zakresy dat. Porównywane są: transakcje, win rate, Σ R, expectancy, PF, drawdown, średnia wygrana i strata,
+  zgodność i wynik w PLN, ze zmianą.
+- **PLN w całej Analityce** (gdy kwoty są widoczne):
+  - kolumna „PLN” w rozbiciach: pary, sesje, dni tygodnia, godziny, modele, tagi, własne pola; gwiazdka oznacza,
+    że nie każda transakcja w grupie ma kwotę;
+  - kalendarz wyników przełączany R / PLN.
+
 ## 1.4.9
 
 ### Nowe

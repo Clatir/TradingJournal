@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { RecordEntry } from '@shared/api'
 import { metricsContext, tradeMetrics, type TradeMetrics } from '@shared/calc/trade'
 import { dailyLimitState, validateTrade, type DailyLimitState, type ValidationResult } from '@shared/calc/validator'
+import { goalState, type GoalState } from '@shared/calc/goals'
 import { tradingDateNy } from '@shared/calc/time'
 import type { DayPlan, DictionaryKey, DictItem, JournalFile, Settings, Trade } from '@shared/schema'
 import { useJournal } from './journal'
@@ -84,6 +85,24 @@ export function useTradeRows(): TradeRow[] {
 export function useDayPlan(date: string | null): RecordEntry<DayPlan> | null {
   const days = useJournal((s) => s.days)
   return useMemo(() => (date ? (Object.values(days).find((e) => e.record.date === date) ?? null) : null), [days, date])
+}
+
+/** Today's limits, this week's and this month's goals (New York trading dates). */
+export function useGoals(nowIso: string): GoalState | null {
+  const rows = useTradeRows()
+  const settings = useSettings()
+  const date = tradingDateNy(nowIso)
+  return useMemo(
+    () =>
+      settings
+        ? goalState(
+            date,
+            rows.map((r) => ({ status: r.trade.status, tradingDate: r.m.tradingDate, resultR: r.m.resultR, riskPercent: r.trade.riskPercent })),
+            settings
+          )
+        : null,
+    [rows, settings, date]
+  )
 }
 
 /** Today's (New York trading date) totals against the daily limits. */

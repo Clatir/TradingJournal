@@ -322,6 +322,19 @@ export const settingsSchema = z.looseObject({
       remoteChanges: z.enum(['merge', 'ask']).default('merge')
     })
     .prefault({}),
+  /**
+   * Goals and alerts (1.5.0): limits besides the daily ones in `risk` (a loss in % of the account today, a loss in R
+   * this week) and targets in R for the week and the month; `ask` = confirm a new trade while a limit is broken.
+   */
+  goals: z
+    .looseObject({
+      dailyLossPercent: z.number().positive().max(100).nullable().default(null),
+      weeklyLossLimitR: z.number().positive().nullable().default(null),
+      weeklyTargetR: z.number().positive().nullable().default(null),
+      monthlyTargetR: z.number().positive().nullable().default(null),
+      ask: z.boolean().default(true)
+    })
+    .prefault({}),
   dayTemplates: z.array(dayTemplateSchema).default([]),
   /** Own fields of trades, columns of the journal list and saved filters (since 1.4.0). */
   customFields: z.array(customFieldSchema).default([]),

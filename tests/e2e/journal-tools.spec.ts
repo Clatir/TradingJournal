@@ -44,7 +44,7 @@ test('prognoza: „Weź z moich wyników” przy za małej liczbie miesięcy', a
   }
 })
 
-test('raport miesięczny: wynik w R i PLN, wybór miesiąca, markdown do schowka, pliki .md i PDF', async () => {
+test('raporty (Ctrl+9): miesiąc z wynikiem w R i PLN, wybór miesiąca, markdown do schowka, pliki .md i PDF', async () => {
   const journal = createDefaultJournal()
   const tag = journal.dictionaries.mistakeTags[0]!
   const psychology = { ...closedTrade('2026-03-12', -1).psychology, mistakeTagIds: [tag.id] }
@@ -60,8 +60,8 @@ test('raport miesięczny: wynik w R i PLN, wybór miesiąca, markdown do schowka
   const out = await fs.mkdtemp(join(tmpdir(), 'ictj-report-out-'))
   try {
     await expect(page.getByTestId('journal-row')).toHaveCount(3)
-    await page.keyboard.press('Control+3')
-    const bar = page.getByTestId('monthly-report')
+    await page.getByTestId('nav-reports').click()
+    const bar = page.getByTestId('reports')
     await expect(bar.getByTestId('report-month')).toHaveValue('2026-03')
     await expect(bar.getByTestId('report-lead')).toHaveText('Wynik: +1.00R · +100.00 PLN')
     await bar.getByTestId('report-month').selectOption('2026-02')

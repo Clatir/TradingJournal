@@ -1,10 +1,15 @@
 /**
- * Monthly report (markdown and HTML for PDF): result in R and in PLN (amounts converted at the NBP table of the day
- * before each closing, else today's rate), weeks, pairs, the most costly mistakes, rule compliance and the plan.
+ * Reports (markdown and HTML for PDF) of any period – a month, a quarter, a year or own dates (1.5.0; before: monthly):
+ * result in R and in PLN (amounts converted at the NBP table of the day before each closing, else today's rate),
+ * weeks or months, pairs, sessions, weekdays, comparison with the previous period, the most costly mistakes, rule
+ * compliance, the plan, analysis sessions, the trades and an approximate PIT-38. Sections can be chosen.
  * Pure: the rows are the analytics rows (trade, metrics, validation) of the journal.
  */
 import { DateTime } from 'luxon'
-import { closedTrades, mistakeCosts, summaryOf, type AnalyzedTrade, type MistakeCost } from '../calc/analytics'
+import { closedTrades, mistakeCosts, primarySession, summaryOf, type AnalyzedTrade, type MistakeCost } from '../calc/analytics'
+import { monthRange, periodMetrics, previousRange, rangeLabel, inRange, type DateRange, type PeriodMetrics } from '../calc/periods'
+import { taxSummary, type TaxSummary } from '../calc/tax'
+import { weekdayNy } from '../calc/time'
 import type { StatsSummary } from '../calc/stats'
 import { rateFor } from '../fx'
 import { historicalRate, transactionDate } from '../fxHistory'
@@ -22,9 +27,45 @@ export interface ReportRow {
   pln: number | null
 }
 
+/** Sections a report can have (the order of the document). */
+export const REPORT_SECTIONS = [
+  { id: 'summary', label: 'Podsumowanie' },
+  { id: 'comparison', label: 'Porównanie z poprzednim okresem' },
+  { id: 'periods', label: 'Tygodnie / miesiące' },
+  { id: 'pairs', label: 'Pary' },
+  { id: 'sessions', label: 'Sesje (killzone)' },
+  { id: 'weekdays', label: 'Dni tygodnia' },
+  { id: 'mistakes', label: 'Najczęstsze błędy' },
+  { id: 'compliance', label: 'Zgodność z zasadami' },
+  { id: 'plan', label: 'Plan dnia' },
+  { id: 'selection', label: 'Czas analizy i selekcja par' },
+  { id: 'extremes', label: 'Najlepsza i najgorsza transakcja' },
+  { id: 'trades', label: 'Lista transakcji' },
+  { id: 'tax', label: 'PIT-38 (orientacyjnie)' }
+] as const
+
+export type ReportSectionId = (typeof REPORT_SECTIONS)[number]['id']
+
+/** Sections of the monthly report so far (the default). */
+export const DEFAULT_REPORT_SECTIONS: readonly ReportSectionId[] = ['summary', 'periods', 'pairs', 'mistakes', 'compliance', 'plan', 'selection', 'extremes']
+
+export interface ReportTrade {
+  date: string
+  pair: string
+  direction: 'long' | 'short'
+  session: string
+  r: number
+  pln: number | null
+}
+
 export interface MonthlyReport {
-  /** YYYY-MM */
+  /** YYYY-MM of the start (the month of a monthly report). */
   month: string
+  range: DateRange
+  /** "marzec 2026", "I kw. 2026", "2026", "2026-03-02 – 2026-03-20". */
+  periodLabel: string
+  /** "w tym miesiącu" / "w tym okresie" in texts. */
+  periodWord: string
   title: string
   summary: StatsSummary
   missed: number
@@ -39,8 +80,15 @@ export interface MonthlyReport {
   missingRates: string[]
   /** How many closed trades have no amount at all (no risk amount, no lots). */
   noAmount: number
+  /** Weeks (ranges up to ~2 months) or months (longer ranges). */
   weeks: ReportRow[]
+  periodUnit: 'week' | 'month'
   pairs: ReportRow[]
+  sessions: ReportRow[]
+  weekdays: ReportRow[]
+  tradeList: ReportTrade[]
+  comparison: { current: PeriodMetrics; previous: PeriodMetrics }
+  tax: TaxSummary
   mistakes: MistakeCost[]
   compliance: { rated: number; compliant: number; avgScore: number | null; broken: Array<{ label: string; count: number }> }
   plan: { tradingDays: number; daysWithPlan: number; tradesWithoutPlan: number; matched: number; partial: number; missedPlan: number; notReviewed: number }
@@ -91,8 +139,23 @@ export function buildMonthlyReport(
   month: string,
   now: string = new Date().toISOString()
 ): MonthlyReport {
+  return buildReport(rows, days, journal, monthRange(month), now)
+}
+
+const WEEKDAYS = ['', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela']
+
+/** Report of a period of New York trading dates (the whole journal, all pairs). */
+export function buildReport(
+  rows: readonly AnalyzedTrade[],
+  days: readonly DayPlan[],
+  journal: JournalFile,
+  range: DateRange,
+  now: string = new Date().toISOString()
+): MonthlyReport {
   const be = journal.settings.stats.breakevenThresholdR
-  const inMonth = rows.filter((r) => r.m.tradingDate.startsWith(month))
+  const month = range.from.slice(0, 7)
+  const isMonth = monthRange(month).from === range.from && monthRange(month).to === range.to
+  const inMonth = rows.filter((r) => inRange(r.m.tradingDate, range))
   const closed = closedTrades(inMonth)
   const summary = summaryOf(inMonth, be)
 
@@ -124,6 +187,8 @@ export function buildMonthlyReport(
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, list]) => rowOf(label, list, be, journal))
   }
   const weekOf = (r: AnalyzedTrade) => DateTime.fromISO(r.m.tradingDate, { zone: 'UTC' }).toFormat("kkkk-'W'WW")
+  const longRange = DateTime.fromISO(range.to).diff(DateTime.fromISO(range.from), 'days').days > 62
+  const plnOf = new Map(closed.map((r) => [r.trade.id, resultInPln(r, journal).pln] as const).filter((x): x is readonly [string, number] => x[1] != null))
 
   const rated = closed.filter((r) => r.v.compliant != null)
   const brokenCounts = new Map<string, number>()
@@ -131,16 +196,21 @@ export function buildMonthlyReport(
   const scores = rated.map((r) => r.v.score).filter((x): x is number => x != null)
 
   const tradeDays = new Set(inMonth.filter((r) => r.trade.status !== 'missed').map((r) => r.m.tradingDate))
-  const plans = days.filter((d) => d.date.startsWith(month))
+  const plans = days.filter((d) => inRange(d.date, range))
   const planDates = new Set(plans.map((d) => d.date))
   const reviews = plans.map((d) => d.review.vsPlan)
 
   const sortedByR = [...closed].sort((a, b) => (a.m.resultR as number) - (b.m.resultR as number))
   const pick = (r: AnalyzedTrade | undefined) => (r ? { date: r.m.tradingDate, pair: r.trade.pair, r: r.m.resultR as number } : null)
 
+  const label = rangeLabel(range)
+  const weekdayGroups = group((r) => String(weekdayNy(r.trade.entryTime)))
   return {
     month,
-    title: `Raport miesięczny – ${reportMonthLabel(month)}`,
+    range,
+    periodLabel: label,
+    periodWord: isMonth ? 'w tym miesiącu' : 'w tym okresie',
+    title: isMonth ? `Raport miesięczny – ${reportMonthLabel(month)}` : `Raport – ${label}`,
     summary,
     missed: inMonth.filter((r) => r.trade.status === 'missed').length,
     pln: plnTrades ? pln : null,
@@ -150,8 +220,26 @@ export function buildMonthlyReport(
     plnWithoutRate,
     missingRates: [...missingRates].sort(),
     noAmount,
-    weeks: group(weekOf),
+    weeks: longRange ? group((r) => r.m.tradingDate.slice(0, 7)) : group(weekOf),
+    periodUnit: longRange ? 'month' : 'week',
     pairs: group((r) => r.trade.pair),
+    sessions: group((r) => primarySession(r, journal.settings.killzones)),
+    weekdays: weekdayGroups.map((g) => ({ ...g, label: WEEKDAYS[Number(g.label)] ?? g.label })),
+    tradeList: [...closed]
+      .sort((a, b) => (a.trade.entryTime < b.trade.entryTime ? -1 : 1))
+      .map((r) => ({
+        date: r.m.tradingDate,
+        pair: r.trade.pair,
+        direction: r.trade.direction,
+        session: primarySession(r, journal.settings.killzones),
+        r: r.m.resultR as number,
+        pln: plnOf.get(r.trade.id) ?? null
+      })),
+    comparison: (() => {
+      const all = new Map(closedTrades(rows).map((r) => [r.trade.id, resultInPln(r, journal).pln] as const).filter((x): x is readonly [string, number] => x[1] != null))
+      return { current: periodMetrics(rows, range, be, all), previous: periodMetrics(rows, previousRange(range), be, all) }
+    })(),
+    tax: taxSummary(rows, journal, range),
     mistakes: mistakeCosts(inMonth, journal).tags.slice(0, 5),
     compliance: {
       rated: rated.length,
@@ -171,7 +259,7 @@ export function buildMonthlyReport(
     best: closed.length ? pick(sortedByR.at(-1)) : null,
     worst: closed.length ? pick(sortedByR[0]) : null,
     selection: (() => {
-      const st = selectionStats(days, inMonth, { from: `${month}-01`, to: `${month}-31`, now })
+      const st = selectionStats(days, inMonth, { from: range.from, to: range.to, now })
       return st.sessions ? st : null
     })(),
     rejectReasonNames: Object.fromEntries(journal.dictionaries.rejectReasons.map((r) => [r.id, r.name]))
@@ -196,7 +284,7 @@ export function fmtReportPln(v: number | null): string {
 const pct = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`)
 const num = (v: number | null, d = 2) => (v == null ? '—' : Number.isFinite(v) ? v.toFixed(d) : '∞')
 
-interface Section {
+export interface Section {
   heading: string
   table?: { head: string[]; rows: string[][]; right?: number[] }
   lines?: string[]
@@ -207,7 +295,20 @@ export function reportLead(r: MonthlyReport): string {
   return sections(r).lead
 }
 
-function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
+const diff = (a: number | null, b: number | null, f: (v: number) => string) => (a == null || b == null ? '—' : f(a - b))
+
+/** The report as sections in the document order, only the chosen ones (default: those of the monthly report). */
+export function reportSections(r: MonthlyReport, include: readonly ReportSectionId[] = DEFAULT_REPORT_SECTIONS): { lead: string; sections: Section[] } {
+  const all = sectionsById(r)
+  const chosen = new Set(include)
+  return { lead: all.lead, sections: REPORT_SECTIONS.filter((x) => chosen.has(x.id)).flatMap((x) => all.byId[x.id] ?? []) }
+}
+
+function sections(r: MonthlyReport, include?: readonly ReportSectionId[]): { lead: string; sections: Section[] } {
+  return reportSections(r, include)
+}
+
+function sectionsById(r: MonthlyReport): { lead: string; byId: Partial<Record<ReportSectionId, Section[]>> } {
   const s = r.summary
   const left = [
     r.plnWithoutRate ? `${r.plnWithoutRate} bez kursu ${r.missingRates.join('/')} → PLN` : null,
@@ -220,8 +321,9 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
   ]
   const plnNote = [counts, rates.filter(Boolean).join(', ')].filter(Boolean).join('; ')
   const lead = `Wynik: ${fmtReportR(s.totalR)} · ${fmtReportPln(r.pln)}${plnNote ? ` (${plnNote})` : ''}`
-  const out: Section[] = [
-    {
+  const byId: Partial<Record<ReportSectionId, Section[]>> = {}
+  const add = (id: ReportSectionId, sec: Section) => (byId[id] ??= []).push(sec)
+  add('summary', {
       heading: 'Podsumowanie',
       table: {
         head: ['', ''],
@@ -239,8 +341,7 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
           ['Missed trades', String(r.missed)]
         ]
       }
-    }
-  ]
+    })
   const groupTable = (heading: string, first: string, rows: ReportRow[]): Section => ({
     heading,
     table: {
@@ -249,9 +350,33 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
       rows: rows.map((x) => [x.label, String(x.trades), pct(x.winRate), fmtReportR(x.totalR), fmtReportPln(x.pln)])
     }
   })
-  if (r.weeks.length) out.push(groupTable('Tygodnie', 'Tydzień', r.weeks))
-  if (r.pairs.length) out.push(groupTable('Pary', 'Para', r.pairs))
-  out.push(
+  const cmp = r.comparison
+  const cur = cmp.current
+  const prev = cmp.previous
+  const pctPts = (v: number) => `${sign(v * 100, 1)}${Math.abs(v * 100).toFixed(1)} pkt`
+  add('comparison', {
+    heading: `Porównanie z poprzednim okresem (${rangeLabel(prev.range)})`,
+    table: {
+      head: ['', r.periodLabel, rangeLabel(prev.range), 'Zmiana'],
+      right: [1, 2, 3],
+      rows: [
+        ['Transakcje', String(cur.trades), String(prev.trades), String(cur.trades - prev.trades)],
+        ['Win rate', pct(cur.winRate), pct(prev.winRate), diff(cur.winRate, prev.winRate, pctPts)],
+        ['Σ R', fmtReportR(cur.totalR), fmtReportR(prev.totalR), fmtReportR(cur.totalR - prev.totalR)],
+        ['Expectancy', cur.expectancy == null ? '—' : fmtReportR(cur.expectancy), prev.expectancy == null ? '—' : fmtReportR(prev.expectancy), diff(cur.expectancy, prev.expectancy, fmtReportR)],
+        ['Profit factor', num(cur.profitFactor), num(prev.profitFactor), diff(cur.profitFactor, prev.profitFactor, (v) => (Number.isFinite(v) ? signed(v) : '—'))],
+        ['Maks. obsunięcie', `${cur.maxDrawdownR.toFixed(2)}R`, `${prev.maxDrawdownR.toFixed(2)}R`, fmtReportR(cur.maxDrawdownR - prev.maxDrawdownR)],
+        ['Zgodność z zasadami', pct(cur.compliance), pct(prev.compliance), diff(cur.compliance, prev.compliance, pctPts)],
+        ['Wynik w PLN', fmtReportPln(cur.pln), fmtReportPln(prev.pln), diff(cur.pln, prev.pln, fmtReportPln)]
+      ]
+    }
+  })
+  if (r.weeks.length) add('periods', r.periodUnit === 'month' ? groupTable('Miesiące', 'Miesiąc', r.weeks) : groupTable('Tygodnie', 'Tydzień', r.weeks))
+  if (r.pairs.length) add('pairs', groupTable('Pary', 'Para', r.pairs))
+  if (r.sessions.length) add('sessions', groupTable('Sesje (killzone)', 'Sesja', r.sessions))
+  if (r.weekdays.length) add('weekdays', groupTable('Dni tygodnia (NY)', 'Dzień', r.weekdays))
+  add(
+    'mistakes',
     r.mistakes.length
       ? {
           heading: 'Najczęstsze błędy',
@@ -261,10 +386,10 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
             rows: r.mistakes.map((m) => [m.name, String(m.count), fmtReportR(m.totalR), fmtReportR(m.costR)])
           }
         }
-      : { heading: 'Najczęstsze błędy', lines: ['Brak oznaczonych błędów w tym miesiącu.'] }
+      : { heading: 'Najczęstsze błędy', lines: [`Brak oznaczonych błędów ${r.periodWord}.`] }
   )
   const c = r.compliance
-  out.push({
+  add('compliance', {
     heading: 'Zgodność z zasadami',
     lines: [
       c.rated
@@ -274,13 +399,14 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
     ]
   })
   const p = r.plan
-  out.push({
+  const inPeriod = r.periodWord === 'w tym miesiącu' ? 'w miesiącu' : 'w okresie'
+  add('plan', {
     heading: 'Plan dnia',
     lines: [
-      `Dni z transakcjami: ${p.tradingDays}, plany dnia w miesiącu: ${p.daysWithPlan}, transakcje w dni bez planu: ${p.tradesWithoutPlan}.`,
+      `Dni z transakcjami: ${p.tradingDays}, plany dnia ${inPeriod}: ${p.daysWithPlan}, transakcje w dni bez planu: ${p.tradesWithoutPlan}.`,
       p.daysWithPlan
         ? `Ocena po sesji: zgodnie z planem ${p.matched}, częściowo ${p.partial}, inaczej ${p.missedPlan}, bez oceny ${p.notReviewed}.`
-        : 'Brak planów dnia w tym miesiącu.'
+        : `Brak planów dnia ${r.periodWord}.`
     ]
   })
   if (r.selection) {
@@ -289,7 +415,7 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
     const topReasons = st.reasons
       .slice(0, 3)
       .map((x) => `${r.rejectReasonNames[x.reasonId] ?? 'bez powodu'} (${x.rejected}${x.reviewed ? `, trafne ${pct2(x.noSetup / x.reviewed)}` : ''})`)
-    out.push({
+    add('selection', {
       heading: 'Czas analizy i selekcja par',
       lines: [
         `Sesje analizy: ${st.sessions}, łącznie ${minutesLabel(st.minutes)}. Pary: przeanalizowane ${st.analysed}, wybrane ${st.decisions.trade + st.decisions.watch} (handluję ${st.decisions.trade}, obserwuję ${st.decisions.watch}), odrzucone ${st.decisions.reject}.`,
@@ -300,17 +426,79 @@ function sections(r: MonthlyReport): { lead: string; sections: Section[] } {
     })
   }
   if (r.best && r.worst)
-    out.push({
+    add('extremes', {
       heading: 'Najlepsza i najgorsza transakcja',
       lines: [`Najlepsza: ${r.best.date} ${r.best.pair} ${fmtReportR(r.best.r)}.`, `Najgorsza: ${r.worst.date} ${r.worst.pair} ${fmtReportR(r.worst.r)}.`]
     })
-  return { lead, sections: out }
+  add(
+    'trades',
+    r.tradeList.length
+      ? {
+          heading: 'Lista transakcji',
+          table: {
+            head: ['Data NY', 'Para', 'Kierunek', 'Sesja', 'R', 'PLN'],
+            right: [4, 5],
+            rows: r.tradeList.map((t) => [t.date, t.pair, t.direction === 'long' ? 'Long' : 'Short', t.session, fmtReportR(t.r), fmtReportPln(t.pln)])
+          }
+        }
+      : { heading: 'Lista transakcji', lines: [`Brak zamkniętych transakcji ${r.periodWord}.`] }
+  )
+  const tax = r.tax
+  const taxLeft = [
+    tax.noAmount ? `${tax.noAmount} bez kwoty (wpisz wynik w kwocie albo loty)` : null,
+    tax.withoutRate ? `${tax.withoutRate} bez kursu ${tax.missingRates.join('/')} → PLN` : null
+  ].filter(Boolean)
+  add('tax', {
+    heading: `PIT-38 – zestawienie orientacyjne (${rangeLabel(tax.range)}, wg daty zamknięcia)`,
+    table: {
+      head: ['', 'PLN'],
+      right: [1],
+      rows: [
+        ['Przychód (suma zysków)', fmtReportPln(tax.income).replace('+', '')],
+        ['Koszty (suma strat)', fmtReportPln(tax.costs).replace('+', '')],
+        ['Dochód / strata', fmtReportPln(tax.result)],
+        ['Transakcje ujęte', String(tax.trades.length)]
+      ]
+    },
+    lines: [
+      'Wynik netto każdej transakcji (z prowizją i swapem) przeliczony średnim kursem NBP z ostatniego dnia roboczego przed dniem zamknięcia; zyski to przychód, straty – koszty.',
+      ...(tax.approximate ? [`${tax.approximate} transakcji przeliczono bieżącym kursem (brak archiwum NBP z dnia transakcji) – odśwież kursy NBP, by mieć kurs z właściwego dnia.`] : []),
+      ...(taxLeft.length ? [`Pominięte: ${taxLeft.join(', ')}.`] : []),
+      'Zestawienie pomocnicze – podstawą rozliczenia jest PIT-8C od brokera; wynik może się różnić (np. inne zaokrąglenia, transakcje spoza dziennika).'
+    ]
+  })
+  if (tax.byMonth.length > 1)
+    add('tax', {
+      heading: 'PIT-38 – miesiące',
+      table: {
+        head: ['Miesiąc', 'Transakcje', 'Przychód', 'Koszty', 'Dochód'],
+        right: [1, 2, 3, 4],
+        rows: tax.byMonth.map((m) => [m.month, String(m.trades), fmtReportPln(m.income).replace('+', ''), fmtReportPln(m.costs).replace('+', ''), fmtReportPln(m.result)])
+      }
+    })
+  if (tax.trades.length)
+    add('tax', {
+      heading: 'PIT-38 – transakcje',
+      table: {
+        head: ['Zamknięcie', 'Para', 'Kwota', 'Kurs NBP', 'Tabela z', 'PLN'],
+        right: [2, 3, 5],
+        rows: tax.trades.map((t) => [
+          t.date,
+          t.pair,
+          `${signed(t.amount)} ${t.currency}`,
+          t.currency === 'PLN' ? '—' : t.rate.toFixed(4),
+          t.currency === 'PLN' ? '—' : (t.rateDate ?? 'bieżący'),
+          fmtReportPln(t.pln)
+        ])
+      }
+    })
+  return { lead, byId }
 }
 
 const mdCell = (s: string) => s.replace(/\|/g, '\\|')
 
-export function monthlyReportMarkdown(r: MonthlyReport): string {
-  const { lead, sections: list } = sections(r)
+export function monthlyReportMarkdown(r: MonthlyReport, include?: readonly ReportSectionId[]): string {
+  const { lead, sections: list } = sections(r, include)
   const out = [`# ${r.title}`, '', `**${lead}**`, '']
   for (const s of list) {
     out.push(`## ${s.heading}`, '')
@@ -329,8 +517,8 @@ export function monthlyReportMarkdown(r: MonthlyReport): string {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** Self-contained HTML (no scripts, no external resources) for printing to PDF. */
-export function monthlyReportHtml(r: MonthlyReport): string {
-  const { lead, sections: list } = sections(r)
+export function monthlyReportHtml(r: MonthlyReport, include?: readonly ReportSectionId[]): string {
+  const { lead, sections: list } = sections(r, include)
   const body = list
     .map((s) => {
       const table = s.table

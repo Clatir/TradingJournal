@@ -11,11 +11,13 @@ import {
   mistakeCosts,
   missedSummary,
   summaryOf,
+  type AnalyzedTrade,
   type ComplianceRow
 } from '@shared/calc/analytics'
+import type { JournalFile } from '@shared/schema'
 import type { Outcome } from '@shared/calc/trade'
-import { buildMonthlyReport, reportLead, reportMonthLabel, reportMonths } from '@shared/export/monthlyReport'
-import { plnCurve, type PlnCurve } from '@shared/calc/plnCurve'
+import { plnByTrade, plnCurve, type PlnCurve } from '@shared/calc/plnCurve'
+import { periodMetrics, previousRange, rangeLabel, type DateRange } from '@shared/calc/periods'
 import { fmtMoney, fmtMoneyGrouped, fmtNum, fmtPercent, fmtR, parseDateInput, tone, toneClass } from '../../lib/format'
 import { toggleMoney } from '../money'
 import { useTradeRows } from '../../store/derived'
@@ -28,7 +30,6 @@ import { HourBars } from '../../components/charts/HourBars'
 import { WeekdayHourHeatmap } from '../../components/charts/WeekdayHourHeatmap'
 import { Panel, Segmented, cx } from '../../components/ui'
 import { todayNy } from '../day/DayPlanPage'
-import { deliverMonthlyReport } from '../export/reportActions'
 import { SelectionPanel } from '../sessions/SelectionPanel'
 import { WellbeingPanel } from '../wellbeing/Wellbeing'
 
@@ -48,30 +49,34 @@ export function AnalyticsPage() {
   const [range, setRange] = useState<{ from: string | null; to: string | null }>({ from: null, to: null })
   const [pairs, setPairs] = useState<string[]>([])
   const [plnEstimates, setPlnEstimates] = useState(true)
+  const [calMetric, setCalMetric] = useState<'r' | 'pln'>('r')
+  const showMoney = journal?.settings.display.showMoney ?? false
 
   const filtered = useMemo(() => applyFilter(rows, { from: range.from, to: range.to, pairs }), [rows, range, pairs])
+  const byPairs = useMemo(() => applyFilter(rows, { from: null, to: null, pairs }), [rows, pairs])
 
   const data = useMemo(() => {
     if (!journal) return null
     const be = journal.settings.stats.breakevenThresholdR
+    // PLN of each trade for the breakdowns and the calendar (only when amounts are shown).
+    const plnOf = showMoney ? plnByTrade(filtered, journal, plnEstimates) : undefined
     return {
       be,
       summary: summaryOf(filtered, be),
       extra: extraStats(filtered),
       equity: equitySeries(filtered),
-      breakdowns: breakdowns(filtered, journal),
-      custom: customFieldBreakdowns(filtered, journal),
+      breakdowns: breakdowns(filtered, journal, plnOf),
+      custom: customFieldBreakdowns(filtered, journal, plnOf),
       matrix: complianceMatrix(filtered, be),
       mistakes: mistakeCosts(filtered, journal),
-      calendar: calendarDays(filtered),
+      calendar: calendarDays(filtered, plnOf),
       missed: missedSummary(filtered, journal)
     }
-  }, [filtered, journal])
+  }, [filtered, journal, showMoney, plnEstimates])
   const pln = useMemo(() => (journal ? plnCurve(filtered, journal, { estimates: plnEstimates }) : null), [filtered, journal, plnEstimates])
 
   if (!journal || !data) return null
   const { summary: s, extra, be } = data
-  const showMoney = journal.settings.display.showMoney
   const pairList = journal.settings.pairs.filter((p) => !p.archived || rows.some((r) => r.trade.pair === p.symbol))
   const dates = filtered.map((r) => r.m.tradingDate).sort()
   const calFrom = range.from ?? dates[0] ?? DateTime.fromISO(todayNy()).minus({ months: 3 }).toISODate()!
@@ -146,21 +151,23 @@ export function AnalyticsPage() {
 
         {pln && <PlnSection curve={pln} showMoney={showMoney} estimates={plnEstimates} onEstimates={setPlnEstimates} />}
 
+        <ComparisonSection rows={byPairs} journal={journal} showMoney={showMoney} be={be} estimates={plnEstimates} />
+
         <div className="grid grid-cols-3 border-t border-line">
           <Section title="Para" className="border-r">
-            <GroupTable groups={data.breakdowns.pair} be={be} labelHeader="Para" />
+            <GroupTable groups={data.breakdowns.pair} be={be} labelHeader="Para" money={showMoney} />
           </Section>
           <Section title="Sesja (killzone)" className="border-r">
-            <GroupTable groups={data.breakdowns.session} be={be} labelHeader="Sesja" />
+            <GroupTable groups={data.breakdowns.session} be={be} labelHeader="Sesja" money={showMoney} />
           </Section>
           <Section title="Dzień tygodnia (NY)">
-            <GroupTable groups={data.breakdowns.weekday} be={be} labelHeader="Dzień" />
+            <GroupTable groups={data.breakdowns.weekday} be={be} labelHeader="Dzień" money={showMoney} />
           </Section>
           <Section title="Model wejścia" className="border-r border-t">
-            <GroupTable groups={data.breakdowns.model} be={be} labelHeader="Model" />
+            <GroupTable groups={data.breakdowns.model} be={be} labelHeader="Model" money={showMoney} />
           </Section>
           <Section title="PD array wejścia" className="border-r border-t">
-            <GroupTable groups={data.breakdowns.pdArray} be={be} labelHeader="PD array" />
+            <GroupTable groups={data.breakdowns.pdArray} be={be} labelHeader="PD array" money={showMoney} />
           </Section>
           <Section title="Godzina wejścia (NY)" className="border-t">
             <HourBars groups={data.breakdowns.hour} />
@@ -171,7 +178,7 @@ export function AnalyticsPage() {
           <div className="grid grid-cols-3 border-t border-line" data-testid="custom-breakdowns">
             {data.custom.map(({ field, groups }, i) => (
               <Section key={field.id} title={`Własne pole: ${field.name}`} className={cx(i % 3 < 2 && 'border-r', i >= 3 && 'border-t')}>
-                <GroupTable groups={groups} be={be} labelHeader={field.name} />
+                <GroupTable groups={groups} be={be} labelHeader={field.name} money={showMoney} />
               </Section>
             ))}
           </div>
@@ -209,66 +216,145 @@ export function AnalyticsPage() {
         <SelectionPanel rows={filtered} from={range.from} to={range.to} />
         <WellbeingPanel rows={filtered} from={range.from} to={range.to} />
 
-        <Section title="Kalendarz wyników (Σ R dziennie)" className="border-t">
-          <CalendarHeatmap days={data.calendar} from={calFrom} to={calTo} onPick={(date) => navigate({ page: 'day', date })} />
+        <Section
+          title={
+            <span className="flex items-center gap-2">
+              Kalendarz wyników ({calMetric === 'pln' && showMoney ? 'Σ PLN' : 'Σ R'} dziennie)
+              {showMoney && (
+                <Segmented
+                  size="sm"
+                  value={calMetric}
+                  onChange={setCalMetric}
+                  options={[
+                    { value: 'r', label: 'R' },
+                    { value: 'pln', label: 'PLN' }
+                  ]}
+                />
+              )}
+            </span>
+          }
+          className="border-t"
+        >
+          <CalendarHeatmap days={data.calendar} from={calFrom} to={calTo} metric={showMoney ? calMetric : 'r'} onPick={(date) => navigate({ page: 'day', date })} />
         </Section>
       </div>
     </div>
   )
 }
 
-/** Monthly report of the whole journal (all pairs, regardless of the filters above): markdown or PDF. */
+/** Reports moved to their own page (Ctrl+9): a pointer for those who look for them here. */
 function ReportBar() {
-  const rows = useTradeRows()
-  const journal = useJournal((s) => s.journal)
-  const days = useJournal((s) => s.days)
-  const drafts = useJournal((s) => s.drafts)
-  const kept = useMemo(() => rows.filter((r) => !drafts[r.trade.id]), [rows, drafts])
-  const months = useMemo(() => reportMonths(kept), [kept])
-  const [picked, setPicked] = useState<string | null>(null)
-  const month = picked && months.includes(picked) ? picked : (months[0] ?? null)
-  const lead = useMemo(
-    () =>
-      journal && month
-        ? reportLead(
-            buildMonthlyReport(
-              kept,
-              Object.values(days).map((e) => e.record),
-              journal,
-              month
-            )
-          )
-        : null,
-    [kept, days, journal, month]
-  )
   return (
-    <div className="flex h-[34px] items-center gap-2 border-b border-line bg-panel px-3 text-[12px]" data-testid="monthly-report">
-      <span className="label">Raport miesięczny</span>
-      {month ? (
-        <>
-          <select className="input h-[24px] w-[150px]" value={month} onChange={(e) => setPicked(e.currentTarget.value)} aria-label="Miesiąc raportu" data-testid="report-month">
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {reportMonthLabel(m)}
-              </option>
-            ))}
-          </select>
-          <span className="num min-w-0 flex-1 truncate text-muted" title={lead ?? undefined} data-testid="report-lead">
-            {lead}
+    <div className="flex h-[30px] items-center gap-2 border-b border-line bg-panel px-3 text-[12px] text-muted" data-testid="reports-link">
+      Raporty (dowolny okres, wybrane sekcje, PIT-38, PDF / markdown) są na osobnej stronie:
+      <button className="text-accent hover:underline" onClick={() => navigate({ page: 'reports' })}>
+        Raporty (Ctrl+9)
+      </button>
+    </div>
+  )
+}
+
+type ComparePreset = 'week' | 'month' | 'quarter' | 'year' | 'custom'
+
+/** Two periods side by side: the current one (week / month / quarter / year containing today) and the one before, or own dates. */
+function ComparisonSection({ rows, journal, showMoney, be, estimates }: { rows: readonly AnalyzedTrade[]; journal: JournalFile; showMoney: boolean; be: number; estimates: boolean }) {
+  const [preset, setPreset] = useState<ComparePreset>('month')
+  const today = DateTime.fromISO(todayNy(), { zone: 'UTC' })
+  const [custom, setCustom] = useState<{ a: DateRange; b: DateRange }>(() => {
+    const a = { from: today.startOf('month').toISODate()!, to: today.toISODate()! }
+    return { a, b: previousRange(a) }
+  })
+  const unit = preset === 'custom' ? null : preset
+  const a: DateRange = unit ? { from: today.startOf(unit).toISODate()!, to: today.endOf(unit).toISODate()! } : custom.a
+  const b: DateRange = unit ? previousRange(a) : custom.b
+  const plnOf = useMemo(() => (showMoney ? plnByTrade(rows, journal, estimates) : undefined), [rows, journal, showMoney, estimates])
+  const [ma, mb] = useMemo(() => [periodMetrics(rows, a, be, plnOf), periodMetrics(rows, b, be, plnOf)], [rows, a.from, a.to, b.from, b.to, be, plnOf]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pctPts = (x: number | null, y: number | null) => (x == null || y == null ? null : (x - y) * 100)
+  const line = (label: string, va: string, vb: string, delta: number | null, fmt: (v: number) => string, betterUp = true) => (
+    <tr className="border-b border-line/50" data-testid="compare-row">
+      <td className="py-[3px] text-muted">{label}</td>
+      <td className="num text-right">{va}</td>
+      <td className="num text-right">{vb}</td>
+      <td className={cx('num text-right', delta == null || Math.abs(delta) < 1e-9 ? 'text-dim' : (delta > 0) === betterUp ? 'text-up' : 'text-down')}>
+        {delta == null ? '—' : fmt(delta)}
+      </td>
+    </tr>
+  )
+  const sgn = (v: number, d: number, unitText = '') => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}${unitText}`
+  return (
+    <div className="border-t border-line" data-testid="compare">
+      <Section
+        title={
+          <span className="flex items-center gap-2">
+            Porównanie okresów
+            <Segmented
+              size="sm"
+              value={preset}
+              onChange={setPreset}
+              options={[
+                { value: 'week', label: 'Tydzień' },
+                { value: 'month', label: 'Miesiąc' },
+                { value: 'quarter', label: 'Kwartał' },
+                { value: 'year', label: 'Rok' },
+                { value: 'custom', label: 'Własne' }
+              ]}
+            />
           </span>
-          <button className="btn h-[24px]" onClick={() => void deliverMonthlyReport(month, 'copy')} data-testid="report-copy">
-            Kopiuj markdown
-          </button>
-          <button className="btn h-[24px]" onClick={() => void deliverMonthlyReport(month, 'md')} data-testid="report-md">
-            Zapisz .md
-          </button>
-          <button className="btn h-[24px]" onClick={() => void deliverMonthlyReport(month, 'pdf')} data-testid="report-pdf">
-            Zapisz PDF
-          </button>
-        </>
-      ) : (
-        <span className="text-dim">brak transakcji</span>
-      )}
+        }
+      >
+        {preset === 'custom' && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px]">
+            <span className="text-muted">A</span>
+            <DateBox value={custom.a.from} placeholder="od" onChange={(v) => v && setCustom((c) => ({ ...c, a: { ...c.a, from: v } }))} />
+            <DateBox value={custom.a.to} placeholder="do" onChange={(v) => v && setCustom((c) => ({ ...c, a: { ...c.a, to: v } }))} />
+            <span className="ml-3 text-muted">B</span>
+            <DateBox value={custom.b.from} placeholder="od" onChange={(v) => v && setCustom((c) => ({ ...c, b: { ...c.b, from: v } }))} />
+            <DateBox value={custom.b.to} placeholder="do" onChange={(v) => v && setCustom((c) => ({ ...c, b: { ...c.b, to: v } }))} />
+          </div>
+        )}
+        <table className="w-full max-w-[760px] text-[12px]">
+          <thead>
+            <tr className="border-b border-line text-[10.5px] tracking-wide text-muted uppercase">
+              <th className="py-1 text-left font-normal" />
+              <th className="text-right font-normal" data-testid="compare-a">
+                {rangeLabel(a)}
+              </th>
+              <th className="text-right font-normal" data-testid="compare-b">
+                {rangeLabel(b)}
+              </th>
+              <th className="text-right font-normal">Zmiana</th>
+            </tr>
+          </thead>
+          <tbody>
+            {line('Transakcje', String(ma.trades), String(mb.trades), ma.trades - mb.trades, (v) => sgn(v, 0))}
+            {line('Win rate', fmtPercent(ma.winRate, 1), fmtPercent(mb.winRate, 1), pctPts(ma.winRate, mb.winRate), (v) => sgn(v, 1, ' pkt'))}
+            {line('Σ R', fmtR(ma.totalR), fmtR(mb.totalR), ma.totalR - mb.totalR, (v) => sgn(v, 2, 'R'))}
+            {line('Expectancy', fmtR(ma.expectancy), fmtR(mb.expectancy), ma.expectancy != null && mb.expectancy != null ? ma.expectancy - mb.expectancy : null, (v) => sgn(v, 2, 'R'))}
+            {line(
+              'Profit factor',
+              ma.profitFactor == null ? '—' : Number.isFinite(ma.profitFactor) ? fmtNum(ma.profitFactor) : '∞',
+              mb.profitFactor == null ? '—' : Number.isFinite(mb.profitFactor) ? fmtNum(mb.profitFactor) : '∞',
+              ma.profitFactor != null && mb.profitFactor != null && Number.isFinite(ma.profitFactor) && Number.isFinite(mb.profitFactor) ? ma.profitFactor - mb.profitFactor : null,
+              (v) => sgn(v, 2)
+            )}
+            {line('Max drawdown', `${ma.maxDrawdownR.toFixed(2)}R`, `${mb.maxDrawdownR.toFixed(2)}R`, ma.maxDrawdownR - mb.maxDrawdownR, (v) => sgn(v, 2, 'R'), false)}
+            {line('Śr. wygrana', fmtR(ma.avgWinR), fmtR(mb.avgWinR), ma.avgWinR != null && mb.avgWinR != null ? ma.avgWinR - mb.avgWinR : null, (v) => sgn(v, 2, 'R'))}
+            {line('Śr. strata', fmtR(ma.avgLossR), fmtR(mb.avgLossR), ma.avgLossR != null && mb.avgLossR != null ? ma.avgLossR - mb.avgLossR : null, (v) => sgn(v, 2, 'R'))}
+            {line('Zgodność z zasadami', fmtPercent(ma.compliance), fmtPercent(mb.compliance), pctPts(ma.compliance, mb.compliance), (v) => sgn(v, 1, ' pkt'))}
+            {showMoney &&
+              line(
+                'Wynik w PLN',
+                ma.pln == null ? '—' : fmtMoneyGrouped(ma.pln, 'PLN'),
+                mb.pln == null ? '—' : fmtMoneyGrouped(mb.pln, 'PLN'),
+                ma.pln != null || mb.pln != null ? (ma.pln ?? 0) - (mb.pln ?? 0) : null,
+                (v) => fmtMoneyGrouped(v, 'PLN')
+              )}
+          </tbody>
+        </table>
+        <div className="mt-1.5 text-[11px] text-dim">
+          Wybrane pary z paska u góry; daty porównania niezależne od zakresu u góry. Max drawdown – mniej znaczy lepiej.
+        </div>
+      </Section>
     </div>
   )
 }

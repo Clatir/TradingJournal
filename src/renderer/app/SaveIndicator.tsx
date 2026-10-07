@@ -13,7 +13,7 @@ export function SaveIndicator() {
     )
   const time = save.lastSavedAt ? new Date(save.lastSavedAt).toLocaleTimeString('pl-PL') : null
   return (
-    <span className={cx('num text-[11.5px]', save.pending ? 'text-accent' : 'text-muted')} data-testid="save-state">
+    <span className={cx('num text-[11.5px] whitespace-nowrap', save.pending ? 'text-accent' : 'text-muted')} data-testid="save-state">
       {save.pending ? 'zapisywanie…' : time ? `zapisano ${time}` : 'zapis automatyczny'}
     </span>
   )

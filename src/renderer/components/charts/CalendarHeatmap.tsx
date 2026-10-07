@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon'
 import type { CalendarDay } from '@shared/calc/analytics'
-import { fmtR } from '../../lib/format'
+import { fmtMoneyGrouped, fmtR } from '../../lib/format'
 
 const CELL = 13
 const GAP = 2
@@ -12,12 +12,25 @@ function color(r: number, max: number): string {
   return r > 0 ? `rgba(46,189,133,${k.toFixed(2)})` : `rgba(246,70,93,${k.toFixed(2)})`
 }
 
-/** Mon–Fri calendar of daily total R between two dates (weeks as columns). */
-export function CalendarHeatmap({ days, from, to, onPick }: { days: Map<string, CalendarDay>; from: string; to: string; onPick?: (date: string) => void }) {
+/** Mon–Fri calendar of the daily total in R (or in PLN) between two dates (weeks as columns). */
+export function CalendarHeatmap({
+  days,
+  from,
+  to,
+  onPick,
+  metric = 'r'
+}: {
+  days: Map<string, CalendarDay>
+  from: string
+  to: string
+  onPick?: (date: string) => void
+  metric?: 'r' | 'pln'
+}) {
   const start = DateTime.fromISO(from).startOf('week')
   const end = DateTime.fromISO(to)
   const weeks = Math.max(1, Math.ceil(end.diff(start, 'days').days / 7) + 1)
-  const max = Math.max(1, ...[...days.values()].map((d) => Math.abs(d.totalR)))
+  const value = (d: CalendarDay) => (metric === 'pln' ? d.pln : d.totalR)
+  const max = Math.max(metric === 'pln' ? 0.01 : 1, ...[...days.values()].map((d) => Math.abs(value(d) ?? 0)))
   const W = 28 + weeks * (CELL + GAP)
   const H = 16 + 5 * (CELL + GAP)
   const cells: React.ReactNode[] = []
@@ -45,12 +58,16 @@ export function CalendarHeatmap({ days, from, to, onPick }: { days: Map<string, 
           y={16 + d * (CELL + GAP)}
           width={CELL}
           height={CELL}
-          fill={info ? color(info.totalR, max) : '#161b21'}
+          fill={info ? (value(info) == null ? '#2b323b' : color(value(info)!, max)) : '#161b21'}
           stroke={info ? 'none' : '#1e232a'}
           className={onPick ? 'cursor-pointer' : undefined}
           onClick={() => onPick?.(iso)}
         >
-          <title>{info ? `${iso}: ${fmtR(info.totalR)} (${info.count} tr.)` : iso}</title>
+          <title>
+            {info
+              ? `${iso}: ${fmtR(info.totalR)}${info.pln != null ? ` · ${fmtMoneyGrouped(info.pln, 'PLN')}` : ''} (${info.count} tr.)`
+              : iso}
+          </title>
         </rect>
       )
     }

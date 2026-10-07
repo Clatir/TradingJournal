@@ -222,3 +222,11 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 16. `Ctrl+3` → „Krzywa zarobków (PLN) i drawdown” pod krzywą w R: transakcje z kwotą w PLN, w USD (kurs NBP z dnia
     przed zamknięciem albo dzisiejszy) i z samym ryzykiem % („≈”, pole „Szacuj transakcje bez kwoty”); obok wynik,
     max drawdown, najlepsza / najgorsza i „Transakcje w krzywej: N z M”.
+17. Ikona „Raporty” na pasku po lewej (`Ctrl+9`): okres „Rok” → 2026, „wszystkie” sekcje – w podglądzie porównanie
+    z 2025 i „PIT-38 – zestawienie orientacyjne” (przychód, koszty, miesiące, transakcje z kursem NBP). Odznacz
+    sekcję – znika z podglądu i z PDF / markdownu. Kwartał i własne daty działają tak samo.
+18. `Ctrl+6` → „Limity i cele”: cel tygodniowy 3R i limit dzienny 1,5% – w pasku u góry „tydz. …/3R” i „…%/−1.5%”.
+    Po przekroczeniu limitu `Ctrl+N` pyta „Kończę na dziś” / „Mimo to dodaj transakcję”; po odznaczeniu „Po przekroczeniu limitu
+    pytaj…” zostaje samo ostrzeżenie.
+19. `Ctrl+3` z widocznymi kwotami: kolumna PLN w rozbiciach (pary, sesje, dni tygodnia…), kalendarz R / PLN, sekcja
+    „Porównanie okresów” (tydzień / miesiąc / kwartał / rok / własne) z wynikiem w PLN.

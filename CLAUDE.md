@@ -311,6 +311,23 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   `display.showMoney` (`features/money.ts` `toggleMoney`); `toggleColumn` stawia ją za `r`. Lista przewija się w bok
   (`gridMinWidth` = minima kolumn + odstępy), gdy kolumny nie mieszczą się obok podglądu.
 
+## Raporty, cele, porównanie, PIT-38 (1.5.0)
+- Strona Raporty (`features/reports/ReportsPage.tsx`, ikona na pasku, `Ctrl+9`): okres miesiąc / kwartał / rok / własny
+  (`shared/calc/periods.ts`: `monthRange`, `quarterRange`, `yearRange`, `previousRange` – całe miesiące przesuwane
+  o miesiące, inaczej o dni –, `rangeLabel`, `periodMetrics`), sekcje `REPORT_SECTIONS` (wybór w localStorage
+  `ictj.report.sections`, kolejność zawsze raportu). `buildReport(rows, days, journal, range)` (okres > 62 dni →
+  podział na miesiące), `reportSections(r, include)` → podgląd, `monthlyReportMarkdown/Html(r, include)`;
+  `buildMonthlyReport` = miesiąc. Nazwy plików `raport_RRRR-MM`, `raport_RRRR`, `raport_od_do`.
+- PIT-38 (`shared/calc/tax.ts`, `taxSummary`): data zamknięcia w Warszawie (`transactionDate`) w zakresie, tylko kwoty
+  własne (`pnlAmountOwn`), kurs PLN = 1 → `historicalRate` → `rateFor` (orientacyjny, `rateDate` null), grosze.
+- Cele (`settings.goals`, addytywne: `dailyLossPercent`, `weeklyLossLimitR`, `weeklyTargetR`, `monthlyTargetR`, `ask`),
+  `shared/calc/goals.ts` (`goalState`: dzień z `dailyLimitState` + % konta = Σ R × (ryzyko % ?? domyślne), tydzień ISO
+  i miesiąc NY, `alerts`), `useGoals` w `store/derived.ts`, pasek górny, panel „Limity i cele” w kalkulatorze.
+  `newTrade('trade')` przy alertach i `goals.ask` → `LimitPromptDialog` (`features/goals/LimitPrompt.tsx`).
+- PLN w Analityce: `tradePln` / `plnByTrade` (`calc/plnCurve.ts`, jak krzywa PLN, z szacunkiem wg pola w panelu
+  PLN) → `breakdowns`/`customFieldBreakdowns`/`calendarDays(…, plnOf)` (`Group.pln`, `plnCount`; `GroupTable money`,
+  `CalendarHeatmap metric`). Porównanie okresów: `ComparisonSection` w `AnalyticsPage`.
+
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
 - Scenariusz prognozy: nowe `id` (także celów), nazwa „(kopia)”, „(kopia 2)”…, te same losowania; zapisany od razu.
@@ -376,6 +393,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 10. ✅ 1.4.0: sesje analizy portfolio (stoper, decyzje, powody odrzucenia, pytanie o odrzucone, analityka i raport),
     dwa komputery naraz (scalanie / pytanie), historia zmian z przywracaniem, szablony planu dnia, samopoczucie, mapa
     godzin, trening na kartach, własne pola, kolumny i zapisane filtry (`tests/e2e/v14.spec.ts`).
+11. ✅ 1.5.0: strona Raporty (okres, sekcje), PIT-38 orientacyjnie, cele i limity z pytaniem, porównanie okresów,
+    PLN w rozbiciach i kalendarzu (`tests/e2e/v15.spec.ts`, `tests/unit/reports-goals.test.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

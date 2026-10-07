@@ -5,7 +5,7 @@ import { lotDecimals, positionSize, takeProfitResult } from '@shared/calc/positi
 import { rateFor } from '@shared/fx'
 import { calculatorCurrency } from '@shared/risk'
 import { fmtAmount, fmtMoney, fmtR, tone, toneClass } from '../../lib/format'
-import { metricsFor, useDailyLimits } from '../../store/derived'
+import { metricsFor, useGoals } from '../../store/derived'
 import { updateJournal, updateRecord, useJournal } from '../../store/journal'
 import { navigate, toast } from '../../store/ui'
 import { Cell, CurrencyInput, Field, NumberField, Panel, cx } from '../../components/ui'
@@ -38,7 +38,8 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
     if (trade) setTradeTpPips(clean)
     else useTakeProfit.setState({ tpPips: clean })
   }
-  const limits = useDailyLimits(new Date().toISOString())
+  const goals = useGoals(new Date().toISOString())
+  const limits = goals?.daily ?? null
 
   if (!journal || !settings) return null
   const pairCfg = settings.pairs.find((p) => p.symbol === pair)
@@ -70,6 +71,8 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
 
   const lotDec = lotDecimals(settings.risk.lotStep)
   const setRisk = (patch: Partial<typeof settings.risk>) => updateJournal((j) => ({ ...j, settings: { ...j.settings, risk: { ...j.settings.risk, ...patch } } }))
+  const setGoals = (patch: Partial<typeof settings.goals>) => updateJournal((j) => ({ ...j, settings: { ...j.settings, goals: { ...j.settings.goals, ...patch } } }))
+  const positive = (v: number | null) => (v != null && v > 0 ? v : null)
 
   const apply = () => {
     if (!tradeId || !result) return
@@ -186,8 +189,8 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
           from={trade && tradeId ? { key: tradeId, instrument: trade.pair, lots: trade.lots, stopPips: initialStop != null ? Number(initialStop.toFixed(1)) : null } : undefined}
         />
 
-        <Panel title="Limity dzienne" className="col-span-2">
-          <div className="grid grid-cols-[1fr_1fr_1.4fr] items-start gap-4">
+        <Panel title="Limity i cele" className="col-span-2" data-testid="goals-panel">
+          <div className="grid grid-cols-[1fr_1fr_1fr_1.4fr] items-start gap-4">
             <Field label="Limit straty (R)">
               <NumberField
                 value={settings.risk.dailyLossLimitR}
@@ -206,8 +209,17 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                 placeholder="brak"
               />
             </Field>
+            <Field label="Limit straty dziennie (% konta)">
+              <NumberField
+                value={settings.goals.dailyLossPercent}
+                onChange={(v) => setGoals({ dailyLossPercent: v != null && v > 0 && v <= 100 ? v : null })}
+                step={0.5}
+                placeholder="brak"
+                data-testid="goal-daily-percent"
+              />
+            </Field>
             {limits && (
-              <div className="flex flex-col gap-1 text-[12px]">
+              <div className="row-span-2 flex flex-col gap-1 text-[12px]">
                 <span className="text-muted">Dziś ({limits.date}, data NY)</span>
                 <span>
                   Wynik:{' '}
@@ -227,6 +239,40 @@ export function CalculatorPage({ tradeId }: { tradeId?: string }) {
                 {settings.display.showMoney && limits.trades > 0 && balance != null && (
                   <span className="text-dim">≈ {fmtMoney(limits.totalR * balance * (settings.risk.defaultRiskPercent / 100), cur)} przy ryzyku domyślnym</span>
                 )}
+              </div>
+            )}
+            <Field label="Limit straty w tygodniu (R)">
+              <NumberField value={settings.goals.weeklyLossLimitR} onChange={(v) => setGoals({ weeklyLossLimitR: positive(v) })} step={0.5} placeholder="brak" data-testid="goal-week-loss" />
+            </Field>
+            <Field label="Cel tygodnia (R)">
+              <NumberField value={settings.goals.weeklyTargetR} onChange={(v) => setGoals({ weeklyTargetR: positive(v) })} step={0.5} placeholder="brak" data-testid="goal-week-target" />
+            </Field>
+            <Field label="Cel miesiąca (R)">
+              <NumberField value={settings.goals.monthlyTargetR} onChange={(v) => setGoals({ monthlyTargetR: positive(v) })} step={1} placeholder="brak" data-testid="goal-month-target" />
+            </Field>
+            <label className="col-span-3 flex items-center gap-1.5 text-[12px]">
+              <input type="checkbox" checked={settings.goals.ask} onChange={(e) => setGoals({ ask: e.currentTarget.checked })} data-testid="goal-ask" />
+              Po przekroczeniu limitu pytaj przed dodaniem nowej transakcji (inaczej tylko ostrzeżenie)
+            </label>
+            {goals && (
+              <div className="col-span-4 flex flex-wrap gap-x-5 gap-y-1 text-[12px]" data-testid="goals-status">
+                {goals.dailyLossPercent != null && (
+                  <span>
+                    Dziś w % konta: <span className={cx('num', toneClass[tone(goals.dailyPercent)])}>{goals.dailyPercent.toFixed(2)}%</span>
+                    <span className="num text-dim"> / limit −{goals.dailyLossPercent}%</span>
+                  </span>
+                )}
+                <span>
+                  Tydzień {goals.week.from} – {goals.week.to}: <span className={cx('num', toneClass[tone(goals.week.totalR)])}>{fmtR(goals.week.totalR)}</span>
+                  {goals.week.targetR != null && <span className="num text-dim"> / cel {goals.week.targetR}R</span>}
+                  {goals.week.targetReached && <span className="text-up"> – cel osiągnięty</span>}
+                  {goals.week.lossLimitHit && <span className="text-accent"> – tygodniowy limit straty osiągnięty</span>}
+                </span>
+                <span>
+                  Miesiąc: <span className={cx('num', toneClass[tone(goals.month.totalR)])}>{fmtR(goals.month.totalR)}</span>
+                  {goals.month.targetR != null && <span className="num text-dim"> / cel {goals.month.targetR}R</span>}
+                  {goals.month.targetReached && <span className="text-up"> – cel osiągnięty</span>}
+                </span>
               </div>
             )}
           </div>

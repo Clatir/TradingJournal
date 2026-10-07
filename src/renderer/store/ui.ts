@@ -11,6 +11,7 @@ export type Route =
   | { page: 'calculator'; tradeId?: string }
   | { page: 'forecast'; id?: string }
   | { page: 'drill' }
+  | { page: 'reports' }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 

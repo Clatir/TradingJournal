@@ -10,16 +10,18 @@ import { DayPlanPage, todayNy } from '../features/day/DayPlanPage'
 import { CalculatorPage } from '../features/calculator/CalculatorPage'
 import { ForecastPage } from '../features/forecast/ForecastPage'
 import { DrillPage } from '../features/drill/DrillPage'
+import { ReportsPage } from '../features/reports/ReportsPage'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { LibraryPage } from '../features/library/LibraryPage'
 import { WeekPage, currentWeek } from '../features/week/WeekPage'
 import { copyMarkdownForRoute } from '../features/export/markdownActions'
 import { CommandPalette, toggleMoney } from '../features/palette/CommandPalette'
+import { LimitPromptDialog } from '../features/goals/LimitPrompt'
 import { newTrade } from '../features/trade/actions'
 import { duplicateCurrent } from '../features/duplicate'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconSync, IconTarget, IconWeek } from '../components/icons'
+import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconReport, IconSync, IconTarget, IconWeek } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -83,6 +85,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '8') {
         e.preventDefault()
         navigate({ page: 'drill' })
+      } else if (e.key === '9') {
+        e.preventDefault()
+        navigate({ page: 'reports' })
       } else if (e.key === ',') {
         e.preventDefault()
         navigate({ page: 'settings' })
@@ -146,6 +151,8 @@ function Page({ route }: { route: Route }) {
       return <ForecastPage id={route.id} />
     case 'drill':
       return <DrillPage />
+    case 'reports':
+      return <ReportsPage />
     case 'settings':
       return <SettingsPage />
     case 'sync':
@@ -198,6 +205,9 @@ export function App() {
           <NavButton active={route.page === 'drill'} onClick={() => navigate({ page: 'drill' })} label="Trening" keys="Ctrl+8" testId="nav-drill">
             <IconTarget size={17} />
           </NavButton>
+          <NavButton active={route.page === 'reports'} onClick={() => navigate({ page: 'reports' })} label="Raporty" keys="Ctrl+9" testId="nav-reports">
+            <IconReport size={17} />
+          </NavButton>
           <NavButton active={false} onClick={() => newTrade()} label="Nowa" keys="Ctrl+N" testId="nav-new">
             <IconPlus size={17} />
           </NavButton>
@@ -227,6 +237,7 @@ export function App() {
         </main>
       </div>
       <CommandPalette />
+      <LimitPromptDialog />
       <ShortcutsHelp />
       <RemoteChangesDialog />
       <DecisionsDialog />

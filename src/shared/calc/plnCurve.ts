@@ -57,6 +57,38 @@ function toPln(amount: number, currency: string, r: AnalyzedTrade, journal: Pick
   return current ? { pln: amount * current.rate, rate: 'current' } : null
 }
 
+export type TradePln =
+  | { pln: number; estimated: boolean; rate: 'none' | 'historical' | 'current' }
+  | { pln: null; missing: 'amount' | 'rate'; currency: string | null }
+
+/**
+ * One closed trade's result in PLN: its own amount at the NBP table of the day before the closing (else today's
+ * rate); without an amount optionally the estimate R × risk % × balance (converted from the account currency).
+ */
+export function tradePln(r: AnalyzedTrade, journal: Pick<JournalFile, 'settings'>, estimates: boolean): TradePln {
+  const own = resultInPln(r, journal)
+  if (own.hasAmount) {
+    if (own.pln == null) return { pln: null, missing: 'rate', currency: own.currency }
+    return { pln: own.pln, estimated: false, rate: own.rate ?? 'none' }
+  }
+  const estimate = estimates ? estimateAmount(r.trade, r.m, journal.settings.risk) : null
+  if (estimate == null) return { pln: null, missing: 'amount', currency: null }
+  const account = journal.settings.risk.accountCurrency
+  const converted = toPln(estimate, account, r, journal)
+  if (!converted) return { pln: null, missing: 'rate', currency: account }
+  return { pln: converted.pln, estimated: true, rate: converted.rate }
+}
+
+/** PLN result by trade id (closed trades with a known amount or estimate) – for breakdowns and the calendar. */
+export function plnByTrade(rows: readonly AnalyzedTrade[], journal: Pick<JournalFile, 'settings'>, estimates: boolean): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const r of closedTrades(rows)) {
+    const x = tradePln(r, journal, estimates)
+    if (x.pln != null) out.set(r.trade.id, x.pln)
+  }
+  return out
+}
+
 export function plnCurve(rows: readonly AnalyzedTrade[], journal: Pick<JournalFile, 'settings'>, opts: { estimates: boolean }): PlnCurve {
   const closed = [...closedTrades(rows)].sort((a, b) => {
     const ta = closeTime(a)
@@ -87,45 +119,27 @@ export function plnCurve(rows: readonly AnalyzedTrade[], journal: Pick<JournalFi
   const wins: number[] = []
   const losses: number[] = []
   for (const r of closed) {
-    let pln: number
-    let estimated = false
-    let rate: 'none' | 'historical' | 'current'
-    const own = resultInPln(r, journal)
-    if (own.hasAmount) {
-      if (own.pln == null) {
+    const x = tradePln(r, journal, opts.estimates)
+    if (x.pln == null) {
+      if (x.missing === 'amount') out.noAmount++
+      else {
         out.withoutRate++
-        if (own.currency) missing.add(own.currency)
-        continue
+        if (x.currency) missing.add(x.currency)
       }
-      pln = own.pln
-      rate = own.rate ?? 'none'
-    } else {
-      const estimate = opts.estimates ? estimateAmount(r.trade, r.m, journal.settings.risk) : null
-      if (estimate == null) {
-        out.noAmount++
-        continue
-      }
-      const converted = toPln(estimate, journal.settings.risk.accountCurrency, r, journal)
-      if (!converted) {
-        out.withoutRate++
-        missing.add(journal.settings.risk.accountCurrency)
-        continue
-      }
-      pln = converted.pln
-      rate = converted.rate
-      estimated = true
+      continue
     }
-    if (estimated) out.estimated++
+    const pln = x.pln
+    if (x.estimated) out.estimated++
     else out.exact++
-    if (rate === 'historical') out.historical++
-    else if (rate === 'current') out.current++
+    if (x.rate === 'historical') out.historical++
+    else if (x.rate === 'current') out.current++
     equity += pln
     peak = Math.max(peak, equity)
     out.maxDrawdown = Math.max(out.maxDrawdown, peak - equity)
     let t = Math.floor(Date.parse(closeTime(r)) / 1000)
     if (t <= last) t = last + 1
     last = t
-    out.points.push({ time: t, equity, drawdown: equity - peak, pln, tradeId: r.trade.id, estimated })
+    out.points.push({ time: t, equity, drawdown: equity - peak, pln, tradeId: r.trade.id, estimated: x.estimated })
     out.best = out.best == null ? pln : Math.max(out.best, pln)
     out.worst = out.worst == null ? pln : Math.min(out.worst, pln)
     if (pln > 0) wins.push(pln)

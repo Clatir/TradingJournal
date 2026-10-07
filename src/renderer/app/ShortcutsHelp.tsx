@@ -28,6 +28,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl 6', 'kalkulator pozycji'],
       ['Ctrl 7', 'prognoza wypłat'],
       ['Ctrl 8', 'trening (karty)'],
+      ['Ctrl 9', 'raporty (okres, sekcje, PDF / markdown)'],
       ['Ctrl ,', 'ustawienia']
     ]
   },

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { formatClock, primaryKillzone } from '@shared/calc/time'
 import type { Killzone } from '@shared/schema'
 import { useJournal } from '../store/journal'
-import { useDailyLimits } from '../store/derived'
+import { useGoals } from '../store/derived'
 import { fmtR } from '../lib/format'
 import { navigate, setPalette } from '../store/ui'
 import { IconSearch } from '../components/icons'
@@ -29,8 +29,9 @@ export function TopBar() {
   const iso = now.toISOString()
   const kz = primaryKillzone(iso, killzones)
   const secs = String(now.getUTCSeconds()).padStart(2, '0')
-  const limits = useDailyLimits(iso.slice(0, 16))
-  const hit = !!limits && (limits.lossLimitHit || limits.maxTradesHit)
+  const goals = useGoals(iso.slice(0, 16))
+  const limits = goals?.daily ?? null
+  const hit = !!goals && goals.alerts.length > 0
   return (
     <header className="flex h-[32px] shrink-0 items-center gap-4 border-b border-line bg-panel pr-3 pl-3">
       <span className="text-[12px] font-semibold tracking-wide text-fg-strong">
@@ -41,7 +42,7 @@ export function TopBar() {
           DEMO · dane przykładowe
         </span>
       ) : (
-        <span className="max-w-[420px] truncate text-[11px] text-dim" title={status?.dataDir}>
+        <span className="min-w-0 max-w-[420px] truncate text-[11px] text-dim" title={status?.dataDir}>
           {status?.dataDir}
         </span>
       )}
@@ -51,9 +52,12 @@ export function TopBar() {
         <SaveIndicator />
         {limits && (
           <button
-            className={cx('num flex items-center gap-2 border px-2 text-[11.5px]', hit ? 'border-accent/60 bg-accent-soft text-accent' : 'border-transparent text-muted hover:text-fg-strong')}
+            className={cx('num flex shrink-0 items-center gap-2 border px-2 text-[11.5px] whitespace-nowrap', hit ? 'border-accent/60 bg-accent-soft text-accent' : 'border-transparent text-muted hover:text-fg-strong')}
             onClick={() => navigate({ page: 'calculator' })}
-            title="Wynik i liczba transakcji dziś (data NY) względem limitów dziennych"
+            title={[
+              'Dziś (data NY): wynik i liczba transakcji względem limitów dziennych; tydzień i miesiąc względem celów.',
+              ...(goals?.alerts ?? [])
+            ].join('\n')}
             data-testid="daily-limits"
           >
             <span>dziś</span>
@@ -65,6 +69,24 @@ export function TopBar() {
               {limits.trades}
               {limits.maxTrades != null && <span className="text-dim">/{limits.maxTrades}</span>}
             </span>
+            {goals && goals.dailyLossPercent != null && (
+              <span className={hit ? '' : 'text-fg-strong'} data-testid="goal-day-percent">
+                {goals.dailyPercent >= 0 ? '+' : '−'}
+                {Math.abs(goals.dailyPercent).toFixed(1)}%<span className="text-dim">/−{goals.dailyLossPercent}%</span>
+              </span>
+            )}
+            {goals && (goals.week.targetR != null || goals.week.lossLimitR != null) && (
+              <span className={cx(goals.week.targetReached ? 'text-up' : hit ? '' : 'text-fg-strong')} data-testid="goal-week">
+                <span className="text-dim">tydz.</span> {fmtR(goals.week.totalR, 1)}
+                {goals.week.targetR != null && <span className="text-dim">/{goals.week.targetR}R</span>}
+              </span>
+            )}
+            {goals && goals.month.targetR != null && (
+              <span className={cx(goals.month.targetReached ? 'text-up' : hit ? '' : 'text-fg-strong')} data-testid="goal-month">
+                <span className="text-dim">mies.</span> {fmtR(goals.month.totalR, 1)}
+                <span className="text-dim">/{goals.month.targetR}R</span>
+              </span>
+            )}
           </button>
         )}
         <div className="flex items-center gap-3 num text-[12px]" data-testid="clock">
