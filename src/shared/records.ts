@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { formatDateTime } from './calc/time'
 import { round, tradeMetrics, metricsContext } from './calc/trade'
 import { validateTrade } from './calc/validator'
+import { continuationCheck, continuationDetail, type TradeLookup } from './calc/continuation'
 import { migrateRaw, SchemaTooNewError } from './migrations'
 import type { Collection, FileKind } from './paths'
 import { dayPlanSchema, type DayPlan } from './schema/day'
@@ -78,19 +79,23 @@ export interface SerializeContext {
   settings: Settings
   /** Day plan of the trade's trading date (for the HTF-bias and news rules). */
   dayPlan?: DayPlan | null
+  /** Other trades by id (a re-opened trade takes the killzone rule from the one it continues). */
+  trade?: TradeLookup
 }
 
 /** Human-readable derived values stored alongside a trade (ignored on read). */
 export function tradeComputed(trade: Trade, ctx: SerializeContext): Record<string, unknown> {
   const settings = ctx.settings
   const m = tradeMetrics(trade, metricsContext(settings))
-  const v = validateTrade(trade, m, settings, ctx.dayPlan ?? null)
+  const continuation = ctx.trade ? continuationCheck(trade, ctx.trade, settings.killzones) : null
+  const v = validateTrade(trade, m, settings, ctx.dayPlan ?? null, continuation)
   return {
     note: 'Pola wyliczane automatycznie przy zapisie - edycja nie ma wpływu.',
     tradingDateNy: m.tradingDate,
     entryNy: formatDateTime(trade.entryTime, 'NY'),
     entryWarsaw: formatDateTime(trade.entryTime, 'WAW'),
     killzones: m.killzoneNames,
+    ...(continuation ? { continuation: continuation.ok ? continuationDetail(continuation) : `nie: ${continuation.reason}` } : {}),
     riskPips: r1(m.riskPips),
     rrTp1: r2(m.rrTp1),
     rrTp2: r2(m.rrTp2),

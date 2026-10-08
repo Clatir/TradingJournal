@@ -48,7 +48,13 @@ function cell(col: ColumnDef, row: TradeRow, journal: JournalFile | null, be: nu
     case 'direction':
       return <span className={t.direction === 'long' ? 'text-fg-strong' : 'text-fg'}>{t.direction === 'long' ? 'Long' : 'Short'}</span>
     case 'killzone':
-      return <span className="truncate text-muted">{m.killzoneNames.join(', ') || '—'}</span>
+      return row.continuation ? (
+        <span className="truncate text-muted" title="Kontynuacja: transakcja otwarta ponownie po zamknięciu – killzone z pierwszego wejścia" data-testid="row-continuation">
+          ↻ {m.killzoneNames.join(', ') || 'kontynuacja'}
+        </span>
+      ) : (
+        <span className="truncate text-muted">{m.killzoneNames.join(', ') || '—'}</span>
+      )
     case 'model':
       return <span className="truncate">{dictName(journal, 'entryModels', t.entryModelId) || <span className="text-dim">—</span>}</span>
     case 'status':

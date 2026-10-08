@@ -174,6 +174,19 @@ export function AnalyticsPage() {
           </Section>
         </div>
 
+        {data.breakdowns.entry.some((g) => g.key === 'reopen') && (
+          <div className="grid grid-cols-3 border-t border-line" data-testid="reopen-breakdown">
+            <Section title="Ponowne otwarcia" className="border-r">
+              <GroupTable groups={data.breakdowns.entry} be={be} labelHeader="Wejście" money={showMoney} />
+            </Section>
+            <div className="col-span-2 p-3 text-[12px] text-muted">
+              Pozycje zamknięte i otwarte ponownie („↻ Otwórz ponownie” w transakcji) osobno od pierwszych wejść: czy powroty do
+              pozycji zarabiają, czy oddają zysk. Kontynuacja w tym samym dniu handlowym NY bierze killzone z pierwszego wejścia
+              i nie liczy się do dziennego limitu transakcji.
+            </div>
+          </div>
+        )}
+
         {data.custom.length > 0 && (
           <div className="grid grid-cols-3 border-t border-line" data-testid="custom-breakdowns">
             {data.custom.map(({ field, groups }, i) => (

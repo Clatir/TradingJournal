@@ -230,3 +230,7 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     pytaj…” zostaje samo ostrzeżenie.
 19. `Ctrl+3` z widocznymi kwotami: kolumna PLN w rozbiciach (pary, sesje, dni tygodnia…), kalendarz R / PLN, sekcja
     „Porównanie okresów” (tydzień / miesiąc / kwartał / rok / własne) z wynikiem w PLN.
+20. Zamknięta transakcja → „↻ Otwórz ponownie”: nowy wpis z tą samą parą, kierunkiem, SL i celami; w Walidatorze
+    „Wejście w killzone: kontynuacja wejścia z …”. Zmień datę wejścia na następny dzień – „Nie liczy się jako
+    kontynuacja” i zasada złamana. Transakcja dodana ręcznie po zamknięciu innej (ta sama para i kierunek, ten sam
+    dzień NY) – podpowiedź „to jej ponowne otwarcie?”. W dzienniku ↻, w Analityce tabela „Ponowne otwarcia”.

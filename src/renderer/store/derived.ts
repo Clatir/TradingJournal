@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import type { RecordEntry } from '@shared/api'
 import { metricsContext, tradeMetrics, type TradeMetrics } from '@shared/calc/trade'
 import { dailyLimitState, validateTrade, type DailyLimitState, type ValidationResult } from '@shared/calc/validator'
-import { goalState, type GoalState } from '@shared/calc/goals'
+import { goalState, type GoalEntry, type GoalState } from '@shared/calc/goals'
+import { continuationCheck, type ContinuationCheck } from '@shared/calc/continuation'
 import { tradingDateNy } from '@shared/calc/time'
 import type { DayPlan, DictionaryKey, DictItem, JournalFile, Settings, Trade } from '@shared/schema'
 import { useJournal } from './journal'
@@ -13,6 +14,8 @@ export interface TradeRow {
   readOnly: boolean
   m: TradeMetrics
   v: ValidationResult
+  /** A valid continuation of an earlier closed trade (re-opened the same NY trading day). */
+  continuation: boolean
 }
 
 let metricsCache = new WeakMap<Trade, TradeMetrics>()
@@ -31,19 +34,31 @@ export function metricsFor(trade: Trade, settings: Settings): TradeMetrics {
   return m
 }
 
-let validationCache = new WeakMap<Trade, { day: DayPlan | null; v: ValidationResult }>()
+let validationCache = new WeakMap<Trade, { day: DayPlan | null; chain: readonly Trade[]; v: ValidationResult }>()
 let validationSettings: Settings | null = null
 
-export function validationFor(trade: Trade, m: TradeMetrics, settings: Settings, day: DayPlan | null): ValidationResult {
+export function validationFor(trade: Trade, m: TradeMetrics, settings: Settings, day: DayPlan | null, continuation: ContinuationCheck | null = null): ValidationResult {
   if (settings !== validationSettings) {
     validationCache = new WeakMap()
     validationSettings = settings
   }
+  // A re-opened trade depends on the trades it continues as well.
+  const chain = continuation?.chain ?? []
   const hit = validationCache.get(trade)
-  if (hit && hit.day === day) return hit.v
-  const v = validateTrade(trade, m, settings, day)
-  validationCache.set(trade, { day, v })
+  if (hit && hit.day === day && hit.chain.length === chain.length && hit.chain.every((t, i) => t === chain[i])) return hit.v
+  const v = validateTrade(trade, m, settings, day, continuation)
+  validationCache.set(trade, { day, chain, v })
   return v
+}
+
+/** Continuation check of a trade against the journal's trades (by id). */
+export function continuationFor(trade: Trade, trades: Record<string, RecordEntry<Trade>>, settings: Settings): ContinuationCheck | null {
+  return trade.continuationOf ? continuationCheck(trade, (id) => trades[id]?.record, settings.killzones) : null
+}
+
+/** Rows as entries for limits and goals. */
+export function goalEntries(rows: readonly TradeRow[]): GoalEntry[] {
+  return rows.map((r) => ({ status: r.trade.status, tradingDate: r.m.tradingDate, resultR: r.m.resultR, riskPercent: r.trade.riskPercent, continuation: r.continuation }))
 }
 
 let dayIndexCache: { days: unknown; index: Map<string, DayPlan> } | null = null
@@ -64,7 +79,8 @@ export function computeRows(trades: Record<string, RecordEntry<Trade>>, days: Re
   const rows = Object.values(trades)
     .map((e) => {
       const m = metricsFor(e.record, settings)
-      return { trade: e.record, relPath: e.relPath, readOnly: e.readOnly, m, v: validationFor(e.record, m, settings, index.get(m.tradingDate) ?? null) }
+      const c = continuationFor(e.record, trades, settings)
+      return { trade: e.record, relPath: e.relPath, readOnly: e.readOnly, m, v: validationFor(e.record, m, settings, index.get(m.tradingDate) ?? null, c), continuation: !!c?.ok }
     })
     .sort((a, b) => (a.trade.entryTime < b.trade.entryTime ? 1 : a.trade.entryTime > b.trade.entryTime ? -1 : 0))
   rowsCache = { trades, days, settings, rows }
@@ -95,11 +111,7 @@ export function useGoals(nowIso: string): GoalState | null {
   return useMemo(
     () =>
       settings
-        ? goalState(
-            date,
-            rows.map((r) => ({ status: r.trade.status, tradingDate: r.m.tradingDate, resultR: r.m.resultR, riskPercent: r.trade.riskPercent })),
-            settings
-          )
+        ? goalState(date, goalEntries(rows), settings)
         : null,
     [rows, settings, date]
   )
@@ -111,7 +123,7 @@ export function useDailyLimits(nowIso: string): DailyLimitState | null {
   const settings = useSettings()
   const date = tradingDateNy(nowIso)
   return useMemo(
-    () => (settings ? dailyLimitState(date, rows.map((r) => ({ status: r.trade.status, tradingDate: r.m.tradingDate, resultR: r.m.resultR })), settings) : null),
+    () => (settings ? dailyLimitState(date, goalEntries(rows), settings) : null),
     [rows, settings, date]
   )
 }

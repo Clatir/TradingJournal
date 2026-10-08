@@ -92,6 +92,11 @@ export const tradeSchema = z.looseObject({
   /** Since 1.3.0; null = not imported from a broker's history. */
   broker: brokerFillSchema.nullable().default(null),
   /** Values of the user's own fields by field id (since 1.4.0): text, number, option id or yes/no. */
-  custom: z.record(z.string().max(40), z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])).default({})
+  custom: z.record(z.string().max(40), z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()])).default({}),
+  /**
+   * Since 1.5.1: id of the closed trade this one re-opens (the same position continued after a hasty close). The
+   * killzone rule then follows the first entry while the re-open is within the New York trading day of the close.
+   */
+  continuationOf: ulidSchema.nullable().default(null)
 })
 export type Trade = z.infer<typeof tradeSchema>

@@ -149,3 +149,58 @@ test('analityka: PLN w rozbiciach i kalendarzu, porównanie okresów', async () 
     await app.close()
   }
 })
+
+test('ponowne otwarcie zamkniętej pozycji: kontynuacja bierze killzone z pierwszego wejścia do końca dnia NY', async () => {
+  // First entry 08:00 NY (New York killzone), closed 11:00 NY; a re-entry 15:00 NY (21:00 Warsaw) not linked yet.
+  const first = closedTrade('2026-10-06', 1)
+  const loose = closedTrade('2026-10-06', -1, {
+    entryTime: '2026-10-06T19:00:00.000Z',
+    exits: [{ id: '01K6H3Z0W8Q4M2N5P7R9S1T3V6', time: '2026-10-06T20:00:00.000Z', price: 1.079, percent: 100, note: '' }]
+  })
+  const dataDir = await seed([first, loose])
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(2)
+    await page.getByTestId('journal-row').filter({ hasText: '15:00' }).dblclick()
+    await expect(page.getByTestId('rule-killzone')).toHaveAttribute('data-status', 'fail')
+    // Suggested: the same pair and direction closed earlier the same NY day.
+    await expect(page.getByTestId('continuation-suggest')).toContainText('EURUSD long zamknięta dziś o 11:00 NY')
+    await page.getByTestId('continuation-accept').click()
+    await expect(page.getByTestId('continuation-status')).toContainText('Kontynuacja transakcji z 08:00 NY')
+    await expect(page.getByTestId('rule-killzone')).toHaveAttribute('data-status', 'pass')
+    await expect(page.getByTestId('rule-killzone')).toContainText('kontynuacja wejścia z New York (08:00 NY)')
+    const file = join(dataDir, 'trades', '2026', `2026-10-06_EURUSD_${loose.id}.json`)
+    await expect.poll(async () => JSON.parse(await fs.readFile(file, 'utf8')).continuationOf, { timeout: 8000 }).toBe(first.id)
+    await expect.poll(async () => JSON.parse(await fs.readFile(file, 'utf8')).computed.brokenRules, { timeout: 8000 }).toEqual([])
+    await page.screenshot({ path: shots('77-kontynuacja') })
+
+    // The first trade lists its re-entry; "Otwórz ponownie" creates another one, linked.
+    await page.getByTestId('continuation-open').click()
+    await expect(page.getByTestId('continuation-child')).toHaveCount(1)
+    await page.getByTestId('reopen-trade').click()
+    await expect(page.getByTestId('continuation-info')).toBeVisible()
+    await expect(page.getByTestId('price-sl')).toHaveValue('1.07900')
+    await page.getByTestId('entry-time-NY-date').fill('2026-10-06')
+    await page.getByTestId('entry-time-NY-date').press('Enter')
+    await page.getByTestId('entry-time-NY-time').fill('2330')
+    await page.getByTestId('entry-time-NY-time').press('Enter')
+    await expect(page.getByTestId('rule-killzone')).toHaveAttribute('data-status', 'pass')
+    // The next NY day is a new entry.
+    await page.getByTestId('entry-time-NY-date').fill('2026-10-07')
+    await page.getByTestId('entry-time-NY-date').press('Enter')
+    await page.getByTestId('entry-time-NY-time').fill('1200')
+    await page.getByTestId('entry-time-NY-time').press('Enter')
+    await expect(page.getByTestId('continuation-status')).toContainText('Nie liczy się jako kontynuacja: otwarta ponownie po dniu handlowym NY zamknięcia (2026-10-06)')
+    await expect(page.getByTestId('rule-killzone')).toHaveAttribute('data-status', 'fail')
+    await page.getByTestId('continuation-clear').click()
+    await expect(page.getByTestId('continuation-info')).toHaveCount(0)
+
+    await page.keyboard.press('Control+1')
+    await expect(page.getByTestId('row-continuation')).toHaveCount(1)
+    await page.keyboard.press('Control+3')
+    await expect(page.getByTestId('reopen-breakdown')).toContainText('Ponowne otwarcie')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})

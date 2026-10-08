@@ -17,7 +17,9 @@ export function duplicateTrade(trade: Trade, now: string): Trade {
     updatedAt: now,
     exits: copy.exits.map((x) => ({ ...x, id: newId() })),
     // The copy is not the broker's position: a later history import must not see one ticket twice.
-    broker: null
+    broker: null,
+    // A copy is a new entry, not a re-opening of the trade the original continued.
+    continuationOf: null
   }
 }
 

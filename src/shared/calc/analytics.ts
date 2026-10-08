@@ -145,6 +145,8 @@ export interface Breakdowns {
   hour: Group[]
   model: Group[]
   pdArray: Group[]
+  /** First entries vs re-opened positions (`continuationOf`); one group when nothing was re-opened. */
+  entry: Group[]
 }
 
 export function breakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile, plnOf?: PlnOf): Breakdowns {
@@ -165,7 +167,10 @@ export function breakdowns(rows: readonly AnalyzedTrade[], journal: JournalFile,
       return { key: String(h).padStart(2, '0'), label: `${String(h).padStart(2, '0')}:00` }
     }, plnOf).sort((a, b) => a.key.localeCompare(b.key)),
     model: group(rows, be, (r) => ({ key: r.trade.entryModelId ?? '-', label: dictLabel(journal, 'entryModels', r.trade.entryModelId) }), plnOf).sort(byTotal),
-    pdArray: group(rows, be, (r) => ({ key: r.trade.entryPdArrayId ?? '-', label: dictLabel(journal, 'pdArrays', r.trade.entryPdArrayId) }), plnOf).sort(byTotal)
+    pdArray: group(rows, be, (r) => ({ key: r.trade.entryPdArrayId ?? '-', label: dictLabel(journal, 'pdArrays', r.trade.entryPdArrayId) }), plnOf).sort(byTotal),
+    entry: group(rows, be, (r) => (r.trade.continuationOf ? { key: 'reopen', label: 'Ponowne otwarcie' } : { key: 'first', label: 'Pierwsze wejście' }), plnOf).sort((a, b) =>
+      a.key.localeCompare(b.key)
+    )
   }
 }
 

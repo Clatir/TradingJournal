@@ -3,6 +3,7 @@ import { customValueText } from '../journalView'
 import { formatClock, zoned } from '../calc/time'
 import { metricsContext, tradeMetrics } from '../calc/trade'
 import { validateTrade } from '../calc/validator'
+import { continuationCheck, continuationDetail, type TradeLookup } from '../calc/continuation'
 import type { DayPlan, DictionaryKey, JournalFile, ScreenRef, Trade } from '../schema'
 
 const STATUS = { closed: 'zamknięta', open: 'otwarta', missed: 'missed (nie wszedłem)' } as const
@@ -34,15 +35,16 @@ function text(label: string, value: string): string | null {
   return value.trim() ? `**${label}:** ${value.trim()}` : null
 }
 
-export function tradeToMarkdown(t: Trade, journal: JournalFile, day: DayPlan | null = null): string {
+export function tradeToMarkdown(t: Trade, journal: JournalFile, day: DayPlan | null = null, lookup?: TradeLookup): string {
   const m = tradeMetrics(t, metricsContext(journal.settings))
-  const v = validateTrade(t, m, journal.settings, day)
+  const c = lookup ? continuationCheck(t, lookup, journal.settings.killzones) : null
+  const v = validateTrade(t, m, journal.settings, day, c)
   const dec = journal.settings.pairs.find((p) => p.symbol === t.pair)?.priceDecimals ?? 5
   const wd = zoned(t.entryTime, 'NY').setLocale('pl').toFormat('ccc')
   const lines: Array<string | null> = [
     `## ${t.pair} ${t.direction === 'long' ? 'LONG' : 'SHORT'} – ${m.tradingDate} (${wd}) ${formatClock(t.entryTime, 'NY')} NY / ${formatClock(t.entryTime, 'WAW')} WAW`,
     '',
-    `**Status:** ${STATUS[t.status]} · **Killzone:** ${m.killzoneNames.join(' + ') || 'poza killzone'} · **Wynik:** ${r2(m.resultR)} (${p1(m.resultPips)} pips)${t.status === 'missed' ? ' – hipotetycznie' : ''}`,
+    `**Status:** ${STATUS[t.status]} · **Killzone:** ${m.killzoneNames.join(' + ') || 'poza killzone'}${c?.ok ? ` (${continuationDetail(c)})` : ''} · **Wynik:** ${r2(m.resultR)} (${p1(m.resultPips)} pips)${t.status === 'missed' ? ' – hipotetycznie' : ''}`,
     '',
     '| Wejście | SL | TP1 | TP2 | SL pips | R:R TP1 |',
     '|---|---|---|---|---|---|',

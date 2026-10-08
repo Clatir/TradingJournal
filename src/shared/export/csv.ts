@@ -6,6 +6,7 @@ import { customValueText } from '../journalView'
 import { formatClock, zoned } from '../calc/time'
 import { tradeMetrics, metricsContext } from '../calc/trade'
 import { validateTrade } from '../calc/validator'
+import { continuationCheck } from '../calc/continuation'
 import { shownDecimals } from '../calc/position'
 import type { DayPlan, DictionaryKey, JournalFile, Trade } from '../schema'
 
@@ -82,13 +83,14 @@ const HEADERS = [
 export function tradesToCsv(trades: readonly Trade[], journal: JournalFile, days: readonly DayPlan[] = []): string {
   const ctx = metricsContext(journal.settings)
   const byDate = new Map(days.map((d) => [d.date, d]))
+  const byId = new Map(trades.map((t) => [t.id, t]))
   // Own fields (1.4.0) as extra columns at the end: active ones and archived ones that still hold values.
   const fields = journal.settings.customFields.filter((f) => !f.archived || trades.some((t) => t.custom[f.id] != null))
   const rows = [...trades]
     .sort((a, b) => (a.entryTime < b.entryTime ? -1 : 1))
     .map((t) => {
       const m = tradeMetrics(t, ctx)
-      const v = validateTrade(t, m, journal.settings, byDate.get(m.tradingDate) ?? null)
+      const v = validateTrade(t, m, journal.settings, byDate.get(m.tradingDate) ?? null, continuationCheck(t, (id) => byId.get(id), journal.settings.killzones))
       const dec = journal.settings.pairs.find((p) => p.symbol === t.pair)?.priceDecimals ?? 5
       const ny = zoned(t.entryTime, 'NY')
       const waw = zoned(t.entryTime, 'WAW')

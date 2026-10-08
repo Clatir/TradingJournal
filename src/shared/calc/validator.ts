@@ -5,6 +5,7 @@
 import type { DayPlan } from '../schema/day'
 import type { Settings } from '../schema/journal'
 import type { Trade } from '../schema/trade'
+import { continuationDetail, type ContinuationCheck } from './continuation'
 import { formatClock } from './time'
 import type { TradeMetrics } from './trade'
 
@@ -42,7 +43,11 @@ export const RULE_LABELS: Record<RuleId, string> = {
 
 const EPS = 1e-9
 
-export function validateTrade(trade: Trade, m: TradeMetrics, settings: Settings, day: DayPlan | null): ValidationResult {
+/**
+ * `continuation`: the result of `continuationCheck` for a re-opened trade – a valid one takes the killzone rule from
+ * the first entry of the chain; an invalid one is checked as a new entry, with the reason in the detail.
+ */
+export function validateTrade(trade: Trade, m: TradeMetrics, settings: Settings, day: DayPlan | null, continuation: ContinuationCheck | null = null): ValidationResult {
   const r = settings.rules
   const rules: RuleResult[] = []
   const push = (id: RuleId, status: RuleStatus, detail: string, affectsScore = true) =>
@@ -72,7 +77,11 @@ export function validateTrade(trade: Trade, m: TradeMetrics, settings: Settings,
   }
 
   if (r.requireKillzone.enabled) {
-    push('killzone', m.killzoneNames.length ? 'pass' : 'fail', m.killzoneNames.length ? m.killzoneNames.join(' + ') : `${formatClock(trade.entryTime, 'NY')} NY – poza killzone`)
+    if (continuation?.ok) push('killzone', continuation.originKillzones.length ? 'pass' : 'fail', continuationDetail(continuation))
+    else {
+      const own = m.killzoneNames.length ? m.killzoneNames.join(' + ') : `${formatClock(trade.entryTime, 'NY')} NY – poza killzone`
+      push('killzone', m.killzoneNames.length ? 'pass' : 'fail', continuation ? `${own} (nie kontynuacja: ${continuation.reason})` : own)
+    }
   }
 
   if (r.htfBias.enabled) {
@@ -138,20 +147,22 @@ export interface DailyLimitState {
 
 export function dailyLimitState(
   date: string,
-  entries: Array<{ status: Trade['status']; tradingDate: string; resultR: number | null }>,
+  entries: Array<{ status: Trade['status']; tradingDate: string; resultR: number | null; continuation?: boolean }>,
   settings: Settings
 ): DailyLimitState {
   const today = entries.filter((e) => e.tradingDate === date && e.status !== 'missed')
   const totalR = today.reduce((s, e) => s + (e.status === 'closed' && e.resultR != null ? e.resultR : 0), 0)
+  // A re-opened position (valid continuation) is not another trade; its R counts.
+  const count = today.filter((e) => !e.continuation).length
   const lossLimitR = settings.risk.dailyLossLimitR
   const maxTrades = settings.risk.dailyMaxTrades
   return {
     date,
     totalR,
-    trades: today.length,
+    trades: count,
     lossLimitR,
     maxTrades,
     lossLimitHit: lossLimitR != null && totalR <= -lossLimitR + EPS,
-    maxTradesHit: maxTrades != null && today.length >= maxTrades
+    maxTradesHit: maxTrades != null && count >= maxTrades
   }
 }

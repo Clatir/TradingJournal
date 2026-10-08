@@ -3,6 +3,24 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.5.1
+
+### Nowe
+- **Ponowne otwarcie zamkniętej pozycji (kontynuacja).** Gdy zamkniesz pozycję i po chwili otworzysz ją ponownie,
+  bo zamknięcie było błędem, aplikacja nie liczy już złamania zasady killzone za samo ponowne wejście.
+  - W zamkniętej transakcji przycisk **„↻ Otwórz ponownie”** tworzy nowy wpis powiązany z pierwszym. Para, kierunek,
+    kontekst ICT, SL, cele i loty są przejęte, czas wejścia jest bieżący.
+  - Gdy dodajesz transakcję ręcznie w tej samej parze i kierunku co pozycja zamknięta wcześniej tego dnia, edytor
+    pyta: „to jej ponowne otwarcie?” → „Tak, kontynuacja”.
+  - Zasada killzone bierze wynik z pierwszego wejścia: „kontynuacja wejścia z London (03:15 NY)”. Działa to
+    **do końca dnia handlowego NY**, w którym zamknięto pozycję (północ NY = ok. 06:00 w Polsce). Ponowne
+    otwarcie później jest oceniane jak nowe wejście, a walidator mówi dlaczego. Pozostałe zasady (SL, R:R) i wynik
+    są liczone dla nowego wejścia.
+  - Kontynuacja **nie liczy się do dziennego limitu liczby transakcji**, ale jej R wlicza się do limitów straty.
+  - Powiązanie widać w edytorze (link do pierwotnej transakcji, „to nie kontynuacja”), w pierwszej transakcji
+    (lista ponownych otwarć z wynikiem) i w dzienniku (↻ w kolumnie Killzone). Analityka ma tabelę **„Ponowne
+    otwarcia”**: czy powroty do pozycji zarabiają.
+
 ## 1.5.0
 
 ### Nowe

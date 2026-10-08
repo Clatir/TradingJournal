@@ -158,6 +158,7 @@ const LABELS: Record<string, string> = {
   direction: 'Kierunek',
   entryTime: 'Czas wejścia',
   killzoneOverride: 'Killzone (ręcznie)',
+  continuationOf: 'Kontynuacja',
   entryModelId: 'Model wejścia',
   entryPdArrayId: 'PD array wejścia',
   htfPdArrayId: 'PD array HTF',

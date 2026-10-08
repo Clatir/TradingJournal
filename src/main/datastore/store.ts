@@ -37,7 +37,7 @@ import {
   type ConflictName,
   type FileKind
 } from '@shared/paths'
-import { SCHEMAS, parseRecordText, serializeRecord, type AnyRecord, type RecordTypes } from '@shared/records'
+import { SCHEMAS, parseRecordText, serializeRecord, type AnyRecord, type RecordTypes, type SerializeContext } from '@shared/records'
 import { SCHEMA_VERSION, type JournalFile, type ScreenRef } from '@shared/schema'
 import { tradingDateNy } from '@shared/calc/time'
 import { pathExists, removeFile, sha1, withRetry, writeFileAtomic } from './atomic'
@@ -405,11 +405,18 @@ export class DataStore {
   }
 
   /** Settings + day plan of the trade's date, for the informational `computed` block. */
-  private ctxFor(kind: FileKind, record: AnyRecord): { settings: JournalFile['settings']; dayPlan: RecordTypes['days'] | null } | undefined {
+  private ctxFor(kind: FileKind, record: AnyRecord): SerializeContext | undefined {
     if (kind !== 'trades') return undefined
     const date = tradingDateNy((record as RecordTypes['trades']).entryTime)
     const day = this.files.get(dayRelPath(date))
-    return { settings: this.journal.settings, dayPlan: day?.status === 'record' ? (day.record as RecordTypes['days']) : null }
+    return { settings: this.journal.settings, dayPlan: day?.status === 'record' ? (day.record as RecordTypes['days']) : null, trade: (id) => this.tradeById(id) }
+  }
+
+  /** A trade by id (only for re-opened trades' `computed` block: a linear scan is fine). */
+  private tradeById(id: string): RecordTypes['trades'] | undefined {
+    for (const s of this.files.values())
+      if (s.kind === 'trades' && s.status === 'record' && (s.record as RecordTypes['trades'] | null)?.id === id) return s.record as RecordTypes['trades']
+    return undefined
   }
 
   private async rewrite(s: FileState): Promise<void> {

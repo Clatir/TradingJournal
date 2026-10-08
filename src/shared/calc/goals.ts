@@ -12,6 +12,8 @@ export interface GoalEntry {
   tradingDate: string
   resultR: number | null
   riskPercent: number | null
+  /** A valid re-opening of a closed trade: not counted as another trade (its R is). */
+  continuation?: boolean
 }
 
 export interface GoalState {
@@ -28,7 +30,8 @@ export interface GoalState {
 
 const EPS = 1e-9
 
-export function goalState(date: string, entries: readonly GoalEntry[], settings: Settings): GoalState {
+/** `reopening`: asked before re-opening a closed trade – the number of trades does not grow, so its limit is not an alert. */
+export function goalState(date: string, entries: readonly GoalEntry[], settings: Settings, opts: { reopening?: boolean } = {}): GoalState {
   const daily = dailyLimitState(date, [...entries], settings)
   const g = settings.goals
   const closed = entries.filter((e) => e.status === 'closed' && e.resultR != null)
@@ -51,7 +54,7 @@ export function goalState(date: string, entries: readonly GoalEntry[], settings:
   const alerts: string[] = []
   if (daily.lossLimitHit) alerts.push(`Dzienny limit straty: ${daily.totalR.toFixed(2)}R (limit −${daily.lossLimitR}R).`)
   if (dailyPercentHit) alerts.push(`Dzienny limit straty w % konta: ${dailyPercent.toFixed(2)}% (limit −${g.dailyLossPercent}%).`)
-  if (daily.maxTradesHit) alerts.push(`Limit transakcji na dziś: ${daily.trades} z ${daily.maxTrades}.`)
+  if (daily.maxTradesHit && !opts.reopening) alerts.push(`Limit transakcji na dziś: ${daily.trades} z ${daily.maxTrades}.`)
   if (weekLossHit) alerts.push(`Tygodniowy limit straty: ${weekR.toFixed(2)}R (limit −${g.weeklyLossLimitR}R).`)
 
   return {

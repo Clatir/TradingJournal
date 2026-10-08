@@ -5,7 +5,7 @@ import { lotDecimals, shownDecimals } from '@shared/calc/position'
 import type { DictionaryKey, ScreenRef, Trade, TradeExit } from '@shared/schema'
 import { api, errorMessage } from '../../lib/api'
 import { fmtMoney, fmtPips, fmtR, fmtRatio, tone, toneClass } from '../../lib/format'
-import { metricsFor, useDayPlan, validationFor } from '../../store/derived'
+import { continuationFor, metricsFor, useDayPlan, validationFor } from '../../store/derived'
 import { deleteRecord, discardDraft, updateRecord, useJournal } from '../../store/journal'
 import { goBack, navigate, toast } from '../../store/ui'
 import { DualTimeField, ExitClockField } from '../../components/TimeFields'
@@ -17,6 +17,8 @@ import { ScreensPanel } from '../screens/ScreensPanel'
 import { ValidatorPanel } from './ValidatorPanel'
 import { CustomFieldsEditor } from './CustomFields'
 import { addTradeToLibrary } from '../library/LibraryPage'
+import { ContinuationBox } from './Continuation'
+import { reopenTrade } from './actions'
 import { copyTradeMarkdown } from '../export/markdownActions'
 import { duplicateTradeEntry } from '../duplicate'
 import { XtbScreenButton } from './XtbScreenImport'
@@ -28,6 +30,7 @@ export function TradeEditor({ id }: { id: string }) {
   const journal = useJournal((s) => s.journal)
   const folderReadOnly = useJournal((s) => s.status?.readOnly ?? false)
   const isDraft = useJournal((s) => !!s.drafts[id])
+  const trades = useJournal((s) => s.trades)
   const [activeExit, setActiveExit] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -80,7 +83,8 @@ export function TradeEditor({ id }: { id: string }) {
   const currency = settings.risk.accountCurrency
   const showMoney = settings.display.showMoney
   const be = settings.stats.breakevenThresholdR
-  const v = validationFor(t, m, settings, dayEntry?.record ?? null)
+  const continuation = continuationFor(t, trades, settings)
+  const v = validationFor(t, m, settings, dayEntry?.record ?? null, continuation)
 
   const up = (fn: (t: Trade) => Trade) => updateRecord('trades', id, fn)
   const setField = <K extends keyof Trade>(k: K, v: Trade[K]) => up((r) => ({ ...r, [k]: v }))
@@ -185,6 +189,16 @@ export function TradeEditor({ id }: { id: string }) {
               <IconCopy size={13} /> Duplikuj
             </button>
           )}
+          {t.status === 'closed' && !isDraft && !readOnly && (
+            <button
+              className="btn"
+              onClick={() => reopenTrade(id)}
+              title="Zamknięcie było błędem: nowy wpis kontynuujący tę pozycję (ta sama para, kierunek, kontekst, SL i cele). Do końca dnia handlowego NY zamknięcia zasada killzone idzie za pierwszym wejściem, a kontynuacja nie liczy się do limitu transakcji."
+              data-testid="reopen-trade"
+            >
+              ↻ Otwórz ponownie
+            </button>
+          )}
           {t.status !== 'missed' && <XtbScreenButton trade={t} disabled={readOnly} />}
           {!isDraft && <HistoryButton kind="trades" id={id} current={t} />}
           {!isDraft && (
@@ -267,6 +281,7 @@ export function TradeEditor({ id }: { id: string }) {
                   {m.killzoneNames.length ? m.killzoneNames.join(' + ') : 'poza killzone'}
                 </span>
               </div>
+              <ContinuationBox trade={t} check={continuation} settings={settings} readOnly={readOnly} />
             </Field>
           </Section>
 

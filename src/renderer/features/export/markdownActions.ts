@@ -26,7 +26,7 @@ export async function copyTradeMarkdown(id: string, saveFile = false): Promise<v
   if (!t || !journal) return
   const date = tradingDateNy(t.entryTime)
   const day = Object.values(days).find((e) => e.record.date === date)?.record ?? null
-  await deliver(tradeToMarkdown(t, journal, day), `${date}_${t.pair}_${t.direction}.md`, saveFile)
+  await deliver(tradeToMarkdown(t, journal, day, (x) => trades[x]?.record), `${date}_${t.pair}_${t.direction}.md`, saveFile)
 }
 
 /** Records the user actually kept: untouched drafts exist only in memory. */

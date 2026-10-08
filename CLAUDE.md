@@ -311,7 +311,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   `display.showMoney` (`features/money.ts` `toggleMoney`); `toggleColumn` stawia ją za `r`. Lista przewija się w bok
   (`gridMinWidth` = minima kolumn + odstępy), gdy kolumny nie mieszczą się obok podglądu.
 
-## Raporty, cele, porównanie, PIT-38 (1.5.0)
+## Raporty, cele, porównanie, PIT-38 (1.5.0), kontynuacje (1.5.1)
 - Strona Raporty (`features/reports/ReportsPage.tsx`, ikona na pasku, `Ctrl+9`): okres miesiąc / kwartał / rok / własny
   (`shared/calc/periods.ts`: `monthRange`, `quarterRange`, `yearRange`, `previousRange` – całe miesiące przesuwane
   o miesiące, inaczej o dni –, `rangeLabel`, `periodMetrics`), sekcje `REPORT_SECTIONS` (wybór w localStorage
@@ -327,6 +327,13 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - PLN w Analityce: `tradePln` / `plnByTrade` (`calc/plnCurve.ts`, jak krzywa PLN, z szacunkiem wg pola w panelu
   PLN) → `breakdowns`/`customFieldBreakdowns`/`calendarDays(…, plnOf)` (`Group.pln`, `plnCount`; `GroupTable money`,
   `CalendarHeatmap metric`). Porównanie okresów: `ComparisonSection` w `AnalyticsPage`.
+- Kontynuacja (1.5.1, `shared/calc/continuation.ts`): `trade.continuationOf` (addytywne) = id zamkniętej transakcji
+  otwartej ponownie. `continuationCheck` (ta sama para i kierunek, wejście po zamknięciu = ostatnie wyjście z czasem,
+  ta sama data NY co zamknięcie; łańcuch do pierwszego wejścia) → `validateTrade(…, continuation)`: zasada KZ z
+  pierwszego wejścia, nieważna = jak nowe wejście + powód. Wiersze `TradeRow.continuation`, cache walidacji po łańcuchu;
+  `dailyLimitState` nie liczy kontynuacji do liczby transakcji, `goalState(…, {reopening})` bez alertu liczby.
+  `reopenTrade` (edytor „↻ Otwórz ponownie”), `continuationCandidate` (podpowiedź), `ContinuationBox`,
+  `breakdowns.entry`, `computed.continuation` (main: `SerializeContext.trade`), CSV/markdown; duplikat ją czyści.
 
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
@@ -394,7 +401,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     dwa komputery naraz (scalanie / pytanie), historia zmian z przywracaniem, szablony planu dnia, samopoczucie, mapa
     godzin, trening na kartach, własne pola, kolumny i zapisane filtry (`tests/e2e/v14.spec.ts`).
 11. ✅ 1.5.0: strona Raporty (okres, sekcje), PIT-38 orientacyjnie, cele i limity z pytaniem, porównanie okresów,
-    PLN w rozbiciach i kalendarzu (`tests/e2e/v15.spec.ts`, `tests/unit/reports-goals.test.ts`).
+    PLN w rozbiciach i kalendarzu (`tests/e2e/v15.spec.ts`, `tests/unit/reports-goals.test.ts`); 1.5.1: kontynuacje
+    (ponowne otwarcie, KZ z pierwszego wejścia do końca dnia NY, `tests/unit/continuation.test.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms
