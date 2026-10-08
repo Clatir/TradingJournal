@@ -377,7 +377,8 @@ test('trening: screen „przed” bez wyniku, odpowiedź, odkrycie, podsumowanie
       prices: { entry: 1.08, stopLoss: 1.081, takeProfit1: 1.077, takeProfit2: null },
       exits: [{ id: '01K6H3Z0W8Q4M2N5P7R9S1T3V5', time: `${daysAgo(22)}T15:00:00.000Z`, price: 1.078, percent: 100, note: '' }]
     }),
-    closedTrade(daysAgo(2), 2, { screens: shots() }) // too fresh with the default "older than 7 days"
+    closedTrade(daysAgo(2), 2, { screens: shots() }), // fresh: hidden by "older than 7 days"
+    closedTrade(daysAgo(3), 1, { screens: [screenAt(dir, 'after', files)] }) // no "before" screen: not a card
   ]
   const dataDir = await seed(trades, createDefaultJournal(), [], dir)
   for (const f of files) {
@@ -389,10 +390,18 @@ test('trening: screen „przed” bez wyniku, odpowiedź, odkrycie, podsumowanie
     await expect(page.getByTestId('journal-table')).toBeVisible()
     await page.keyboard.press('Control+8')
     await expect(page.getByTestId('drill-page')).toBeVisible()
-    await expect(page.getByTestId('drill-available')).toContainText('3')
-    await page.getByRole('radiogroup', { name: 'Wiek transakcji' }).getByRole('radio', { name: 'wszystkie' }).click()
+    // All trades by default; the age filter shows how many cards each option has.
+    await expect(page.getByTestId('drill-available')).toContainText('4')
+    await expect(page.getByRole('radiogroup', { name: 'Wiek transakcji' }).getByRole('radio', { name: 'starsze niż 7 dni (3)' })).toBeVisible()
+    await expect(page.getByTestId('drill-no-before')).toContainText('1 transakcja ma wynik, ale bez screena w fazie „przed”')
+    // Only fresh trades of a pair under an age filter: the page says why there is nothing.
+    await page.getByRole('radiogroup', { name: 'Wiek transakcji' }).getByRole('radio', { name: 'starsze niż 30 dni' }).click()
+    await expect(page.getByTestId('drill-available')).toContainText('0')
+    await expect(page.getByTestId('drill-age-hint')).toContainText('4 kart jest nowszych niż 30 dni')
+    await page.getByTestId('drill-age-hint').getByRole('button', { name: 'Pokaż wszystkie' }).click()
     await expect(page.getByTestId('drill-available')).toContainText('4')
     await page.getByRole('radiogroup', { name: 'Wiek transakcji' }).getByRole('radio', { name: 'starsze niż 7 dni' }).click()
+    await expect(page.getByTestId('drill-available')).toContainText('3')
     await page.getByTestId('drill-start').click()
 
     const card = page.getByTestId('drill-card')

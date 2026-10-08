@@ -3,6 +3,15 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.5.2
+
+### Poprawki
+- **Trening pokazywał 0 kart dla świeżych transakcji.** Filtr „Transakcje” był domyślnie ustawiony na „starsze niż
+  7 dni” i nic nie mówiło, że ukrywa nowsze wpisy. Teraz domyślnie widać wszystkie, a przy każdej opcji filtra jest
+  liczba kart, np. „starsze niż 7 dni (3)”.
+- Gdy filtr ukrywa wszystkie karty, strona pisze ile i dlaczego, z przyciskiem „Pokaż wszystkie”.
+- Transakcje z wynikiem, ale bez screena w fazie „przed” są policzone z podpowiedzią, jak zrobić z nich karty.
+
 ## 1.5.1
 
 ### Nowe

@@ -22,7 +22,8 @@ interface DrillUi {
   annotations: boolean
 }
 
-const useDrillUi = create<DrillUi>(() => ({ pair: '', minAge: '7', count: '10', revealed: null, summary: null, annotations: false }))
+// All trades by default: an age filter on by default hid fresh trades without saying why.
+const useDrillUi = create<DrillUi>(() => ({ pair: '', minAge: '0', count: '10', revealed: null, summary: null, annotations: false }))
 const setUi = (patch: Partial<DrillUi>) => useDrillUi.setState(patch)
 
 /** Pips without a sign (a distance, not a result). */
@@ -109,6 +110,9 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
   const all = useMemo(() => drillCandidates(rows, { pair: null, minAgeDays: 0, today }), [rows, today])
   const available = useMemo(() => drillCandidates(rows, { pair: ui.pair || null, minAgeDays: Number(ui.minAge), today }), [rows, ui.pair, ui.minAge, today])
   const pairs = [...new Set(all.map((r) => r.trade.pair))].sort()
+  const byAge = (days: number) => drillCandidates(rows, { pair: ui.pair || null, minAgeDays: days, today }).length
+  // Closed (or missed with an outcome) trades that only lack a "before" screen to become cards.
+  const noBefore = rows.filter((r) => r.trade.status !== 'open' && r.m.resultR != null && r.m.outcome != null && !r.trade.screens.some((x) => x.phase === 'before')).length
   const stats = useMemo(() => drillStats(sessions), [sessions])
   const recent = [...sessions].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)).slice(0, 12)
   const [none, setNone] = useState(false)
@@ -136,9 +140,9 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
               value={ui.minAge}
               onChange={(minAge) => setUi({ minAge })}
               options={[
-                { value: '0', label: 'wszystkie' },
-                { value: '7', label: 'starsze niż 7 dni' },
-                { value: '30', label: 'starsze niż 30 dni' }
+                { value: '0', label: `wszystkie (${byAge(0)})` },
+                { value: '7', label: `starsze niż 7 dni (${byAge(7)})` },
+                { value: '30', label: `starsze niż 30 dni (${byAge(30)})` }
               ]}
               aria-label="Wiek transakcji"
               className="self-start"
@@ -169,6 +173,19 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
                 Start
               </button>
             </div>
+            {available.length === 0 && byAge(0) > 0 && (
+              <p className="text-[11.5px] text-accent" data-testid="drill-age-hint">
+                {byAge(0)} {byAge(0) === 1 ? 'karta jest nowsza' : 'kart jest nowszych'} niż {ui.minAge} dni – starsze odkładasz, żeby nie pamiętać wyniku.{' '}
+                <button className="underline" onClick={() => setUi({ minAge: '0' })}>
+                  Pokaż wszystkie
+                </button>
+              </p>
+            )}
+            {noBefore > 0 && (
+              <p className="text-[11.5px] text-dim" data-testid="drill-no-before">
+                {noBefore} {noBefore === 1 ? 'transakcja ma' : 'transakcji ma'} wynik, ale bez screena w fazie „przed” – dodaj go w edytorze (Screeny → Przed), a stanie się kartą.
+              </p>
+            )}
             {(available.length === 0 || none) && (
               <p className="text-[11.5px] text-dim">
                 Karta to zamknięta transakcja (albo missed z wynikiem hipotetycznym) ze screenem w fazie „przed”. Kolejność: najpierw nigdy nie ćwiczone, potem te z błędną
