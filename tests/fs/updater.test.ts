@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CHECKSUMS_ASSET, DEFAULT_UPDATE_PREFS, PORTABLE_ASSET, type PendingUpdate, type UpdatePrefs, type UpdateState } from '@shared/update'
 import { Updater, type UpdaterDeps } from '../../src/main/update/updater'
 import { downloadVerified } from '../../src/main/update/download'
-import type { PortableSwapParams } from '../../src/main/update/apply'
+import type { PortableSwapParams, RestartWatchParams } from '../../src/main/update/apply'
 import { exists, tempDir } from './helpers'
 
 const SETUP_ASSET = 'ICT-Trade-Journal-Setup-1.2.0.exe'
@@ -120,7 +120,7 @@ async function setup(opts: { site?: Partial<Site>; deps?: Partial<UpdaterDeps>; 
   const dir = tempDir('ictj-update-')
   const cfg = { prefs: { ...DEFAULT_UPDATE_PREFS }, pending: null as PendingUpdate | null, lastRun: '1.1.0' as string | null, ...opts.cfg }
   const states: UpdateState[] = []
-  const applied: Array<{ kind: 'portable'; p: PortableSwapParams } | { kind: 'installer'; file: string; restart: boolean }> = []
+  const applied: Array<{ kind: 'portable'; p: PortableSwapParams } | { kind: 'installer'; file: string; restart: boolean; watch?: RestartWatchParams }> = []
   const portableFile = join(dir, 'Programy', PORTABLE_ASSET)
   await fs.mkdir(join(dir, 'Programy'), { recursive: true })
   await fs.writeFile(portableFile, 'stara wersja')
@@ -146,8 +146,9 @@ async function setup(opts: { site?: Partial<Site>; deps?: Partial<UpdaterDeps>; 
       cfg.lastRun = v
     },
     applyPortable: (p) => applied.push({ kind: 'portable', p }),
-    applyInstaller: (file, restart) => applied.push({ kind: 'installer', file, restart }),
+    applyInstaller: (file, restart, watch) => applied.push({ kind: 'installer', file, restart, watch }),
     waitPids: [111, 222],
+    appProcess: 'ICT Trade Journal',
     log: () => undefined,
     onState: (s) => states.push(s),
     ...opts.deps
@@ -179,7 +180,18 @@ describe('aktualizacje: wersja portable', () => {
 
     expect(t.updater.applyOnQuit()).toBe(true)
     expect(t.applied).toEqual([
-      { kind: 'portable', p: { target: t.portableFile, staged, waitPids: [111, 222], restart: false, logFile: join(t.deps.userDataDir, 'logs', 'update.log') } }
+      {
+        kind: 'portable',
+        p: {
+          target: t.portableFile,
+          staged,
+          waitPids: [111, 222],
+          restart: false,
+          logFile: join(t.deps.userDataDir, 'logs', 'update.log'),
+          version: '1.2.0',
+          appProcess: 'ICT Trade Journal'
+        }
+      }
     ])
     t.updater.requestRestart()
     t.updater.applyOnQuit()
@@ -253,7 +265,10 @@ describe('aktualizacje: wersja zainstalowana i ręczna', () => {
     expect(t.cfg.pending).toMatchObject({ mode: 'installer', file })
     t.updater.requestRestart()
     expect(t.updater.applyOnQuit()).toBe(true)
-    expect(t.applied).toEqual([{ kind: 'installer', file, restart: true }])
+    // With a restart the status window waits for the new version's window.
+    expect(t.applied).toEqual([
+      { kind: 'installer', file, restart: true, watch: { version: '1.2.0', appProcess: 'ICT Trade Journal', logFile: join(t.deps.userDataDir, 'logs', 'update.log') } }
+    ])
   })
 
   it('tryb ręczny tylko informuje o nowej wersji', async () => {

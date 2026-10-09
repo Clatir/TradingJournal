@@ -10,7 +10,7 @@ import {
   parseVersion,
   pickAsset
 } from '@shared/update'
-import { encodePowerShell, installerArgs, portableSwapScript, psLiteral } from '../../src/main/update/apply'
+import { encodePowerShell, helperBootstrap, installerArgs, portableSwapScript, psLiteral, restartWatchScript } from '../../src/main/update/apply'
 
 const HASH_A = 'a'.repeat(64)
 const HASH_B = 'b'.repeat(64)
@@ -133,6 +133,37 @@ describe('applying updates', () => {
     const helper = portableSwapScript({ target: 'a', staged: 'b', waitPids: [1], restart: false, logFile: 'l' })
     expect(helper).toContain('Add-Content -LiteralPath $log -Value $line -Encoding UTF8 -ErrorAction Stop')
     expect(helper).toMatch(/for \(\$t = 0; \$t -lt 20; \$t\+\+\)/)
+  })
+
+  it('shows the status until the new window appears and logs every step', () => {
+    const p = { target: 'C:\\a.exe', staged: 'C:\\a.exe.update', waitPids: [7], restart: true, logFile: 'l', version: '1.6.2', appProcess: 'ICT Trade Journal' }
+    const script = portableSwapScript(p)
+    expect(script).toContain('Aktualizacja do wersji 1.6.2')
+    expect(script).toContain('System.Windows.Forms')
+    expect(script).toContain("$appName = 'ICT Trade Journal'")
+    expect(script).toContain('$q.MainWindowHandle -ne 0 -and $q.StartTime -gt $started')
+    expect(script).toContain("Start-Process -FilePath $target -WorkingDirectory (Split-Path -Parent $target) -PassThru")
+    expect(script).toContain('uruchom aplikację ręcznie')
+    expect(script).toContain('Close-Status')
+    // Without a restart: no window at all, nothing started.
+    const quiet = portableSwapScript({ ...p, restart: false })
+    expect(quiet).not.toContain('New-Object System.Windows.Forms.Form')
+    expect(quiet).not.toContain('Start-Process')
+    const watch = restartWatchScript({ version: '1.6.2', appProcess: 'ICT Trade Journal', logFile: 'l' })
+    expect(watch).toContain('Instaluję wersję 1.6.2')
+    expect(watch).toContain('$q.MainWindowHandle -ne 0')
+    expect(watch).not.toContain('Start-Process')
+  })
+
+  it('starts a helper with a short loader of its script file (the command line has a 32k limit)', () => {
+    const boot = helperBootstrap("C:\\Users\\O'Brien\\AppData\\Local\\Temp\\ictj-update-1.ps1")
+    expect(boot).toContain("$f = 'C:\\Users\\O''Brien\\AppData\\Local\\Temp\\ictj-update-1.ps1'")
+    expect(boot).toContain('[scriptblock]::Create($s)')
+    expect(boot).toContain('Remove-Item -LiteralPath $f')
+    // The starter encodes the helper's command once more: still far below the limit.
+    const helper = encodePowerShell(boot)
+    const starter = encodePowerShell(`Start-Process -FilePath 'powershell.exe' -ArgumentList '-EncodedCommand','${helper}'`)
+    expect(starter.length).toBeLessThan(8000)
   })
 
   it('runs the installer silently into the existing installation', () => {

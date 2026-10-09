@@ -170,6 +170,8 @@ test('portable: pobranie w tle, podmiana exe po zamknięciu i start nowej wersji
     const helperLog = await readText(join(userData, 'logs', 'update.log'))
     expect(helperLog).toContain('swapped')
     expect(helperLog).toContain('restarted')
+    // The status window stays until the new version's window is there (the helper sees it).
+    await expect.poll(() => readText(join(userData, 'logs', 'update.log')), { timeout: 60_000, intervals: [1000] }).toContain('new window after')
     expect(existsSync(`${exe}.update`)).toBe(false)
     expect(existsSync(`${exe}.old`)).toBe(false)
     await dump('portable: OK', userData, [dir])
@@ -226,6 +228,8 @@ test('zainstalowana: cichy instalator nowej wersji w tym samym folderze i start 
     await expect
       .poll(() => appProcessPaths().some((p) => p.toLowerCase() === exe.toLowerCase()), { timeout: 180_000, intervals: [1000] })
       .toBe(true)
+    // The status helper started with the installer saw the new window.
+    await expect.poll(() => readText(join(userData, 'logs', 'update.log')), { timeout: 120_000, intervals: [1000] }).toContain('new window after')
     await dump('zainstalowana: OK', userData, [before.dir, join(userData, 'updates')])
   } catch (e) {
     console.log(`Nieudany etap: ${step}; zapytania do serwera: ${hits.join(', ')}`)

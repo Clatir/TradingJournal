@@ -1,6 +1,6 @@
 import { existsSync, promises as fs } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, parse } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
@@ -86,6 +86,7 @@ function createUpdater(): Updater {
     applyInstaller: startSilentInstaller,
     // The portable launcher (parent process) keeps its exe open until the app exits.
     waitPids: [process.pid, process.ppid],
+    appProcess: parse(process.execPath).name,
     log,
     onState: (state) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('journal:update', state)

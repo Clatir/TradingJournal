@@ -394,6 +394,13 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   - PowerShell uruchomiony jako proces odłączony (`detached`, bez konsoli) w ogóle nie wykonuje skryptu;
   - zwykły proces potomny ginie razem z aplikacją (obiekt zadania libuv). „Wnuk” do tego zadania nie należy.
 - Zainstalowana: `Setup.exe --updated /S [--force-run]` (odłączony), instaluje w folderze z rejestru.
+- Restart (1.6.2): pomocnik pokazuje okienko stanu (WinForms, tylko gdy `restart`; wartości enum/kolorów jako tekst –
+  literał typu, którego nie da się rozwiązać, zatrzymuje cały skrypt przed `try`) do pojawienia się okna nowej wersji
+  (proces `appProcess` z `MainWindowHandle` i `StartTime` po starcie pomocnika; 180 s, potem komunikat „uruchom
+  ręcznie”); w trybie instalatora osobny pomocnik `restartWatchScript`. Skrypt pomocnika idzie do pliku w `%TEMP%`,
+  a polecenie to tylko loader (`helperBootstrap`: `[scriptblock]::Create`, bez polityki wykonywania) – skrypt
+  zakodowany dwukrotnie przekraczał limit 32 767 znaków linii poleceń. Składnię skryptów można sprawdzić `pwsh`
+  (`Parser::ParseFile`); CI na Windows sprawdza w `update.log` „new window after”.
 - Tryb „ręczny” (dev, nie-Windows, `win-unpacked`): tylko informacja i link do wydania.
 - Start: `lastRunVersion` < bieżąca → baner „Zaktualizowano” (opis z `pending`). Sprzątanie `.old`, `.update`, `.part`,
   `userData/updates`. Oczekująca aktualizacja innej kopii (portable vs zainstalowana) zostaje nietknięta.

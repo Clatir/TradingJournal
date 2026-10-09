@@ -15,7 +15,7 @@ import {
   type UpdatePrefs,
   type UpdateState
 } from '@shared/update'
-import type { PortableSwapParams } from './apply'
+import type { PortableSwapParams, RestartWatchParams } from './apply'
 import { HttpError, downloadVerified, fetchJson, fetchText, sha256File, type FetchLike } from './download'
 
 export interface UpdaterDeps {
@@ -38,9 +38,11 @@ export interface UpdaterDeps {
   lastRunVersion: () => string | null
   saveLastRunVersion: (version: string) => Promise<void>
   applyPortable: (p: PortableSwapParams) => void
-  applyInstaller: (setupPath: string, restart: boolean) => void
+  applyInstaller: (setupPath: string, restart: boolean, watch?: RestartWatchParams) => void
   /** The app and (portable) its launcher: the swap waits for both to exit. */
   waitPids: number[]
+  /** Process name of the app ("ICT Trade Journal"): the helper waits for its new window after a restart. */
+  appProcess?: string
   log: (level: 'info' | 'warn' | 'error', message: string, detail?: unknown) => void
   onState: (state: UpdateState) => void
   now?: () => Date
@@ -326,6 +328,7 @@ export class Updater {
     }
     const pending = this.deps.pending()
     if (!pending || !existsSync(pending.file)) return false
+    const logFile = join(this.deps.userDataDir, 'logs', 'update.log')
     try {
       if (this.deps.mode === 'portable' && this.deps.portableFile) {
         this.deps.applyPortable({
@@ -333,10 +336,16 @@ export class Updater {
           staged: pending.file,
           waitPids: this.deps.waitPids,
           restart: this.restartAfterQuit,
-          logFile: join(this.deps.userDataDir, 'logs', 'update.log')
+          logFile,
+          version: pending.version,
+          appProcess: this.deps.appProcess
         })
       } else if (this.deps.mode === 'installer') {
-        this.deps.applyInstaller(pending.file, this.restartAfterQuit)
+        this.deps.applyInstaller(
+          pending.file,
+          this.restartAfterQuit,
+          this.deps.appProcess ? { version: pending.version, appProcess: this.deps.appProcess, logFile } : undefined
+        )
       } else {
         return false
       }

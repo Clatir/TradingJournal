@@ -3,6 +3,19 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.6.2
+
+### Poprawki
+- **„Uruchom ponownie teraz” wyglądało jak zwykłe zamknięcie.** Nowa wersja startuje dopiero po rozpakowaniu
+  (portable) albo instalacji, a program antywirusowy skanuje nowy plik. Przez ten czas, nawet kilkadziesiąt sekund,
+  nie było widać żadnego okna. Teraz od zamknięcia aż do pojawienia się okna nowej wersji widać małe okienko
+  „Aktualizacja do wersji … aplikacja zaraz uruchomi się ponownie”.
+- Pomocnik aktualizacji sprawdza, czy okno nowej wersji naprawdę się pojawiło. Jeśli nie, mówi o tym w okienku
+  („uruchom aplikację ręcznie”), a każdy krok z czasem zapisuje w `logs/update.log`
+  (`%APPDATA%\ICT Trade Journal\logs`).
+- Skrypt pomocnika jest uruchamiany z pliku tymczasowego, bo dłuższy skrypt nie zmieściłby się w limicie długości
+  linii poleceń Windows.
+
 ## 1.6.1
 
 ### Nowe
