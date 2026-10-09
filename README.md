@@ -234,3 +234,8 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     „Wejście w killzone: kontynuacja wejścia z …”. Zmień datę wejścia na następny dzień – „Nie liczy się jako
     kontynuacja” i zasada złamana. Transakcja dodana ręcznie po zamknięciu innej (ta sama para i kierunek, ten sam
     dzień NY) – podpowiedź „to jej ponowne otwarcie?”. W dzienniku ↻, w Analityce tabela „Ponowne otwarcia”.
+21. Transakcja z wejściem i SL → w panelu screenów faza „Po” → wklej screen z TradingView z narzędziem Long / Short
+    Position (`Ctrl+V`). Po chwili MAE i MFE wpisują się same (gdy były puste), dymek mówi skąd. „Z TradingView” przy
+    MAE / MFE: podgląd z zaznaczonym narzędziem, wejściem i oboma skrajnymi punktami, „Pomiń świecę wejścia”,
+    ręczna poprawka. „Wczytaj CSV…” (TradingView → „Export chart data…”, najlepiej M1) liczy dokładnie z świec między
+    czasem wejścia i wyjścia i pokazuje różnicę ze screenem. Ustawienia → Screeny → „MAE / MFE” wyłącza wpisywanie.

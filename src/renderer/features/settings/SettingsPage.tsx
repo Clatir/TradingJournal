@@ -632,6 +632,14 @@ function ScreensTab({ settings }: { settings: Settings }) {
               <span className="text-[11px] text-muted">px szerokości (listy i galerie; pełny obraz tylko w podglądzie)</span>
             </div>
           </Field>
+          <Field label="MAE / MFE">
+            <Toggle
+              checked={sc.autoExcursions}
+              onChange={(v) => setSc({ autoExcursions: v })}
+              label="Screen „po” z TradingView uzupełnia puste MAE / MFE (narzędzie Long / Short Position, OCR offline)"
+              data-testid="auto-excursions"
+            />
+          </Field>
           <div className="mt-1 border-t border-line pt-2 text-[11.5px] leading-relaxed text-muted">
             Kalibracja na wykresach w stylu TradingView 1920×1080: bezstratny WebP jest 0,96–1,26× rozmiaru q85–q90 i zachowuje cyfry na osi
             co do piksela, a stratny rozmywa kolorowe etykiety (PDH, ostatnia cena) przez podpróbkowanie koloru. Tryb auto koduje oba warianty i

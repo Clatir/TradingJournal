@@ -1,0 +1,23 @@
+{
+  "trade": {
+    "direction": "long",
+    "entry": 0.79952,
+    "stopLoss": 0.79808,
+    "takeProfit": 0.8039,
+    "exitPrice": 0.8006,
+    "pipSize": 0.0001,
+    "decimals": 5
+  },
+  "truth": {
+    "maePips": -3.2,
+    "mfePips": 15.4,
+    "exit": "end"
+  },
+  "at": {
+    "toolLeft": 1200,
+    "toolRight": 1760,
+    "maeX": 1522,
+    "mfeX": 1746,
+    "exitX": 1760
+  }
+}

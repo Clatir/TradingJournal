@@ -22,6 +22,7 @@ import { reopenTrade } from './actions'
 import { copyTradeMarkdown } from '../export/markdownActions'
 import { duplicateTradeEntry } from '../duplicate'
 import { XtbScreenButton } from './XtbScreenImport'
+import { TvExcursionsButton, useAutoExcursions } from './TvExcursions'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -39,6 +40,9 @@ export function TradeEditor({ id }: { id: string }) {
 
   // An untouched new trade is never written to disk.
   useEffect(() => () => discardDraft('trades', id), [id])
+
+  // A screen added as "po" fills empty MAE / MFE from the TradingView position tool on it.
+  useAutoExcursions(entry?.record ?? null, !!journal?.settings.screens.autoExcursions && !entry?.readOnly && !folderReadOnly)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -403,7 +407,7 @@ export function TradeEditor({ id }: { id: string }) {
             </Section>
           )}
 
-          <Section title="MAE / MFE (pips)">
+          <Section title="MAE / MFE (pips)" actions={<TvExcursionsButton trade={t} disabled={readOnly} />}>
             <div className="grid grid-cols-2 gap-x-3">
               <label className="flex items-center gap-2">
                 <span className="w-[34px] text-[11.5px] text-muted">MAE</span>

@@ -1,0 +1,23 @@
+{
+  "trade": {
+    "direction": "short",
+    "entry": 148.265,
+    "stopLoss": 148.497,
+    "takeProfit": 146.378,
+    "exitPrice": 148.039,
+    "pipSize": 0.01,
+    "decimals": 3
+  },
+  "truth": {
+    "maePips": -9.9,
+    "mfePips": 24.5,
+    "exit": "end"
+  },
+  "at": {
+    "toolLeft": 1429,
+    "toolRight": 1741,
+    "maeX": 1453,
+    "mfeX": 1741,
+    "exitX": 1741
+  }
+}

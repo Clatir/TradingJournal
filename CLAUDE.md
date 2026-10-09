@@ -4,6 +4,10 @@ Osobisty dziennik day tradera forex (metodologia ICT). Aplikacja desktopowa Elec
 używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, terminy ICT po angielsku. Z siecią łączy się
 tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba można wyłączyć, nic nie jest wysyłane.
 
+## Zasada współpracy
+- Przed wykonaniem każdego zadania podaj użytkownikowi, jaki model i jaki poziom thinking będzie najodpowiedniejszy,
+  dopiero potem wykonuj.
+
 ## Stack
 - Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4.
 - Zależności w czystym JS: zod 4 (schematy), zustand 5 (stan), luxon (strefy, DST), ulid, yazl/yauzl (ZIP),
@@ -335,6 +339,32 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   `reopenTrade` (edytor „↻ Otwórz ponownie”), `continuationCandidate` (podpowiedź), `ContinuationBox`,
   `breakdowns.entry`, `computed.continuation` (main: `SerializeContext.trade`), CSV/markdown; duplikat ją czyści.
 
+## MAE / MFE ze screena TradingView (1.6.0)
+- `shared/import/tvChart.ts` (czyste, na pikselach RGBA i słowach OCR):
+  - oś: `readAxisWords` (pas przy prawej krawędzi ×3 w skali szarości, odwrócony przy ciemnym wykresie → kolumna
+    etykiet `labelColumn` czytana ponownie; bez kolumny kafelki), `AXIS_OCR` = PSM 11 + cyfry; `axisLabels` (brakująca
+    kropka z miejsc pary, skala ×10ⁿ wg wejścia, etykiety bez wiodących cyfr / zaczynające się od „.” = sufiks);
+    `fitPriceScale` (RANSAC + MNK, tylko kolumna etykiet, grupa stawiająca wejście na obrazie, sufiksy odczytane z
+    prostej; bez całych etykiet sufiksy wokół wejścia); `anchoredScale` (ta sama pomyłka cyfry na wszystkich etykietach);
+  - narzędzie: `findPositionTools` (pary pionowych krawędzi, poziome krawędzie domykające: przez całą szerokość,
+    boki dochodzą do nich – albo słaby róg i krawędź kończy się na bokach; cięcie tylko przy krawędzi wykresu;
+    drugi przebieg z krawędziami wykresu jako boki); wybór wg kosztu (wejście ↔ krawędź w środku, SL / cel ↔
+    zewnętrzne krawędzie po stronie kierunku);
+  - świece: `measureExcursions` – piksele „mocne” (kolor świecy, jasność ≥ 0,6 × palety – strefy w kolorze świecy są
+    ciemniejsze) i „słabe” (`underFill`: świeca pod półprzezroczystym wypełnieniem albo rozmyta kompresją; różna od obu
+    sąsiadów, nie linia boku narzędzia), bez linii poziomych i kresek 1 px; MAE ujemne (konwencja dziennika);
+  - `analyzeTvScreenshot` = całość; `__debug` nie ma – narzędzia diagnostyczne trzymaj poza repo.
+- Renderer: `lib/tvOcr.ts` (dekodowanie, OCR osi przez IPC `ocrImage`, `measureTv` – drugi TP gdy pierwszy nie pasuje),
+  `features/trade/TvExcursions.tsx` (przycisk „Z TradingView”, okno z podglądem SVG, „Pomiń świecę wejścia”, CSV,
+  `useAutoExcursions`: nowy screen „po” + puste MAE i MFE → odczyt w tle, ustawienie `screens.autoExcursions`).
+- CSV: `shared/calc/excursions.ts` (`excursionsFromBars` od świecy wejścia do świecy wyjścia, te same zasady przycinania;
+  `tradeLevels`: TP1 ?? TP2, ostatnie wyjście z czasem).
+- Protokół `journal-file` ma `corsEnabled` i `Access-Control-Allow-Origin: *` (fetch z `file://`).
+- Testy: `tests/unit/tv-chart.test.ts` (syntetyczne screeny `tests/fixtures/tv/` z `scripts/tv-screens.mjs` przez
+  prawdziwy Tesseract w Node, `tests/unit/helpers/tvScreens.ts`), `tests/e2e/tv-excursions.spec.ts`. Nie commituj
+  screenów użytkownika (repo publiczne). Pomiar przy rozwoju: 181/182 syntetycznych w tolerancji max(0,3 p, 1,5 px),
+  9 prawdziwych screenów użytkownika spójnych z osią; ≈1,5 s na screen.
+
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
 - Scenariusz prognozy: nowe `id` (także celów), nazwa „(kopia)”, „(kopia 2)”…, te same losowania; zapisany od razu.
@@ -403,6 +433,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 11. ✅ 1.5.0: strona Raporty (okres, sekcje), PIT-38 orientacyjnie, cele i limity z pytaniem, porównanie okresów,
     PLN w rozbiciach i kalendarzu (`tests/e2e/v15.spec.ts`, `tests/unit/reports-goals.test.ts`); 1.5.1: kontynuacje
     (ponowne otwarcie, KZ z pierwszego wejścia do końca dnia NY, `tests/unit/continuation.test.ts`).
+12. ✅ 1.6.0: MAE / MFE ze screena TradingView „po” (narzędzie Long / Short Position, OCR osi, autouzupełnianie)
+    i dokładnie z CSV (`tests/unit/tv-chart.test.ts`, `tests/e2e/tv-excursions.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

@@ -3,6 +3,29 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.6.0
+
+### Nowe
+- **MAE i MFE ze screena TradingView „po”.** Wklej screen wykresu z narzędziem **Long / Short Position** do panelu
+  screenów w fazie „Po”. Jeśli MAE i MFE są puste, aplikacja wpisze je sama, a dymek poda wartości i ewentualne uwagi.
+  - Rozpoznawanie działa offline na tym komputerze. Oś ceny jest czytana przez OCR. Narzędzie jest znajdowane po
+    krawędziach, w obu schematach kolorów (czerwony / zielony i niebieski / szary), także przy strefach FVG, liniach,
+    napisach i skompresowanych screenach. Pod uwagę brane są tylko świece od lewej krawędzi narzędzia do pierwszego
+    dotknięcia SL lub celu albo do jego prawej krawędzi.
+  - Jeśli na screenie jest kilka narzędzi, wybierane jest to, którego wejście, SL i cel pasują do transakcji.
+  - Poziom, który zamknął transakcję, ogranicza pomiar po swojej stronie. Część świecy wejścia za SL albo celem, które
+    jej nie zamknęły, była przed wejściem i nie jest liczona.
+  - Przycisk **„Z TradingView”** przy MAE / MFE otwiera podgląd. Na powiększonym screenie zaznaczone są narzędzie,
+    wejście, mierzone świece oraz punkty MAE i MFE. Okno pokazuje też odczytane poziomy narzędzia, jakość odczytu osi
+    i uwagi. Można w nim pominąć świecę wejścia, wybrać inny screen albo wkleić obraz bez zapisywania go i poprawić
+    wartości przed wpisaniem.
+  - **Dokładnie z CSV:** „Wczytaj CSV…” z TradingView („Export chart data…”, najlepiej M1) liczy MAE / MFE ze świec
+    między czasem wejścia a czasem wyjścia. Okno pokazuje różnicę ze screenem i pozwala wpisać wartości z CSV.
+  - Ustawienia → Screeny → „MAE / MFE” wyłącza automatyczne wpisywanie.
+
+### Poprawki
+- „Kopiuj z adnotacjami” nie mogło odczytać pliku screena (blokada CORS protokołu plików dziennika).
+
 ## 1.5.2
 
 ### Poprawki

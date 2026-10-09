@@ -301,7 +301,9 @@ export const settingsSchema = z.looseObject({
       quality: z.number().int().min(1).max(100).default(90),
       autoMaxRatio: z.number().min(1).max(5).default(1.3),
       maxWidth: z.number().int().min(320).max(10000).default(2560),
-      thumbWidth: z.number().int().min(120).max(1200).default(480)
+      thumbWidth: z.number().int().min(120).max(1200).default(480),
+      /** A screen added as "po" fills empty MAE / MFE from the TradingView position tool on it (1.6.0). */
+      autoExcursions: z.boolean().default(true)
     })
     .prefault({}),
   display: z

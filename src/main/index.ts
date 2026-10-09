@@ -94,7 +94,7 @@ function createUpdater(): Updater {
 }
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: FILE_URL_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: FILE_URL_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
 ])
 
 function send(change: ChangeSet | null): void {
@@ -448,7 +448,11 @@ function registerFileProtocol(): void {
     const rel = sanitizeRelPath(decodeURIComponent(url.pathname.replace(/^\/+/, '')))
     if (!rel) return new Response('Niedozwolona ścieżka', { status: 400 })
     try {
-      return await net.fetch(pathToFileURL(s.abs(rel)).toString())
+      // fetch() from the page (file:// origin) reads the bytes: screens decoded for OCR or copied with annotations.
+      const res = await net.fetch(pathToFileURL(s.abs(rel)).toString())
+      const headers = new Headers(res.headers)
+      headers.set('Access-Control-Allow-Origin', '*')
+      return new Response(res.body, { status: res.status, headers })
     } catch {
       return new Response('Nie znaleziono', { status: 404 })
     }
