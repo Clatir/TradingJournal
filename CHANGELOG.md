@@ -3,6 +3,16 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.6.1
+
+### Nowe
+- **Rozmiar tekstu w adnotacjach.** W pasku edytora adnotacji jest wybór rozmiaru tekstu S / M / L / XL / XXL.
+  - Dotyczy etykiet tekstowych i etykiet poziomów.
+  - Wybrany rozmiar jest zapamiętywany na tym komputerze dla następnych tekstów.
+  - Zaznaczony tekst (narzędzie „Zaznacz”) zmienia rozmiar od razu; klawisze `[` i `]` zmniejszają i zwiększają go
+    o jeden stopień.
+  - „Kopiuj z adnotacjami” zachowuje rozmiary.
+
 ## 1.6.0
 
 ### Nowe

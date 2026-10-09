@@ -239,3 +239,5 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     MAE / MFE: podgląd z zaznaczonym narzędziem, wejściem i oboma skrajnymi punktami, „Pomiń świecę wejścia”,
     ręczna poprawka. „Wczytaj CSV…” (TradingView → „Export chart data…”, najlepiej M1) liczy dokładnie z świec między
     czasem wejścia i wyjścia i pokazuje różnicę ze screenem. Ustawienia → Screeny → „MAE / MFE” wyłącza wpisywanie.
+22. Screen → „✎” (adnotacje) → „Tekst”, w pasku „Tekst” wybierz XL i kliknij na wykresie – duży napis. „Zaznacz”, kliknij
+    napis, `[` / `]` albo S…XXL zmienia jego rozmiar; „Kopiuj z adnotacjami” wkleja obraz z tymi rozmiarami.

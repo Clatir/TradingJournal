@@ -8,6 +8,16 @@ import { IconClose, IconCopy, IconTrash } from './icons'
 import { cx } from './ui'
 
 export const ANNOTATION_COLORS = ['#e8a33d', '#ffffff', '#2ebd85', '#f6465d', '#3b82f6']
+/** Text sizes relative to the default (which scales with the image width). */
+export const FONT_SCALES: Array<{ value: number; label: string }> = [
+  { value: 0.75, label: 'S' },
+  { value: 1, label: 'M' },
+  { value: 1.5, label: 'L' },
+  { value: 2, label: 'XL' },
+  { value: 3, label: 'XXL' }
+]
+const FONT_KEY = 'ictj.annotations.fontScale'
+const hasText = (a: Annotation) => a.type === 'text' || a.type === 'hline'
 type Tool = 'select' | 'arrow' | 'rect' | 'hline' | 'text'
 
 function geometry(w: number) {
@@ -40,6 +50,7 @@ export function AnnotationLayer({
         const x2 = a.x2 * width
         const y2 = a.y2 * height
         const sel = a.id === selectedId
+        const font = g.font * (a.fontScale ?? 1)
         const common = {
           stroke: a.color,
           strokeWidth: sel ? g.stroke * 1.8 : g.stroke,
@@ -58,19 +69,19 @@ export function AnnotationLayer({
             <g key={a.id}>
               <line x1={0} x2={width} y1={y1} y2={y1} strokeDasharray={`${g.stroke * 4} ${g.stroke * 3}`} {...common} />
               {a.text && (
-                <text x={width - g.font * 0.6} y={y1 - g.font * 0.4} fill={a.color} fontSize={g.font} textAnchor="end" fontFamily="Inter, sans-serif" fontWeight={600}>
+                <text x={width - font * 0.6} y={y1 - font * 0.4} fill={a.color} fontSize={font} textAnchor="end" fontFamily="Inter, sans-serif" fontWeight={600}>
                   {a.text}
                 </text>
               )}
             </g>
           )
         if (a.type === 'text') {
-          const pad = g.font * 0.35
-          const wText = Math.max(1, a.text.length) * g.font * 0.58 + pad * 2
+          const pad = font * 0.35
+          const wText = Math.max(1, a.text.length) * font * 0.58 + pad * 2
           return (
-            <g key={a.id} {...(onSelect ? { onMouseDown: common.onMouseDown, style: common.style } : {})}>
-              <rect x={x1} y={y1 - g.font - pad} width={wText} height={g.font + pad * 2} fill="rgba(11,13,16,0.82)" stroke={a.color} strokeWidth={sel ? g.stroke : g.stroke / 2} />
-              <text x={x1 + pad} y={y1} fill={a.color} fontSize={g.font} fontFamily="Inter, sans-serif" fontWeight={600}>
+            <g key={a.id} {...(onSelect ? { onMouseDown: common.onMouseDown, style: common.style } : {})} data-testid="annotation-text-shape">
+              <rect x={x1} y={y1 - font - pad} width={wText} height={font + pad * 2} fill="rgba(11,13,16,0.82)" stroke={a.color} strokeWidth={sel ? g.stroke : g.stroke / 2} />
+              <text x={x1 + pad} y={y1} fill={a.color} fontSize={font} fontFamily="Inter, sans-serif" fontWeight={600}>
                 {a.text}
               </text>
             </g>
@@ -111,6 +122,7 @@ export async function flattenScreen(screen: ScreenRef): Promise<Uint8Array> {
     const y1 = a.y1 * H
     const x2 = a.x2 * W
     const y2 = a.y2 * H
+    const font = g.font * (a.fontScale ?? 1)
     if (a.type === 'rect') {
       x.globalAlpha = 0.13
       x.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1))
@@ -124,19 +136,19 @@ export async function flattenScreen(screen: ScreenRef): Promise<Uint8Array> {
       x.stroke()
       x.setLineDash([])
       if (a.text) {
-        x.font = `600 ${g.font}px Inter, sans-serif`
+        x.font = `600 ${font}px Inter, sans-serif`
         x.textAlign = 'right'
-        x.fillText(a.text, W - g.font * 0.6, y1 - g.font * 0.4)
+        x.fillText(a.text, W - font * 0.6, y1 - font * 0.4)
         x.textAlign = 'left'
       }
     } else if (a.type === 'text') {
-      x.font = `600 ${g.font}px Inter, sans-serif`
-      const pad = g.font * 0.35
+      x.font = `600 ${font}px Inter, sans-serif`
+      const pad = font * 0.35
       const w = x.measureText(a.text).width + pad * 2
       x.fillStyle = 'rgba(11,13,16,0.82)'
-      x.fillRect(x1, y1 - g.font - pad, w, g.font + pad * 2)
+      x.fillRect(x1, y1 - font - pad, w, font + pad * 2)
       x.lineWidth = g.stroke / 2
-      x.strokeRect(x1, y1 - g.font - pad, w, g.font + pad * 2)
+      x.strokeRect(x1, y1 - font - pad, w, font + pad * 2)
       x.fillStyle = a.color
       x.fillText(a.text, x1 + pad, y1)
     } else {
@@ -173,6 +185,15 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
   const [tool, setTool] = useState<Tool>('arrow')
   const [color, setColor] = useState(ANNOTATION_COLORS[0] as string)
   const [selected, setSelected] = useState<string | null>(null)
+  // Remembered on this computer for the next texts.
+  const [fontScale, setFontScaleState] = useState<number>(() => {
+    try {
+      const v = Number(localStorage.getItem(FONT_KEY))
+      return FONT_SCALES.some((f) => f.value === v) ? v : 1
+    } catch {
+      return 1
+    }
+  })
   const [draft, setDraft] = useState<Annotation | null>(null)
   // The shape being drawn, also kept in a ref: mouse moves are rendered lazily, so a fast drag can end
   // (mouseup) before the last move was rendered – the handler must see the latest point, not a stale render.
@@ -211,6 +232,26 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
     onChange(next)
   }
 
+  const selectedAnn = annotations.find((a) => a.id === selected) ?? null
+  // The size for the next texts; a selected text or level label takes it too.
+  const setFontScale = (v: number) => {
+    setFontScaleState(v)
+    try {
+      localStorage.setItem(FONT_KEY, String(v))
+    } catch {
+      // Not remembered: fine.
+    }
+    if (selectedAnn && hasText(selectedAnn) && (selectedAnn.fontScale ?? 1) !== v)
+      commit(annotations.map((a) => (a.id === selectedAnn.id ? { ...a, fontScale: v } : a)))
+  }
+  const stepFont = (dir: 1 | -1) => {
+    const current = selectedAnn && hasText(selectedAnn) ? (selectedAnn.fontScale ?? 1) : fontScale
+    const i = FONT_SCALES.findIndex((f) => f.value >= current)
+    const next = FONT_SCALES[Math.min(FONT_SCALES.length - 1, Math.max(0, (i < 0 ? FONT_SCALES.length - 1 : i) + dir))]!
+    setFontScale(next.value)
+  }
+  const shownScale = selectedAnn && hasText(selectedAnn) ? (selectedAnn.fontScale ?? 1) : fontScale
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (textAt) return
@@ -227,6 +268,9 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
           setHistory((h) => h.slice(0, -1))
           onChange(prev)
         }
+      } else if (!e.ctrlKey && !e.altKey && (e.key === '[' || e.key === ']')) {
+        e.preventDefault()
+        stepFont(e.key === ']' ? 1 : -1)
       } else if (!e.ctrlKey && !e.altKey) {
         const map: Record<string, Tool> = { v: 'select', a: 'arrow', r: 'rect', h: 'hline', t: 'text' }
         const t = map[e.key.toLowerCase()]
@@ -284,7 +328,7 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
     if (!textAt || finishedText.current === textAt) return
     finishedText.current = textAt
     if (text.trim() || textAt.hline) {
-      commit([...annotations, { id: newId(), type: textAt.hline ? 'hline' : 'text', x1: textAt.x, y1: textAt.y, x2: 0, y2: 0, text: text.trim(), color }])
+      commit([...annotations, { id: newId(), type: textAt.hline ? 'hline' : 'text', x1: textAt.x, y1: textAt.y, x2: 0, y2: 0, text: text.trim(), color, fontScale }])
     }
     setTextAt(null)
   }
@@ -320,10 +364,31 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
             <button key={c} onClick={() => setColor(c)} className={cx('h-[18px] w-[18px] border', color === c ? 'border-fg-strong' : 'border-line-strong')} style={{ background: c }} aria-label={`Kolor ${c}`} />
           ))}
         </div>
+        <div className="ml-2 inline-flex items-center gap-1.5">
+          <span className="text-[11px] text-muted" title="Rozmiar tekstu i etykiet poziomów ( [ mniejszy, ] większy ); zaznaczony tekst też się zmienia">
+            Tekst
+          </span>
+          <div className="inline-flex border border-line-strong" data-testid="font-size">
+            {FONT_SCALES.map((f, i) => (
+              <button
+                key={f.value}
+                className={cx('h-[24px] min-w-[28px] px-1.5 text-[11.5px]', i > 0 && 'border-l border-line-strong', shownScale === f.value ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-hover')}
+                onClick={() => setFontScale(f.value)}
+                title={`Rozmiar tekstu ${f.label} (${Math.round(f.value * 100)}%)`}
+                aria-pressed={shownScale === f.value}
+                data-testid={`font-${f.label}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <button className="btn ml-2 h-[24px]" disabled={!selected} onClick={() => selected && (commit(annotations.filter((a) => a.id !== selected)), setSelected(null))}>
           <IconTrash size={12} /> Usuń (Del)
         </button>
-        <span className="text-[11px] text-dim">Ctrl+Z cofnij · obraz pozostaje bez zmian</span>
+        <span className="min-w-0 truncate whitespace-nowrap text-[11px] text-dim" title="Ctrl+Z cofnij · [ i ] zmniejsz / zwiększ tekst · obraz pozostaje bez zmian">
+          Ctrl+Z cofnij · [ ] rozmiar tekstu · obraz bez zmian
+        </span>
         <button className="btn ml-auto h-[24px]" onClick={() => void copyScreenWithAnnotations(screen)}>
           <IconCopy size={12} /> Kopiuj z adnotacjami
         </button>
@@ -351,7 +416,13 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
             <input
               autoFocus
               className="input absolute w-[220px]"
-              style={{ left: `${textAt.x * 100}%`, top: `${textAt.y * 100}%` }}
+              style={{
+                left: `${textAt.x * 100}%`,
+                top: `${textAt.y * 100}%`,
+                // As large as the text will be drawn.
+                fontSize: size ? Math.max(11, (geometry(screen.width).font * fontScale * size.w) / screen.width) : undefined,
+                height: 'auto'
+              }}
               placeholder={textAt.hline ? 'etykieta poziomu (opcjonalnie)' : 'tekst, np. MSS'}
               value={text}
               onMouseDown={(e) => e.stopPropagation()}

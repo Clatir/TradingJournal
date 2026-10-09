@@ -29,7 +29,9 @@ export const annotationSchema = z.looseObject({
   x2: z.number().default(0),
   y2: z.number().default(0),
   text: text,
-  color: z.string().default('#e8a33d')
+  color: z.string().default('#e8a33d'),
+  /** Text size relative to the default (text and level labels; 1.6.1). Absent = 1. */
+  fontScale: z.number().min(0.25).max(5).optional()
 })
 export type Annotation = z.infer<typeof annotationSchema>
 

@@ -55,9 +55,21 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
     await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.4, { steps: 5 })
     await page.mouse.up()
     await page.getByTestId('tool-text').click()
+    // Text size: XL for the new text, then the selected text one step smaller with "[".
+    await page.getByTestId('font-M').click()
+    const shape = page.getByTestId('annotator-canvas').getByTestId('annotation-text-shape').locator('text')
     await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.35)
     await page.getByTestId('annotation-text').fill('MSS')
     await page.getByTestId('annotation-text').press('Enter')
+    const sizeM = Number(await shape.getAttribute('font-size'))
+    await page.getByTestId('tool-select').click()
+    await page.getByTestId('font-XL').click()
+    await shape.click()
+    await expect(page.getByTestId('font-M')).toHaveAttribute('aria-pressed', 'true')
+    await page.getByTestId('font-XL').click()
+    await expect.poll(async () => Number(await shape.getAttribute('font-size'))).toBeCloseTo(sizeM * 2, 3)
+    await page.keyboard.press('[')
+    await expect.poll(async () => Number(await shape.getAttribute('font-size'))).toBeCloseTo(sizeM * 1.5, 3)
     await page.screenshot({ path: shots('31-adnotacje') })
     await page.getByTestId('annotator-done').click()
     await page.getByTestId('library-title').fill('London sweep → MSS → FVG')
@@ -76,6 +88,8 @@ test('biblioteka z adnotacjami, przegląd tygodnia z CSV, eksport/import, kopie,
       }
     }
     await expect.poll(savedAnnotations, { timeout: 8000 }).toBe(2)
+    const saved = JSON.parse(await fs.readFile(join(libDir, (await fs.readdir(libDir)).find((n) => n.endsWith('.json') && !n.startsWith('.'))!), 'utf8'))
+    expect(saved.screens[0].annotations.find((a: { type: string }) => a.type === 'text').fontScale).toBe(1.5)
     await page.screenshot({ path: shots('32-biblioteka') })
 
     // A very fast drag (down, move, up in one task, before React renders the move) still draws the shape.

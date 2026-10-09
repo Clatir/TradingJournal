@@ -196,6 +196,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 
 ## Biblioteka, tydzień, eksport, kopie
 - Adnotacje: wektorowo w `ScreenRef.annotations` (współrzędne 0–1), rysowane SVG nad obrazem (`components/annotations.tsx`);
+  rozmiar tekstu `fontScale` (addytywne, 1.6.1; S–XXL = 0,75–3 × domyślny, `[` / `]`, ostatni wybór w localStorage);
   „Kopiuj z adnotacjami” spłaszcza przez canvas do schowka (IPC `copyImage`). Plik WebP nigdy nie jest modyfikowany.
 - Biblioteka może współdzielić pliki screenów z transakcją; usunięcie wpisu kasuje tylko screeny bez innych odwołań.
 - Przegląd tygodnia: tydzień ISO, dni pon–pt wg daty NY; import CSV z TradingView („Export chart data”, czas UNIX lub ISO,
