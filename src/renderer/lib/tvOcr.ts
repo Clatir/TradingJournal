@@ -4,6 +4,7 @@
  */
 import { fileUrl } from '@shared/api'
 import { AXIS_OCR, analyzeTvScreenshot, readAxisWords, type ChartImage, type ExcursionInput, type GrayImage, type TvAnalysis } from '@shared/import/tvChart'
+import { LEGEND_OCR, readTimeframe, type TimeframeReading } from '@shared/import/tvTimeframe'
 import { parseTesseractTsv, type OcrWord } from '@shared/import/xtbScreen'
 import { api } from './api'
 
@@ -45,6 +46,12 @@ export async function readTvScreen(image: Blob): Promise<TvScreenRead> {
   const decoded = await decodeImage(image)
   const words = await readAxisWords(decoded, async (gray) => parseTesseractTsv(await api.ocrImage(await grayPng(gray), { ...AXIS_OCR })))
   return { image: decoded, words }
+}
+
+/** The timeframe from the chart's legend (top left corner of a TradingView screenshot). */
+export async function detectTimeframe(image: Blob | ChartImage): Promise<TimeframeReading> {
+  const decoded = image instanceof Blob ? await decodeImage(image) : image
+  return readTimeframe(decoded, async (gray) => parseTesseractTsv(await api.ocrImage(await grayPng(gray), { ...LEGEND_OCR })))
 }
 
 /** A saved screen of the journal as a Blob. */

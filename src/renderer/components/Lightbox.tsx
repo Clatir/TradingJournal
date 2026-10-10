@@ -5,7 +5,7 @@ import { closeLightbox, useUi } from '../store/ui'
 import { fmtBytes } from '../lib/format'
 import { IconBack, IconClose, IconNext } from './icons'
 import { cx } from './ui'
-import { AnnotationLayer, copyScreenWithAnnotations } from './annotations'
+import { AnnotationLayer, TimeframeMark, copyScreenWithAnnotations, useTimeframeMark } from './annotations'
 
 const PHASE_LABEL = { before: 'Przed', during: 'W trakcie', after: 'Po' } as const
 
@@ -35,6 +35,7 @@ function useFitScale(el: React.RefObject<HTMLDivElement | null>, w: number, h: n
  * size; "fit" is simply a computed scale, so annotations stay aligned at every zoom level.
  */
 export function ZoomImage({ screen, view, onView }: { screen: ScreenRef; view: View | null; onView: (v: View | null) => void }) {
+  const showMark = useTimeframeMark()
   const stage = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -90,6 +91,9 @@ export function ZoomImage({ screen, view, onView }: { screen: ScreenRef; view: V
           style={{ imageRendering: v.scale >= 2 ? 'pixelated' : 'auto' }}
         />
         <AnnotationLayer annotations={screen.annotations} width={screen.width} height={screen.height} />
+        {screen.timeframe && showMark && (
+          <TimeframeMark timeframe={screen.timeframe} unsure={screen.timeframeAuto === 'unsure'} width={screen.width} height={screen.height} />
+        )}
       </div>
     </div>
   )

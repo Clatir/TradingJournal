@@ -366,6 +366,23 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   screenów użytkownika (repo publiczne). Pomiar przy rozwoju: 181/182 syntetycznych w tolerancji max(0,3 p, 1,5 px),
   9 prawdziwych screenów użytkownika spójnych z osią; ≈1,5 s na screen.
 
+## Interwał screena i znak (1.7.0)
+- `shared/import/tvTimeframe.ts`: legenda TradingView w lewym górnym rogu (`legendRegion` 55% × 9%, min 80 px),
+  `legendGray` (kolorowe piksele → tło przy nasyceniu > 0,35 / 0,6, powiększenie dwuliniowe ×3–6), OCR PSM 6
+  (`LEGEND_OCR`), `intervalFromWords` (słowo między separatorami „·” w najwyższej linii, `normalizeInterval`:
+  T/I/l/| → 1, n → h, tylko wiarygodne wartości), `intervalName` (1h → H1, 15 → M15, 60 → H1, 1D → D, 1M → MN);
+  `readTimeframe`: 6 odczytów rogu + przy braku pewności 4 odczyty samej linii; `voteTimeframe`: pewny = ≥ 2 głosy
+  i ≥ 3× więcej niż inna odpowiedź, remis = brak. Pomiar: 8/8 prawdziwych screenów z legendą, 80/80 syntetycznych
+  (15 interwałów, także stratne), 0 błędnych, 0 fałszywych na obrazach bez legendy; ≈2,5 s na screen.
+- `ScreenRef.timeframeAuto` ('sure' / 'unsure', addytywne): ustawiane przy rozpoznaniu, czyszczone przy ręcznej zmianie.
+  Ustawienia `screens.autoTimeframe`, `screens.timeframeMark`.
+- Renderer: `detectTimeframe` (`lib/tvOcr.ts`) z oryginału wklejonego obrazu w `ScreensPanel.addFiles` (tylko gdy
+  interwał wciąż pusty); `TimeframeMark` + `useTimeframeMark` (`components/annotations.tsx`; karta, lightbox,
+  edytor adnotacji; `flattenScreen` rysuje znak), `features/screens/timeframes.ts` (`detectMissingTimeframes` –
+  przycisk w Ustawienia → Screeny; trades, library, days z parami; jeden odczyt na plik).
+- Testy: `tests/unit/tv-timeframe.test.ts` (wycinki legend `tests/fixtures/tv-legend/` z generatora z
+  `TV_INTERVALS=1`), `tests/e2e/tv-excursions.spec.ts` (H1 po wklejeniu, znak, skan w ustawieniach).
+
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
 - Scenariusz prognozy: nowe `id` (także celów), nazwa „(kopia)”, „(kopia 2)”…, te same losowania; zapisany od razu.
@@ -443,6 +460,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     (ponowne otwarcie, KZ z pierwszego wejścia do końca dnia NY, `tests/unit/continuation.test.ts`).
 12. ✅ 1.6.0: MAE / MFE ze screena TradingView „po” (narzędzie Long / Short Position, OCR osi, autouzupełnianie)
     i dokładnie z CSV (`tests/unit/tv-chart.test.ts`, `tests/e2e/tv-excursions.spec.ts`).
+13. ✅ 1.7.0: interwał screena z legendy TradingView i znak w lewym górnym rogu (`tests/unit/tv-timeframe.test.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

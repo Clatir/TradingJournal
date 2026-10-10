@@ -3,6 +3,24 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.7.0
+
+### Nowe
+- **Interwał screena rozpoznawany z wykresu i znak wodny w lewym górnym rogu.**
+  - Po wklejeniu screena z TradingView aplikacja czyta interwał z legendy wykresu („Euro / British Pound · 1h ·
+    OANDA”) i zaznacza go na karcie (H1, H4, M15, D, W…), tak samo jak klawisze 1–7.
+  - Interwał jest pokazywany jako wyraźny znak w lewym górnym rogu screena: na miniaturze, w podglądzie, w edytorze
+    adnotacji i w „Kopiuj z adnotacjami”. Plik screena się nie zmienia, więc zmiana interwału zmienia też znak.
+  - Dokładność:
+    - legenda jest czytana kilka razy różnymi metodami (kolorowe świece i wartości OHLC usunięte z tła, kilka
+      powiększeń, sama linia legendy) i odczyty głosują;
+    - wynik jest pewny tylko wtedy, gdy odczyty się zgadzają;
+    - niepewny wynik ma znak „?” i przerywaną ramkę;
+    - bez legendy TradingView (inny program, wycinek bez legendy) interwał nie jest zgadywany.
+  - Ręczna zmiana interwału (klawisz albo przycisk) zawsze wygrywa z rozpoznanym.
+  - Ustawienia → Screeny → „Interwał”: włączanie rozpoznawania i znaku oraz przycisk „Rozpoznaj interwał na
+    zapisanych screenach” dla screenów dodanych wcześniej.
+
 ## 1.6.2
 
 ### Poprawki

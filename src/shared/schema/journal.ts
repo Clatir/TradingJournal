@@ -303,7 +303,11 @@ export const settingsSchema = z.looseObject({
       maxWidth: z.number().int().min(320).max(10000).default(2560),
       thumbWidth: z.number().int().min(120).max(1200).default(480),
       /** A screen added as "po" fills empty MAE / MFE from the TradingView position tool on it (1.6.0). */
-      autoExcursions: z.boolean().default(true)
+      autoExcursions: z.boolean().default(true),
+      /** A pasted TradingView screen gets its timeframe from the chart's legend (1.7.0). */
+      autoTimeframe: z.boolean().default(true),
+      /** The timeframe shown as a large mark in the top left corner of screens (and in copies with annotations). */
+      timeframeMark: z.boolean().default(true)
     })
     .prefault({}),
   display: z

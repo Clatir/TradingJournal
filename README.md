@@ -241,3 +241,7 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     czasem wejścia i wyjścia i pokazuje różnicę ze screenem. Ustawienia → Screeny → „MAE / MFE” wyłącza wpisywanie.
 22. Screen → „✎” (adnotacje) → „Tekst”, w pasku „Tekst” wybierz XL i kliknij na wykresie – duży napis. „Zaznacz”, kliknij
     napis, `[` / `]` albo S…XXL zmienia jego rozmiar; „Kopiuj z adnotacjami” wkleja obraz z tymi rozmiarami.
+23. Wklej screen z TradingView (z legendą „… · 1h · OANDA” w lewym górnym rogu): po chwili na karcie zaznacza się H1
+    i w rogu screena pojawia się duży znak „H1” (także w podglądzie i w „Kopiuj z adnotacjami”). Kliknij H1 – znak
+    znika; Ustawienia → Screeny → „Rozpoznaj interwał na zapisanych screenach” przywraca go. Screen bez legendy
+    (np. panel XTB) zostaje bez interwału.

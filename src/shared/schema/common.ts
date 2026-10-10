@@ -45,6 +45,8 @@ export const screenRefSchema = z.looseObject({
   thumbPath: z.string().min(1),
   phase: screenPhaseSchema.nullable().default(null),
   timeframe: z.string().nullable().default(null),
+  /** The timeframe was read from the chart's legend (1.7.0): 'unsure' = the readings did not agree well. */
+  timeframeAuto: z.enum(['sure', 'unsure']).optional(),
   caption: text,
   width: z.number().int().nonnegative(),
   height: z.number().int().nonnegative(),

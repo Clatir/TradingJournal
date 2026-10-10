@@ -32,6 +32,14 @@ test('screen „po” z TradingView uzupełnia MAE / MFE; okno z podglądem, pom
     await page.getByTestId('screen-zone-after').click()
     await page.keyboard.press('Control+v')
     await expect(page.getByTestId('screen-card')).toHaveCount(1, { timeout: 20_000 })
+    // The timeframe from the chart's legend ("· 1h ·"), shown as a mark in the corner.
+    const card = page.getByTestId('screen-card')
+    await expect(card.locator('button[aria-pressed="true"]')).toHaveText('H1', { timeout: 60_000 })
+    await expect(card.getByTestId('tf-mark')).toContainText('H1')
+    await card.locator('img').first().click()
+    await expect(page.getByTestId('lightbox')).toBeVisible()
+    await page.screenshot({ path: shots('81-interwal-znak') })
+    await page.keyboard.press('Escape')
 
     // Filled in the background from the saved "po" screen.
     const mae = page.getByLabel('MAE w pipsach')
@@ -62,6 +70,21 @@ test('screen „po” z TradingView uzupełnia MAE / MFE; okno z podglądem, pom
     await page.getByTestId('tv-apply').click()
     await expect(page.getByTestId('tv-dialog')).toHaveCount(0)
     await expect(mae).toHaveValue('-30.0')
+
+    // Settings → Screeny: saved screens without a timeframe get it from the legend.
+    await card.locator('button[aria-pressed="true"]').click()
+    await expect(card.locator('button[aria-pressed="true"]')).toHaveCount(0)
+    await expect(card.getByTestId('tf-mark')).toHaveCount(0)
+    const tradeFile = async () => {
+      const year = join(dataDir, 'trades', (await fs.readdir(join(dataDir, 'trades')))[0]!)
+      const f = (await fs.readdir(year)).find((n) => n.endsWith('.json') && !n.startsWith('.'))!
+      return JSON.parse(await fs.readFile(join(year, f), 'utf8')) as { screens: Array<{ timeframe: string | null; timeframeAuto?: string }> }
+    }
+    await expect.poll(async () => (await tradeFile()).screens[0]?.timeframe ?? null, { timeout: 10_000 }).toBeNull()
+    await page.keyboard.press('Control+,')
+    await page.getByTestId('settings-tab-screens').click()
+    await page.getByTestId('timeframe-scan').click()
+    await expect.poll(async () => (await tradeFile()).screens[0], { timeout: 60_000 }).toMatchObject({ timeframe: 'H1', timeframeAuto: 'sure' })
     expect(errors).toEqual([])
   } finally {
     await app.close()

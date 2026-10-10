@@ -3,6 +3,7 @@ import { fileUrl } from '@shared/api'
 import { newId } from '@shared/ids'
 import type { Annotation, ScreenRef } from '@shared/schema'
 import { api, errorMessage } from '../lib/api'
+import { useJournal } from '../store/journal'
 import { toast } from '../store/ui'
 import { IconClose, IconCopy, IconTrash } from './icons'
 import { cx } from './ui'
@@ -22,6 +23,47 @@ type Tool = 'select' | 'arrow' | 'rect' | 'hline' | 'text'
 
 function geometry(w: number) {
   return { stroke: Math.max(2, w * 0.0022), font: Math.max(12, w * 0.0135), head: Math.max(8, w * 0.009) }
+}
+
+/** The timeframe mark in the top left corner: box and text in image pixels (a ~1920 px chart: 62 px tall text). */
+function markGeometry(w: number, h: number, text: string) {
+  const font = Math.max(16, Math.min(w * 0.032, h * 0.06))
+  const pad = font * 0.28
+  const x = Math.max(4, w * 0.006)
+  const y = Math.max(4, h * 0.008)
+  return { font, pad, x, y, width: text.length * font * 0.66 + pad * 2, height: font + pad * 1.6 }
+}
+
+/** Whether screens show their timeframe as a mark (setting, on by default). */
+export function useTimeframeMark(): boolean {
+  return useJournal((s) => s.journal?.settings.screens.timeframeMark ?? true)
+}
+
+/**
+ * The screen's timeframe as a large mark in its top left corner (SVG in image pixels, scales with the picture). An
+ * unsure reading of the chart's legend shows a "?" and a dashed frame.
+ */
+export function TimeframeMark({ timeframe, unsure, width, height }: { timeframe: string; unsure?: boolean; width: number; height: number }) {
+  if (!width || !height) return null
+  const text = `${timeframe}${unsure ? '?' : ''}`
+  const g = markGeometry(width, height, text)
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" data-testid="tf-mark">
+      <rect
+        x={g.x}
+        y={g.y}
+        width={g.width}
+        height={g.height}
+        fill="rgba(11,13,16,0.78)"
+        stroke="#e8a33d"
+        strokeWidth={Math.max(1.5, g.font * 0.05)}
+        strokeDasharray={unsure ? `${g.font * 0.2} ${g.font * 0.14}` : undefined}
+      />
+      <text x={g.x + g.pad} y={g.y + g.pad * 0.8 + g.font * 0.86} fill="#e8a33d" fontSize={g.font} fontWeight={700} fontFamily="JetBrains Mono, monospace">
+        {text}
+      </text>
+    </svg>
+  )
 }
 
 /** SVG overlay drawing annotations in image pixel space (viewBox = natural size), so it scales with the image. */
@@ -166,6 +208,21 @@ export async function flattenScreen(screen: ScreenRef): Promise<Uint8Array> {
       x.fill()
     }
   }
+  if (screen.timeframe && (useJournal.getState().journal?.settings.screens.timeframeMark ?? true)) {
+    const text = `${screen.timeframe}${screen.timeframeAuto === 'unsure' ? '?' : ''}`
+    const m = markGeometry(W, H, text)
+    x.fillStyle = 'rgba(11,13,16,0.78)'
+    x.fillRect(m.x, m.y, m.width, m.height)
+    x.strokeStyle = '#e8a33d'
+    x.lineWidth = Math.max(1.5, m.font * 0.05)
+    x.setLineDash(screen.timeframeAuto === 'unsure' ? [m.font * 0.2, m.font * 0.14] : [])
+    x.strokeRect(m.x, m.y, m.width, m.height)
+    x.setLineDash([])
+    x.fillStyle = '#e8a33d'
+    x.font = `700 ${m.font}px "JetBrains Mono", monospace`
+    x.textAlign = 'left'
+    x.fillText(text, m.x + m.pad, m.y + m.pad * 0.8 + m.font * 0.86)
+  }
   bmp.close()
   const out = await c.convertToBlob({ type: 'image/png' })
   return new Uint8Array(await out.arrayBuffer())
@@ -183,6 +240,7 @@ export async function copyScreenWithAnnotations(screen: ScreenRef): Promise<void
 /** Full-screen annotation editor for one screenshot. The image itself is never modified. */
 export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; onChange: (annotations: Annotation[]) => void; onClose: () => void }) {
   const [tool, setTool] = useState<Tool>('arrow')
+  const showMark = useTimeframeMark()
   const [color, setColor] = useState(ANNOTATION_COLORS[0] as string)
   const [selected, setSelected] = useState<string | null>(null)
   // Remembered on this computer for the next texts.
@@ -412,6 +470,9 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
         >
           <img src={fileUrl(screen.path)} alt="" draggable={false} className="pointer-events-none block h-full w-full" />
           <AnnotationLayer annotations={shown} width={screen.width} height={screen.height} selectedId={selected} onSelect={tool === 'select' ? setSelected : undefined} />
+          {screen.timeframe && showMark && (
+            <TimeframeMark timeframe={screen.timeframe} unsure={screen.timeframeAuto === 'unsure'} width={screen.width} height={screen.height} />
+          )}
           {textAt && (
             <input
               autoFocus

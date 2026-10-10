@@ -13,6 +13,7 @@ import { UpdatesTab } from './UpdatesTab'
 import { InstrumentsTab } from './InstrumentsTab'
 import { FxPanel } from './FxPanel'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
+import { detectMissingTimeframes } from '../screens/timeframes'
 import { CurrencyInput, Field, NameInput, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 import { CustomFieldsPanel } from './CustomFieldsPanel'
 import { oilScaleMismatch, pairPreset } from '@shared/pairs'
@@ -632,6 +633,23 @@ function ScreensTab({ settings }: { settings: Settings }) {
               <span className="text-[11px] text-muted">px szerokości (listy i galerie; pełny obraz tylko w podglądzie)</span>
             </div>
           </Field>
+          <Field label="Interwał">
+            <div className="flex flex-col gap-1.5">
+              <Toggle
+                checked={sc.autoTimeframe}
+                onChange={(v) => setSc({ autoTimeframe: v })}
+                label="Rozpoznawaj interwał wklejonego screena z legendy wykresu TradingView („Euro / … · 1h · OANDA”)"
+                data-testid="auto-timeframe"
+              />
+              <Toggle
+                checked={sc.timeframeMark}
+                onChange={(v) => setSc({ timeframeMark: v })}
+                label="Pokazuj interwał jako znak w lewym górnym rogu screena (także w „Kopiuj z adnotacjami”)"
+                data-testid="timeframe-mark"
+              />
+              <TimeframeScanButton />
+            </div>
+          </Field>
           <Field label="MAE / MFE">
             <Toggle
               checked={sc.autoExcursions}
@@ -801,5 +819,35 @@ function DisplayTab({ settings }: { settings: Settings }) {
       </Panel>
       <FxPanel settings={settings} />
     </>
+  )
+}
+
+/** Reads the timeframe of saved screens that have none (screens from before 1.7.0, or pasted with the option off). */
+function TimeframeScanButton() {
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const run = async () => {
+    setProgress({ done: 0, total: 0 })
+    try {
+      const r = await detectMissingTimeframes((done, total) => setProgress({ done, total }))
+      toast(
+        r.checked === 0
+          ? 'Wszystkie screeny mają już interwał.'
+          : `Sprawdzono ${r.checked} screenów bez interwału: rozpoznano ${r.found}${r.unsure ? ` (${r.unsure} niepewnie – ze znakiem „?”)` : ''}. Bez legendy TradingView interwał zostaje pusty.`,
+        'success',
+        8000
+      )
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    } finally {
+      setProgress(null)
+    }
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <button className="btn h-[24px]" disabled={progress != null} onClick={() => void run()} data-testid="timeframe-scan">
+        Rozpoznaj interwał na zapisanych screenach
+      </button>
+      {progress && <span className="num text-[11px] text-muted">{progress.total ? `${progress.done} / ${progress.total}` : 'szukam…'}</span>}
+    </div>
   )
 }

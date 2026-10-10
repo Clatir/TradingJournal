@@ -7,7 +7,8 @@ import { fmtBytes } from '../../lib/format'
 import { flushSaves, useJournal } from '../../store/journal'
 import { openLightbox, toast } from '../../store/ui'
 import { IconImage, IconPaste, IconTrash } from '../../components/icons'
-import { AnnotationLayer, Annotator } from '../../components/annotations'
+import { AnnotationLayer, Annotator, TimeframeMark, useTimeframeMark } from '../../components/annotations'
+import { detectTimeframe } from '../../lib/tvOcr'
 import { cx } from '../../components/ui'
 
 export const PHASES: Array<{ id: ScreenPhase; label: string; file: string; key: string }> = [
@@ -46,6 +47,7 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
   const [info, setInfo] = useState<Record<string, string>>({})
   const [dropPhase, setDropPhase] = useState<ScreenPhase | 'any' | null>(null)
   const [annotating, setAnnotating] = useState<string | null>(null)
+  const showMark = useTimeframeMark()
   const settingsRef = useRef(settings)
   settingsRef.current = settings
 
@@ -72,6 +74,19 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
           const saved = await api.saveScreen({ date, label, image: c.image, thumb: c.thumb, width: c.width, height: c.height })
           const ref: ScreenRef = { ...saved, phase, timeframe: null, caption: '', annotations: [] }
           onChange((prev) => [...prev, ref])
+          // The timeframe from the chart's legend, read from the original picture in the background.
+          if (opts.autoTimeframe) {
+            void detectTimeframe(file).then(
+              (r) => {
+                if (!r.name) return
+                onChange((prev) =>
+                  prev.map((s) => (s.id === saved.id && s.timeframe == null ? { ...s, timeframe: r.name, timeframeAuto: r.certain ? 'sure' : 'unsure' } : s))
+                )
+                setInfo((m) => ({ ...m, [saved.id]: `${m[saved.id] ?? ''} · interwał ${r.name}${r.certain ? '' : '?'} z legendy` }))
+              },
+              () => undefined
+            )
+          }
           const saving = c.originalBytes > 0 ? Math.round((1 - saved.bytes / c.originalBytes) * 100) : 0
           const text =
             `${typeLabel(c.originalType)} ${fmtBytes(c.originalBytes)} → WebP ${fmtBytes(saved.bytes)} (${saving >= 0 ? '−' : '+'}${Math.abs(saving)}%)` +
@@ -115,7 +130,7 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
       if (Number.isInteger(n) && n >= 1 && n <= timeframes.length) {
         e.preventDefault()
         const tf = timeframes[n - 1] ?? null
-        onChange((prev) => prev.map((s) => (s.id === current ? { ...s, timeframe: tf } : s)))
+        onChange((prev) => prev.map((s) => (s.id === current ? { ...s, timeframe: tf, timeframeAuto: undefined } : s)))
       }
     }
     window.addEventListener('keydown', onKey)
@@ -172,7 +187,12 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
       >
         <img src={fileUrl(s.thumbPath)} alt="" loading="lazy" draggable={false} className="h-full w-full object-fill" />
         <AnnotationLayer annotations={s.annotations} width={s.width} height={s.height} />
-        {s.timeframe && <span className="num absolute top-1 left-1 bg-black/75 px-1 text-[10.5px] text-fg-strong">{s.timeframe}</span>}
+        {s.timeframe &&
+          (showMark ? (
+            <TimeframeMark timeframe={s.timeframe} unsure={s.timeframeAuto === 'unsure'} width={s.width} height={s.height} />
+          ) : (
+            <span className="num absolute top-1 left-1 bg-black/75 px-1 text-[10.5px] text-fg-strong">{s.timeframe}</span>
+          ))}
         {s.annotations.length > 0 && <span className="num absolute top-1 right-1 bg-black/75 px-1 text-[10px] text-accent">✎{s.annotations.length}</span>}
       </button>
       {!readOnly && (
@@ -182,11 +202,11 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
               <button
                 key={tf}
                 type="button"
-                title={`Klawisz ${i + 1}`}
+                title={s.timeframe === tf && s.timeframeAuto ? `Rozpoznany z legendy wykresu${s.timeframeAuto === 'unsure' ? ' – niepewnie, sprawdź' : ''} (klawisz ${i + 1})` : `Klawisz ${i + 1}`}
                 aria-pressed={s.timeframe === tf}
                 onClick={(e) => {
                   e.stopPropagation()
-                  update(s.id, { timeframe: s.timeframe === tf ? null : tf })
+                  update(s.id, { timeframe: s.timeframe === tf ? null : tf, timeframeAuto: undefined })
                 }}
                 className={cx(
                   'num h-[18px] min-w-[26px] px-1 text-[10.5px]',

@@ -9,6 +9,8 @@
  * and writes for every case `<name>.png` + `<name>.json`: the trade (direction, entry, SL, TP, exit) and the expected
  * MAE / MFE computed from the candles with the same rules as the reader (the entry candle counts; the level that
  * closed the trade caps its side; the target closes only when the trade ended there).
+ * TV_INTERVALS=1 varies the legend's interval (1, 5, 15, 1h, 4h, 1D, W…; written to the JSON as `interval`) for the
+ * timeframe reader; tests/fixtures/tv-legend/ are legend corners of `TV_INTERVALS=1 node scripts/tv-screens.mjs <dir> 30 4321`.
  * Deterministic (seeded); the fixtures in tests/fixtures/tv/ are cases of `node scripts/tv-screens.mjs <dir> 50 9191`
  * (names ending in -webp: compressed to lossy WebP and back, as a screen saved by the app may be).
  */
@@ -112,6 +114,22 @@ function expected(bars, iEntry, iRight, { long, entry, stop, target }) {
   return { adverse, favourable, exit, exitIndex, maeIndex, mfeIndex }
 }
 
+/**
+ * TradingView's legend: "<name> · <interval> · <exchange>  O… H… L… C…" (values in the last candle's colour). With
+ * TV_INTERVALS=1 the interval varies by case (for the timeframe reader); otherwise every chart is 1h.
+ */
+const INTERVALS = ['1', '3', '5', '15', '30', '45', '15m', '1h', '2h', '4h', '1D', 'D', '1W', 'W', '1M']
+function intervalOf(i) {
+  return process.env.TV_INTERVALS ? INTERVALS[(i * 7 + seedBase) % INTERVALS.length] : '1h'
+}
+function legendLine(c) {
+  const last = c.bars[Math.min(c.bars.length - 1, c.iRight)]
+  const colour = last.close >= last.open ? '#089981' : '#f23645'
+  const v = (x) => `<span style="color:${colour}">${x.toFixed(c.inst.decimals)}</span>`
+  const ohlc = process.env.TV_INTERVALS ? `&nbsp; O${v(last.open)} H${v(last.high)} L${v(last.low)} C${v(last.close)}` : ''
+  return `${c.inst.title.replace('· 1h ·', `· ${c.interval} ·`)}${ohlc}`
+}
+
 function pageHtml(c, frame) {
   const { width, height, header } = frame
   return `<!doctype html><html><head><style>
@@ -126,7 +144,7 @@ function pageHtml(c, frame) {
   </style></head><body>
   <div id="head">Szy_Monk created with TradingView.com, Oct 08, 2026 17:39 UTC-4</div>
   <div id="chart"></div>
-  <div id="legend">${c.inst.title}<br>Fair Value Gap SpaceManBTC (D, Current TF, 10, 20)</div>
+  <div id="legend">${legendLine(c)}<br>Fair Value Gap SpaceManBTC (D, Current TF, 10, 20)</div>
   <div id="foot">TradingView</div>
   </body></html>`
 }
@@ -279,6 +297,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const cases = []
 for (let i = 0; i < count; i++) {
   const c = makeCase(i)
+  c.interval = intervalOf(i)
   const frame = i % 4 === 3 ? { width: 1828, height: 882, header: false } : { width: 2000, height: 1234, header: true }
   frame.extras = { ...extrasFor(c), maeIndex: c.truth.maeIndex, mfeIndex: c.truth.mfeIndex }
   frame.lossy = i % 3 === 1
@@ -298,7 +317,7 @@ for (let i = 0; i < count; i++) {
   const trade = { direction: c.long ? 'long' : 'short', entry: c.entry, stopLoss: c.stop, takeProfit: c.target, exitPrice: c.exitPrice, pipSize: c.inst.pip, decimals: c.inst.decimals }
   const truth = { maePips: -Number((c.truth.adverse / c.inst.pip).toFixed(1)), mfePips: Number((c.truth.favourable / c.inst.pip).toFixed(1)), exit: c.truth.exit }
   const at = { toolLeft: Math.round(info.left), toolRight: Math.round(info.right), maeX: Math.round(info.maeX), mfeX: Math.round(info.mfeX), exitX: Math.round(info.exitX) }
-  writeFileSync(join(outDir, `${name}.json`), `${JSON.stringify({ trade, truth, at }, null, 2)}\n`)
+  writeFileSync(join(outDir, `${name}.json`), `${JSON.stringify({ trade, truth, at, ...(process.env.TV_INTERVALS ? { interval: c.interval } : {}) }, null, 2)}\n`)
   cases.push(name)
   console.log(name, truth)
 }
