@@ -84,17 +84,20 @@ Pracuj na gałęzi `feature/skaner-ict` i rób commit po każdej fazie. Jeśli r
 2. Podaj sugerowany model i effort na następny etap z tabeli poniżej, razem z poleceniami do wpisania, np. `/model fable` i `/effort high`.
 3. Czekaj na słowo „dalej” (po kroku 2 na słowo „akceptuję”). Nie zaczynaj następnego etapu wcześniej.
 
-| Etap | Model | Effort |
+| Etap | Do resetu limitu tygodniowego | Po resecie |
 | --- | --- | --- |
-| Krok 1: rozpoznanie i test EODHD | Opus 5.5 | high |
-| Krok 2: plan | Fable 5.1 | high |
-| Faza 1: dane i magazyn świec | Opus 5.5 | high |
-| Faza 2: silnik ICT | Fable 5.1 | high |
-| Faza 3: modele, ocena, cykl życia | Fable 5.1 | high |
-| Faza 4: interfejs | Opus 5.5 | medium |
-| Faza 5: alerty, kalkulator, newsy | Opus 5.5 | medium |
-| Faza 6: replay i statystyki | Opus 5.5 | high |
-| Faza 7: build, test całości, raport | Opus 5.5 | high |
+| Krok 1: rozpoznanie i test EODHD | Opus 5.5, high | Opus 5.5, high |
+| Krok 2: plan | Fable 5.1, xhigh | Fable 5.1, high |
+| Faza 1: dane i magazyn świec | Opus 5.5, xhigh | Opus 5.5, high |
+| Faza 2: silnik ICT | Fable 5.1, xhigh | Fable 5.1, high |
+| Faza 3: modele, ocena, cykl życia | Fable 5.1, xhigh | Fable 5.1, high |
+| Faza 4: interfejs, briefing, oceny | Opus 5.5, medium | Opus 5.5, medium |
+| Faza 5: alerty, kalkulator, newsy | Opus 5.5, medium | Opus 5.5, medium |
+| Faza 6: replay, statystyki, kalibracja | Opus 5.5, high | Opus 5.5, high |
+| Faza 7: build, test całości, raport | Opus 5.5, high | Opus 5.5, high |
+| Poprawki po sprawdzeniach użytkownika | Opus 5.5, high dla logiki, medium dla interfejsu | Opus 5.5, high dla logiki, medium dla interfejsu |
+
+Limit tygodniowy użytkownika odnawia się w niedzielę 11.10.2026 o 18:00 czasu polskiego, a potem co tydzień. Niewykorzystana pula przepada, dlatego przed resetem effort jest wyższy. Przy każdym przystanku sprawdź datę i godzinę i podaj wartości z właściwej kolumny. Etap przerwany resetem dokończ na ustawieniu, na którym się zaczął. Po resecie zaproponuj xhigh dla fazy 3 tylko wtedy, gdy użytkownik potwierdzi, że ma zapas limitu.
 
 Użytkownik ma plan Max 5x, w którym pula Fable jest ograniczona. Jeśli Fable jest niedostępny albo wymaga dopłat, zaproponuj Opus 5.5 na high. W fazie 7 przegląd końcowy wykonaj jako workflow: niezależni agenci sprawdzają brak zaglądania w przyszłość i zgodność kodu ze specyfikacją.
 
