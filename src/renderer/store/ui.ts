@@ -12,10 +12,11 @@ export type Route =
   | { page: 'forecast'; id?: string }
   | { page: 'drill' }
   | { page: 'reports' }
+  | { page: 'scanner' }
   | { page: 'settings'; tab?: SettingsTab }
   | { page: 'sync' }
 
-export type SettingsTab = 'folder' | 'pairs' | 'instruments' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer' | 'updates'
+export type SettingsTab = 'folder' | 'pairs' | 'instruments' | 'killzones' | 'rules' | 'dictionaries' | 'screens' | 'display' | 'transfer' | 'updates' | 'scanner'
 
 export interface Toast {
   id: number

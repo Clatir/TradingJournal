@@ -171,3 +171,12 @@ export const IconTarget = base(
     <circle cx="8" cy="8" r=".6" />
   </>
 )
+
+/** Scanner: a radar sweep. */
+export const IconRadar = base(
+  <>
+    <circle cx="8" cy="8" r="5.8" />
+    <circle cx="8" cy="8" r="2.6" />
+    <path d="M8 8l4.1-4.1" />
+  </>
+)

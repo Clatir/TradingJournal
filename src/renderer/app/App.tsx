@@ -21,7 +21,7 @@ import { newTrade } from '../features/trade/actions'
 import { duplicateCurrent } from '../features/duplicate'
 import { Lightbox } from '../components/Lightbox'
 import { Toasts } from '../components/Toasts'
-import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconReport, IconSync, IconTarget, IconWeek } from '../components/icons'
+import { IconBook, IconCalc, IconCalendar, IconChart, IconForecast, IconGear, IconList, IconPlus, IconReport, IconSync, IconTarget, IconWeek, IconRadar } from '../components/icons'
 import { cx } from '../components/ui'
 import { TopBar } from './TopBar'
 import { Banners } from './Banners'
@@ -35,6 +35,8 @@ import { flushSaves } from '../store/journal'
 import { initUpdates } from '../store/update'
 import { useFxAutoFetch } from '../store/fx'
 import { toast } from '../store/ui'
+import { ScannerPage } from '../features/scanner/ScannerPage'
+import { useScannerSync } from '../store/scanner'
 
 function useGlobalHotkeys(): void {
   useEffect(() => {
@@ -88,6 +90,9 @@ function useGlobalHotkeys(): void {
       } else if (e.key === '9') {
         e.preventDefault()
         navigate({ page: 'reports' })
+      } else if (e.key === '0') {
+        e.preventDefault()
+        navigate({ page: 'scanner' })
       } else if (e.key === ',') {
         e.preventDefault()
         navigate({ page: 'settings' })
@@ -153,6 +158,8 @@ function Page({ route }: { route: Route }) {
       return <DrillPage />
     case 'reports':
       return <ReportsPage />
+    case 'scanner':
+      return <ScannerPage />
     case 'settings':
       return <SettingsPage />
     case 'sync':
@@ -166,6 +173,7 @@ export function App() {
   const issues = useJournal((s) => s.conflicts.length + s.problems.filter((p) => p.kind !== 'unknown-file').length)
   useGlobalHotkeys()
   useFxAutoFetch()
+  useScannerSync()
   useEffect(() => {
     void boot()
     initUpdates()
@@ -207,6 +215,9 @@ export function App() {
           </NavButton>
           <NavButton active={route.page === 'reports'} onClick={() => navigate({ page: 'reports' })} label="Raporty" keys="Ctrl+9" testId="nav-reports">
             <IconReport size={17} />
+          </NavButton>
+          <NavButton active={route.page === 'scanner'} onClick={() => navigate({ page: 'scanner' })} label="Skaner" keys="Ctrl+0" testId="nav-scanner">
+            <IconRadar size={17} />
           </NavButton>
           <NavButton active={false} onClick={() => newTrade()} label="Nowa" keys="Ctrl+N" testId="nav-new">
             <IconPlus size={17} />

@@ -29,6 +29,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
       ['Ctrl 7', 'prognoza wypłat'],
       ['Ctrl 8', 'trening (karty)'],
       ['Ctrl 9', 'raporty (okres, sekcje, PDF / markdown)'],
+      ['Ctrl 0', 'skaner ICT (dane EODHD, wykres)'],
       ['Ctrl ,', 'ustawienia']
     ]
   },

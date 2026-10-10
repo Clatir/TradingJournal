@@ -20,6 +20,7 @@ import { MarkPlacement } from './MarkPlacement'
 import { OCR_NOTE } from '@shared/screenMark'
 import { oilScaleMismatch, pairPreset } from '@shared/pairs'
 import { shownDecimals } from '@shared/calc/position'
+import { ScannerSettingsTab } from '../scanner/ScannerSettings'
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'folder', label: 'Folder danych' },
@@ -31,6 +32,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'screens', label: 'Screeny' },
   { id: 'display', label: 'Wyświetlanie i ryzyko' },
   { id: 'transfer', label: 'Eksport, import, kopie' },
+  { id: 'scanner', label: 'Skaner' },
   { id: 'updates', label: 'Aktualizacje' }
 ]
 
@@ -69,6 +71,7 @@ export function SettingsPage() {
           {tab === 'display' && <DisplayTab settings={journal.settings} />}
           {tab === 'transfer' && <TransferTab />}
           {tab === 'updates' && <UpdatesTab />}
+          {tab === 'scanner' && <ScannerSettingsTab settings={journal.settings} />}
         </div>
       </div>
     </div>

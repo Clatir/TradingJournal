@@ -146,7 +146,8 @@ export class ScannerService {
       this.plan = subscriptionPlan(config.scanner, config.accountCurrency)
       this.m1.setMode(config.scanner.price)
       const symbols = this.plan.over ? this.plan.symbols.slice(0, this.plan.limit) : this.plan.symbols
-      if (this.stream && this.keys.get()) {
+      if (this.stream) {
+        // Without a key the stream reports "no-key" until one is entered.
         if (!this.streamStarted) {
           this.stream.start(symbols)
           this.streamStarted = true
@@ -303,8 +304,10 @@ export class ScannerService {
     const state = await this.keys.set(key)
     this.user = null
     if (this.stream && this.config) {
-      if (this.streamStarted) this.stream.reconnectNow('nowy klucz API')
-      else {
+      if (this.streamStarted) {
+        this.stream.stop()
+        this.stream.start(this.plan.symbols.slice(0, this.plan.limit))
+      } else {
         this.stream.start(this.plan.symbols.slice(0, this.plan.limit))
         this.streamStarted = true
       }
@@ -317,7 +320,9 @@ export class ScannerService {
   async clearApiKey(): Promise<KeyState> {
     const state = await this.keys.clear()
     this.stream?.stop()
-    this.streamStarted = false
+    // Restarted without a key: the status says "no key" instead of "off".
+    if (this.stream && this.config) this.stream.start(this.plan.symbols.slice(0, this.plan.limit))
+    this.streamStarted = !!(this.stream && this.config)
     this.user = null
     this.queueStatus()
     return state
