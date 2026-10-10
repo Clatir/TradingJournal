@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fileUrl } from '@shared/api'
 import { newId } from '@shared/ids'
 import type { Annotation, ScreenRef } from '@shared/schema'
-import { DEFAULT_MARK_POSITION, markGeometry, type MarkPosition } from '@shared/screenMark'
+import { DEFAULT_MARK_POSITION, OCR_NOTE, markGeometry, type MarkPosition } from '@shared/screenMark'
 import { api, errorMessage } from '../lib/api'
 import { useJournal } from '../store/journal'
 import { toast } from '../store/ui'
@@ -32,32 +32,45 @@ export function useTimeframeMark(): boolean {
 }
 
 /** The mark's place and size from the settings (primitives selected one by one: stable across renders). */
-function useMarkPlacement(): { position: MarkPosition; size: number } {
+function useMarkPlacement(): { position: MarkPosition; size: number; ocrNote: boolean } {
   const x = useJournal((s) => s.journal?.settings.screens.timeframeMarkPos?.x ?? 0)
   const y = useJournal((s) => s.journal?.settings.screens.timeframeMarkPos?.y ?? 0)
   const size = useJournal((s) => s.journal?.settings.screens.timeframeMarkSize ?? 1)
-  return { position: { x, y }, size }
+  const ocrNote = useJournal((s) => s.journal?.settings.screens.timeframeOcrNote ?? true)
+  return { position: { x, y }, size, ocrNote }
 }
 
-function markPlacement(): { position: MarkPosition; size: number } {
+function markPlacement(): { position: MarkPosition; size: number; ocrNote: boolean } {
   const sc = useJournal.getState().journal?.settings.screens
-  return { position: sc?.timeframeMarkPos ?? DEFAULT_MARK_POSITION, size: sc?.timeframeMarkSize ?? 1 }
+  return { position: sc?.timeframeMarkPos ?? DEFAULT_MARK_POSITION, size: sc?.timeframeMarkSize ?? 1, ocrNote: sc?.timeframeOcrNote ?? true }
 }
 
 /**
  * The screen's timeframe as a large mark, where the settings put it (SVG in image pixels, scales with the picture). An
- * unsure reading of the chart's legend shows a "?" and a dashed frame.
+ * unsure reading of the chart's legend shows a "?" and a dashed frame; a timeframe read from the legend (`auto`) has
+ * the note "rozpoznano przy pomocy OCR" under the box (setting, on by default).
  */
-export function TimeframeMark({ timeframe, unsure, width, height }: { timeframe: string; unsure?: boolean; width: number; height: number }) {
-  const { position, size } = useMarkPlacement()
+export function TimeframeMark({ timeframe, auto, width, height }: { timeframe: string; auto?: 'sure' | 'unsure'; width: number; height: number }) {
+  const { position, size, ocrNote } = useMarkPlacement()
   if (!width || !height) return null
-  return <TimeframeMarkSvg timeframe={timeframe} unsure={unsure} width={width} height={height} position={position} size={size} />
+  return (
+    <TimeframeMarkSvg
+      timeframe={timeframe}
+      unsure={auto === 'unsure'}
+      note={auto && ocrNote ? OCR_NOTE : null}
+      width={width}
+      height={height}
+      position={position}
+      size={size}
+    />
+  )
 }
 
 /** The mark itself, with an explicit place and size (the settings' mock chart draws it while it is dragged). */
 export function TimeframeMarkSvg({
   timeframe,
   unsure,
+  note = null,
   width,
   height,
   position,
@@ -66,6 +79,7 @@ export function TimeframeMarkSvg({
 }: {
   timeframe: string
   unsure?: boolean
+  note?: string | null
   width: number
   height: number
   position: MarkPosition
@@ -73,7 +87,7 @@ export function TimeframeMarkSvg({
   testId?: string
 }) {
   const text = `${timeframe}${unsure ? '?' : ''}`
-  const g = markGeometry(width, height, text, position, size)
+  const g = markGeometry(width, height, text, position, size, note)
   return (
     <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" data-testid={testId}>
       <rect
@@ -89,6 +103,23 @@ export function TimeframeMarkSvg({
       <text x={g.x + g.pad} y={g.y + g.pad * 0.8 + g.font * 0.86} fill="#e8a33d" fontSize={g.font} fontWeight={700} fontFamily="JetBrains Mono, monospace">
         {text}
       </text>
+      {g.note && (
+        <g data-testid="tf-mark-note">
+          <rect x={g.note.x} y={g.note.y} width={g.note.width} height={g.note.height} fill="rgba(11,13,16,0.78)" />
+          <text
+            x={g.note.x + g.note.font * 0.45}
+            y={g.note.baseline}
+            fill="#e8a33d"
+            fillOpacity={0.9}
+            fontSize={g.note.font}
+            fontFamily="JetBrains Mono, monospace"
+            textLength={g.note.width - g.note.font * 0.9}
+            lengthAdjust="spacingAndGlyphs"
+          >
+            {note}
+          </text>
+        </g>
+      )}
     </svg>
   )
 }
@@ -237,8 +268,9 @@ export async function flattenScreen(screen: ScreenRef): Promise<Uint8Array> {
   }
   if (screen.timeframe && (useJournal.getState().journal?.settings.screens.timeframeMark ?? true)) {
     const text = `${screen.timeframe}${screen.timeframeAuto === 'unsure' ? '?' : ''}`
-    const { position, size } = markPlacement()
-    const m = markGeometry(W, H, text, position, size)
+    const { position, size, ocrNote } = markPlacement()
+    const note = screen.timeframeAuto && ocrNote ? OCR_NOTE : null
+    const m = markGeometry(W, H, text, position, size, note)
     x.fillStyle = 'rgba(11,13,16,0.78)'
     x.fillRect(m.x, m.y, m.width, m.height)
     x.strokeStyle = '#e8a33d'
@@ -250,6 +282,13 @@ export async function flattenScreen(screen: ScreenRef): Promise<Uint8Array> {
     x.font = `700 ${m.font}px "JetBrains Mono", monospace`
     x.textAlign = 'left'
     x.fillText(text, m.x + m.pad, m.y + m.pad * 0.8 + m.font * 0.86)
+    if (m.note && note) {
+      x.fillStyle = 'rgba(11,13,16,0.78)'
+      x.fillRect(m.note.x, m.note.y, m.note.width, m.note.height)
+      x.fillStyle = 'rgba(232,163,61,0.9)'
+      x.font = `${m.note.font}px "JetBrains Mono", monospace`
+      x.fillText(note, m.note.x + m.note.font * 0.45, m.note.baseline, m.note.width - m.note.font * 0.9)
+    }
   }
   bmp.close()
   const out = await c.convertToBlob({ type: 'image/png' })
@@ -499,7 +538,7 @@ export function Annotator({ screen, onChange, onClose }: { screen: ScreenRef; on
           <img src={fileUrl(screen.path)} alt="" draggable={false} className="pointer-events-none block h-full w-full" />
           <AnnotationLayer annotations={shown} width={screen.width} height={screen.height} selectedId={selected} onSelect={tool === 'select' ? setSelected : undefined} />
           {screen.timeframe && showMark && (
-            <TimeframeMark timeframe={screen.timeframe} unsure={screen.timeframeAuto === 'unsure'} width={screen.width} height={screen.height} />
+            <TimeframeMark timeframe={screen.timeframe} auto={screen.timeframeAuto} width={screen.width} height={screen.height} />
           )}
           {textAt && (
             <input

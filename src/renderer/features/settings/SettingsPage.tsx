@@ -17,6 +17,7 @@ import { detectMissingTimeframes } from '../screens/timeframes'
 import { CurrencyInput, Field, NameInput, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 import { CustomFieldsPanel } from './CustomFieldsPanel'
 import { MarkPlacement } from './MarkPlacement'
+import { OCR_NOTE } from '@shared/screenMark'
 import { oilScaleMismatch, pairPreset } from '@shared/pairs'
 import { shownDecimals } from '@shared/calc/position'
 
@@ -648,9 +649,16 @@ function ScreensTab({ settings }: { settings: Settings }) {
                 label="Pokazuj interwał jako znak na screenie (także w „Kopiuj z adnotacjami”)"
                 data-testid="timeframe-mark"
               />
+              <Toggle
+                checked={sc.timeframeOcrNote}
+                onChange={(v) => setSc({ timeframeOcrNote: v })}
+                label="Dopisek „rozpoznano przy pomocy OCR” pod znakiem, gdy interwał odczytano z legendy (nie ustawiono ręcznie)"
+                data-testid="timeframe-ocr-note"
+              />
               <MarkPlacement
                 position={sc.timeframeMarkPos}
                 size={sc.timeframeMarkSize}
+                note={sc.timeframeOcrNote ? OCR_NOTE : null}
                 disabled={!sc.timeframeMark}
                 onChange={(p) => setSc({ ...(p.position ? { timeframeMarkPos: p.position } : {}), ...(p.size != null ? { timeframeMarkSize: p.size } : {}) })}
               />

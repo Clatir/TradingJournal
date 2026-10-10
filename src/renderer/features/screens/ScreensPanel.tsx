@@ -189,7 +189,7 @@ export function ScreensPanel({ screens, onChange, date, withPhases = true, captu
         <AnnotationLayer annotations={s.annotations} width={s.width} height={s.height} />
         {s.timeframe &&
           (showMark ? (
-            <TimeframeMark timeframe={s.timeframe} unsure={s.timeframeAuto === 'unsure'} width={s.width} height={s.height} />
+            <TimeframeMark timeframe={s.timeframe} auto={s.timeframeAuto} width={s.width} height={s.height} />
           ) : (
             <span className="num absolute top-1 left-1 bg-black/75 px-1 text-[10.5px] text-fg-strong">{s.timeframe}</span>
           ))}

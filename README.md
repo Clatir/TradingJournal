@@ -247,3 +247,5 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     (np. panel XTB) zostaje bez interwału.
 24. Ustawienia → Screeny → „Interwał”: kliknij albo przeciągnij znak na makiecie wykresu (np. w prawy dolny róg),
     wybierz rozmiar S–XL – karty screenów, podgląd i „Kopiuj z adnotacjami” pokazują znak w tym miejscu i rozmiarze.
+25. Pod znakiem rozpoznanego interwału jest dopisek „rozpoznano przy pomocy OCR”; po ręcznym wyborze interwału (np. H4)
+    dopisek znika. Ustawienia → Screeny → „Interwał” wyłącza dopisek.

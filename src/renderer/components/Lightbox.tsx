@@ -92,7 +92,7 @@ export function ZoomImage({ screen, view, onView }: { screen: ScreenRef; view: V
         />
         <AnnotationLayer annotations={screen.annotations} width={screen.width} height={screen.height} />
         {screen.timeframe && showMark && (
-          <TimeframeMark timeframe={screen.timeframe} unsure={screen.timeframeAuto === 'unsure'} width={screen.width} height={screen.height} />
+          <TimeframeMark timeframe={screen.timeframe} auto={screen.timeframeAuto} width={screen.width} height={screen.height} />
         )}
       </div>
     </div>

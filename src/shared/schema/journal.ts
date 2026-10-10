@@ -314,7 +314,9 @@ export const settingsSchema = z.looseObject({
         .catch({ x: 0, y: 0 })
         .default({ x: 0, y: 0 }),
       /** The mark's size, × the default (S 0.6 … XL 2). */
-      timeframeMarkSize: z.number().min(0.25).max(4).catch(1).default(1)
+      timeframeMarkSize: z.number().min(0.25).max(4).catch(1).default(1),
+      /** A timeframe read from the legend has the note "rozpoznano przy pomocy OCR" under the mark (1.7.2). */
+      timeframeOcrNote: z.boolean().default(true)
     })
     .prefault({}),
   display: z

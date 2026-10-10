@@ -3,6 +3,14 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.7.2
+
+### Nowe
+- **Dopisek „rozpoznano przy pomocy OCR” pod znakiem interwału.** Gdy interwał odczytano z legendy wykresu
+  (po wklejeniu albo przyciskiem „Rozpoznaj interwał na zapisanych screenach”), pod znakiem jest mały dopisek
+  – także w podglądzie, w edytorze adnotacji i w „Kopiuj z adnotacjami”. Interwał ustawiony ręcznie go nie ma.
+  Ustawienia → Screeny → „Interwał”: przełącznik dopisku; makieta wykresu pokazuje go razem ze znakiem.
+
 ## 1.7.1
 
 ### Nowe

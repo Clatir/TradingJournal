@@ -379,7 +379,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   wolnego miejsca: 0 = lewo / góra, 1 = prawo / dół, znak zawsze w obrazie; domyślnie 0, 0) i `screens.timeframeMarkSize`
   (× domyślny, S–XL = 0,6–2; za duży na mały obraz jest zmniejszany); błędne wartości → domyślne (`.catch`).
   Geometria: `shared/screenMark.ts` (`markGeometry`, `markPositionAt`), makieta `features/settings/MarkPlacement.tsx`
-  (klik / przeciąganie, zapis po puszczeniu, strzałki, przyciski rogów).
+  (klik / przeciąganie, zapis po puszczeniu, strzałki, przyciski rogów). 1.7.2: `screens.timeframeOcrNote` – przy
+  `timeframeAuto` pod ramką dopisek `OCR_NOTE` („rozpoznano przy pomocy OCR”, 0,27 × tekst znaku, `textLength` w SVG,
+  `maxWidth` w canvasie); całość (ramka + dopisek) mieści się w obrazie, przy x > 0,5 wyrównana do prawej.
 - Renderer: `detectTimeframe` (`lib/tvOcr.ts`) z oryginału wklejonego obrazu w `ScreensPanel.addFiles` (tylko gdy
   interwał wciąż pusty); `TimeframeMark` + `useTimeframeMark` (`components/annotations.tsx`; karta, lightbox,
   edytor adnotacji; `flattenScreen` rysuje znak), `features/screens/timeframes.ts` (`detectMissingTimeframes` –
@@ -465,7 +467,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 12. ✅ 1.6.0: MAE / MFE ze screena TradingView „po” (narzędzie Long / Short Position, OCR osi, autouzupełnianie)
     i dokładnie z CSV (`tests/unit/tv-chart.test.ts`, `tests/e2e/tv-excursions.spec.ts`).
 13. ✅ 1.7.0: interwał screena z legendy TradingView i znak w lewym górnym rogu (`tests/unit/tv-timeframe.test.ts`);
-    1.7.1: położenie (makieta w ustawieniach) i rozmiar znaku (`tests/unit/screen-mark.test.ts`).
+    1.7.1: położenie (makieta w ustawieniach) i rozmiar znaku (`tests/unit/screen-mark.test.ts`); 1.7.2: dopisek OCR.
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

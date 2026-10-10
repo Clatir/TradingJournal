@@ -39,11 +39,14 @@ function mockCandles() {
 export function MarkPlacement({
   position,
   size,
+  note,
   disabled,
   onChange
 }: {
   position: MarkPosition
   size: number
+  /** The OCR note shown under the sample mark (as on screens whose timeframe was read from the legend). */
+  note: string | null
   disabled?: boolean
   onChange: (patch: { position?: MarkPosition; size?: number }) => void
 }) {
@@ -55,7 +58,7 @@ export function MarkPlacement({
 
   const at = (e: PointerEvent<HTMLDivElement>): MarkPosition => {
     const r = box.current!.getBoundingClientRect()
-    return markPositionAt(W, H, SAMPLE, size, ((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H)
+    return markPositionAt(W, H, SAMPLE, size, ((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H, note)
   }
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (disabled || e.button !== 0) return
@@ -135,7 +138,7 @@ export function MarkPlacement({
             Euro / U.S. Dollar · 1h · OANDA
           </text>
         </svg>
-        <TimeframeMarkSvg timeframe={SAMPLE} width={W} height={H} position={shown} size={size} testId="tf-mark-preview" />
+        <TimeframeMarkSvg timeframe={SAMPLE} note={note} width={W} height={H} position={shown} size={size} testId="tf-mark-preview" />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11.5px] text-muted">Rozmiar</span>

@@ -36,6 +36,8 @@ test('screen „po” z TradingView uzupełnia MAE / MFE; okno z podglądem, pom
     const card = page.getByTestId('screen-card')
     await expect(card.locator('button[aria-pressed="true"]')).toHaveText('H1', { timeout: 60_000 })
     await expect(card.getByTestId('tf-mark')).toContainText('H1')
+    // Read from the legend: the note says so.
+    await expect(card.getByTestId('tf-mark-note')).toHaveText('rozpoznano przy pomocy OCR')
     await card.locator('img').first().click()
     await expect(page.getByTestId('lightbox')).toBeVisible()
     await page.screenshot({ path: shots('81-interwal-znak') })
@@ -107,12 +109,17 @@ test('screen „po” z TradingView uzupełnia MAE / MFE; okno z podglądem, pom
     await expect.poll(settingsFile, { timeout: 10_000 }).toMatchObject({ timeframeMarkPos: { x: 1, y: 1 } })
     await page.keyboard.press('Control+1')
     await page.getByTestId('journal-row').first().dblclick()
-    const markBox = card.getByTestId('tf-mark').locator('rect')
+    const markBox = card.getByTestId('tf-mark').locator('rect').first()
     const vb = (await card.getByTestId('tf-mark').getAttribute('viewBox'))!.split(' ').map(Number)
     const rx = Number(await markBox.getAttribute('x'))
     const rw = Number(await markBox.getAttribute('width'))
     expect(rx + rw).toBeGreaterThan(vb[2]! * 0.95)
     expect(Number(await markBox.getAttribute('y'))).toBeGreaterThan(vb[3]! * 0.5)
+    await expect(card.getByTestId('tf-mark-note')).toHaveCount(1)
+    // Set by hand: no OCR note.
+    await card.getByRole('button', { name: 'H4', exact: true }).click()
+    await expect(card.getByTestId('tf-mark')).toContainText('H4')
+    await expect(card.getByTestId('tf-mark-note')).toHaveCount(0)
     expect(errors).toEqual([])
   } finally {
     await app.close()
