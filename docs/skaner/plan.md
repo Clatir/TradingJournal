@@ -3,6 +3,10 @@
 Stan: sobota 10.10.2026. Plan do akceptacji przed fazą 1. Opiera się na `specyfikacja.md` i `rozpoznanie.md`.
 Odstępstwa od specyfikacji są oznaczone **[odstępstwo]**, założenia własne **[założenie]** (trafią też do `decyzje.md`).
 
+> **11.10.2026: zmiana paradygmatu (sekcja 14).** Skaner analizuje top-down D → H4 → H1 → M15, wejścia na H1 i M15
+> tylko zgodnie z biasem wyższych interwałów. Sekcja 14 ma pierwszeństwo przed sekcjami 0, 4.4, 5.2, 6 (fazy 3–4)
+> i 12 tam, gdzie się różnią.
+
 ## 0. Najważniejsze decyzje w skrócie
 
 1. Skaner to nowa zakładka dziennika (`Ctrl+0`), ten sam kod, styl i build. Istniejące funkcje bez zmian.
@@ -327,12 +331,12 @@ wydłuża pracę o ok. 30–50% względem high.
 | --- | --- | --- |
 | 1. Dane i magazyn świec | 5–8 h (+ ok. 0,5 h pomiarów po otwarciu rynku) | Klient WS z odpornością, magazyn binarny z pokryciem, agregacja z DST, E2E z lokalnym serwerem |
 | 2. Silnik ICT | 6–10 h | Liczba detektorów, test „przyrostowy = wsadowy” i brak zaglądania w przyszłość dla każdego, warstwy wykresu |
-| 3. Modele, ocena, cykl życia | 6–9 h | Kombinacje warunków modeli, scalanie M5/M15, bias, SMT, intermarket |
+| 3. Modele, ocena, cykl życia | 7–11 h (po zmianie paradygmatu) | Top-down D/H4/H1/M15, kombinacje warunków modeli, scalanie H1/M15, bias, SMT, intermarket |
 | 4. Interfejs, briefing, oceny | 6–10 h | Dużo ekranów, wydajność 16 wykresów, „Wyślij do dziennika” |
 | 5. Alerty, kalkulator, newsy | 3–5 h | Kalendarz Forex Factory, reguły alertów, okno publikacji |
 | 6. Replay, statystyki, kalibracja | 5–8 h | Determinizm, symulacja wyniku, raport kalibracji, zestawy parametrów |
 | 7. Build, test całości, raport | 2–4 h | Przegląd końcowy (workflow agentów), dokumentacja, poprawki po przeglądzie |
-| **Razem** | **ok. 33–54 h** | Bez poprawek po Twoich sprawdzeniach (zwykle +10–20%) |
+| **Razem** | **ok. 34–56 h** | Bez poprawek po Twoich sprawdzeniach (zwykle +10–20%) |
 
 ### Faza 1 – warstwa danych i magazyn świec (Opus 5.5, xhigh / high)
 
@@ -490,3 +494,82 @@ w fazie 3). Zapis w `decyzje.md`.
 - Wersja w `package.json` i `CHANGELOG` podniesione dopiero w fazie 7 (np. `1.8.0`), bez tagu; wydanie robi użytkownik
   po połączeniu zmian.
 - Testy w CI nie potrzebują klucza EODHD: unit na nagranych odpowiedziach, E2E na lokalnym serwerze WS/REST.
+
+## 14. Zmiana paradygmatu: top-down D → H4 → H1 → M15 (11.10.2026)
+
+Powód: setupy użytkownika z testu złotego (`test-zloty.md`) to wejścia na H1 (60 FVG) trwające dni, poza oknami
+i z SL większym niż w specyfikacji. Użytkownik: „wchodzimy na H1, skaner przeczesuje interwały i struktury D, H4, H1,
+M15, a wejście na M15 jest uzasadnione, jeżeli jest bias na wyższych interwałach”. **[odstępstwo od sekcji 6 i 8
+specyfikacji – za zgodą użytkownika]**
+
+### 14.1 Role interwałów
+
+| Interwał | Rola |
+| --- | --- |
+| D, H4 | **Bias** (struktura MSS/BOS z displacementem, order flow, premium/discount, DOL; przy sprzeczności decyduje struktura) |
+| H1 | **Główny interwał wejścia**: sweep → displacement z MSS → powrót do 60 FVG / OB / OTE / breaker |
+| M15 | **Wejście doprecyzowane**, tylko zgodnie z biasem wyższych interwałów |
+| W | Tylko poziomy (PWH/PWL, zakresy IPDA) i kontekst, bez osobnej analizy struktury |
+| M5 | Nie używany przez modele (agregacja z M1 i tak go liczy; zostaje do ewentualnego użycia) |
+
+Panel bias i briefing: instrument × D / H4 / H1 / M15 (kierunek, ostatni MSS/BOS, pewność, powody) + wiersz
+„zgodność”. Siatka pulpitu domyślnie H1 (przełącznik M15 / H1 / H4).
+
+### 14.2 Wymóg biasu (odpowiedź 1: zgoda)
+
+- Wejście **H1** wymaga zgodnego biasu **D i H4** (zatwierdzonego, nadpisanego przez użytkownika albo wyliczonego
+  z wysoką pewnością). Setup H1 przeciw biasowi: widoczny z flagą „kontra”, niższa ocena, **bez alertu**.
+- Wejście **M15** wymaga zgodnego **D, H4 i H1**. M15 przeciw biasowi **nie jest sygnałem** (elementy zostają na wykresie).
+- Bias neutralny lub niska pewność na D/H4 = brak wymaganego biasu (setup widoczny jak „kontra”, bez alertu).
+
+### 14.3 Okna czasowe (odpowiedź 2: „tylko podczas KZ London i NY”)
+
+- Okna: **London 02:00–04:40** i **NY 07:00–10:00** (czas NY, edytowalne). Klasyczne okna Silver Bullet 10–11 i 14–15
+  **odpadają**; model Silver Bullet działa tylko w części okna, która się z nimi pokrywa (03:00–04:00) **[założenie]**.
+- **Do potwierdzenia:** czego dotyczy wymóg okna (wpływ na test złoty):
+  - (a) **powstania setupu** (sweep albo displacement/MSS w KZ), a wejście limitem może nastąpić później, dopóki setup
+    jest ważny (14.4): Z1 tak (displacement 08:00 NY), Z4 prawdopodobnie tak (szczyt 09:00 NY), Z3 nie (14:00 NY);
+  - (b) **także wejścia** (dotknięcie strefy w KZ): Z1, Z3, Z4 nie (wejścia 11:00, 21:00, 18:00 NY).
+  - Do decyzji domyślnie (a) dla H1, (b) dla M15. Parametr w ustawieniach.
+
+### 14.4 Ważność setupu H1 (odpowiedź 3: zgoda)
+
+Setup H1 nie wygasa z końcem okna. Kończy się, gdy: FVG zostanie zamknięty po drugiej stronie (świeca H1), cena zamknie
+się za ekstremum sweepu / początkiem nogi, cena dojdzie do TP1 bez cofnięcia do strefy, albo zmieni się bias D/H4
+(wyliczony lub nadpisany). Setup M15 wygasa z końcem okna, jak w specyfikacji.
+
+### 14.5 Maksymalny SL (odpowiedź 4: „30 pipsów”)
+
+- **FX: 30 pipsów** dla wejść H1 i M15 (zamiast 20). Kandydaci SL A/B i kontrole bez zmian.
+- **Złoto i ropa – do potwierdzenia.** Dziennik nie ma presetu złota (pips 0,0001 jak para FX), więc skaner ma własny:
+  XAUUSD pips 0,1 USD. Skalowanie zmiennością jak w specyfikacji: 30 p = ok. 48% ADR20 EURUSD (62 p) → złoto ok.
+  **39 USD** (dziś). Test złoty: Z2 (23,8 USD) mieści się, Z1 (44,4), Z3 (56,6), Z4 (62,6) – nie. Alternatywa: osobna
+  wartość dla złota (np. 65 USD).
+
+### 14.6 Alerty (punkt 5 bez odpowiedzi – przyjęta propozycja)
+
+- H1: alert przy etapie **„uzbrojony”** (jest MSS i strefa – można postawić zlecenie limit) i przy **„gotowy”**
+  (cena w strefie). M15: alert przy „gotowy”. Oba tylko dla setupów zgodnych z biasem.
+- Cel 4–8 alertów dziennie prawdopodobnie spadnie do ok. 1–4 przy setupach H1; zmierzone w replay (faza 6).
+
+### 14.7 Modele po zmianie
+
+| Model | H1 | M15 |
+| --- | --- | --- |
+| 1. Sweep → MSS → FVG/OB | tak (MSS w ciągu 12 świec interwału wejścia, parametr) | tak |
+| 2. OTE 62–79% | tak | tak |
+| 3. Silver Bullet | nie | tylko 03:00–04:00 NY (część KZ London) |
+| 4. Turtle soup, breaker | tak | tak |
+
+- Pule do sweepu i celów dla wejść H1: z H1, H4, D (+ W); dla M15: także z M15. TP1/TP2 i min. R:R 2 bez zmian.
+- Ocena 8.4: „zgodność z biasem D i H4” zostaje (dla H1 jest jednocześnie warunkiem alertu); KZ przy wejściu H1
+  daje punkty w kryterium okna (zamiast warunku), wagi do strojenia.
+- Scalanie: ten sam ruch na H1 i M15 = jeden sygnał z listą interwałów.
+
+### 14.8 Wpływ na fazy
+
+- Faza 1: bez zmian (baza M1, agregacja do M15/H1/H4/D/W).
+- Faza 2: te same detektory na D/H4/H1/M15.
+- Faza 3: modele i cykl życia według 14.2–14.7; test złoty = Z1–Z4 jako wejścia H1 (z odchyleniami zależnymi od 14.3
+  i 14.5). Szacunek 7–11 h.
+- Faza 4: panel bias D/H4/H1/M15 z wierszem zgodności, siatka domyślnie H1.
