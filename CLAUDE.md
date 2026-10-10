@@ -15,6 +15,12 @@ tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba m
   miejsca. Wyniki rozpoznania: `docs/skaner/rozpoznanie.md`, plan: `docs/skaner/plan.md`, założenia:
   `docs/skaner/decyzje.md`.
 - Przed każdą fazą podaj użytkownikowi szacowany czas czystej pracy Claude'a (tabela w sekcji 6 planu, zaktualizowana).
+- Kod (faza 1): `src/shared/scanner/` (czas NY i agregacja z M1, ustawienia `settings.scanner`, protokół EODHD, M1 z ticków,
+  budżet symboli, import CSV TradingView, DXY/EURX), `src/main/scanner/` (magazyn świec `userData/scanner/candles`,
+  klienci REST/WebSocket, backfill, klucz API przez safeStorage, `ScannerService` + IPC `journal:scanner:*`),
+  `src/renderer/features/scanner/` (zakładka Ctrl+0, Ustawienia → Skaner), `store/scanner.ts`. Sieć tylko w main.
+  Testy: `tests/unit/scanner-*.test.ts`, `tests/fs/scanner-*.test.ts`, `tests/e2e/scanner.spec.ts`, fałszywy EODHD
+  `tests/helpers/fakeEodhd.ts`.
 
 ## Stack
 - Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4.
@@ -64,7 +70,10 @@ Zmienne testowe:
 - `ICTJ_UPDATE_CHECK_DELAY_MS`: opóźnienie pierwszego sprawdzenia, domyślnie 15 s;
 - `ICTJ_NBP_URL`: adres bazowy lokalnego serwera kursów zamiast api.nbp.pl (dopuszcza http; aplikacja dopisuje
   `/api/exchangerates/tables/A?format=json`), `off` = bez łączenia. `launch()` w `tests/e2e/app.ts` ustawia domyślnie `off`;
-- `ICTJ_NBP_FETCH_DELAY_MS`: opóźnienie automatycznego pobrania kursów po otwarciu folderu, domyślnie 20 s.
+- `ICTJ_NBP_FETCH_DELAY_MS`: opóźnienie automatycznego pobrania kursów po otwarciu folderu, domyślnie 20 s;
+- `ICTJ_EODHD_URL`: skaner – adres lokalnego serwera zamiast EODHD (`http://host:port`, aplikacja dopisuje `/api` i
+  `/ws/forex`), `off` = bez łączenia (`launch()` ustawia domyślnie `off`);
+- `EODHD_API_TOKEN`: klucz API skanera ze środowiska (pierwszeństwo przed kluczem zapisanym w ustawieniach).
 
 Test aktualizacji na Windows: `playwright.update.config.ts` (`tests/update`) z `ICTJ_UPDATE_FROM`/`ICTJ_UPDATE_TO`
 (foldery z exe obu wersji) i `ICTJ_UPDATE_TO_VERSION`.

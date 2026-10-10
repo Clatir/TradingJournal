@@ -83,6 +83,35 @@ wejścia na H1 (główne) i M15 (doprecyzowane). Odpowiedzi:
   importowana do magazynu świec (faza 1) + bieżące ceny ze strumienia `WTIUSD`. Do ustalenia: symbol WTI w TradingView
   (spot/CFD vs futures CL1!) – zgodność ze strumieniem sprawdzana przy pierwszym imporcie.
 
+## Faza 1 – dane i magazyn świec (2026-10-11)
+
+1. **Konfigurację wysyła okno.** Renderer trzyma ustawienia dziennika, więc to on przekazuje `settings.scanner`
+   i walutę konta do procesu głównego (`scanner:configure`, przy każdej zmianie); main niczego nie czyta z folderu.
+2. **REST nadpisuje świecę ze strumienia z tej samej minuty** (dane sfinalizowane, zgodne z TradingView); import M1
+   z CSV nie nadpisuje świec już zapisanych, import H1 z CSV leży osobno i wypełnia tylko godziny bez M1.
+3. **Pokrycie (dane potwierdzone):** strumień – minuta, w której strumień był połączony i żywy (tick ≤ 90 s temu),
+   tylko dla symboli z tickiem w ostatnich 30 min; REST – zakres zapytania, przy danych z ostatnich 3 dni tylko do
+   ostatniej otrzymanej świecy (reszta zostaje luką do ponowienia), starszy pusty zakres = pokryty (np. przed
+   początkiem historii) – bez ponawiania w nieskończoność.
+4. **Backfill** etapami 14 → 120 → głębokość (400 dni instrumenty, 120 pozostałe), na starcie, po zmianie listy,
+   po wybudzeniu komputera i co 15 min; przerywany przy braku klucza, odrzuconym kluczu, limicie dziennym i braku sieci.
+5. **Błędne świece EODHD** (low < 0,8 × średniej z open/close albo high > 1,25 ×, puste pola) są odrzucane przy parsowaniu.
+6. **Cisza strumienia:** w godzinach rynku brak żywego ticka przez 90 s → ponowne połączenie; próg podwaja się po
+   każdej takiej próbie (do 30 min), żeby święta nie powodowały pętli. „Symbols limit reached” → ponowienie po 5 min.
+7. **Zmiana bid ↔ mid** nie przelicza zapisanych świec (różnica ok. 0,1 p); dotyczy tylko nowych świec ze strumienia.
+8. **Klucz API:** `EODHD_API_TOKEN` w środowisku ma pierwszeństwo (rozwój, testy); bez szyfrowania (`safeStorage`
+   niedostępne) klucz tylko do zamknięcia aplikacji.
+9. **Serie wyższych interwałów** liczone na żądanie z M1 (ok. 50 ms na interwał dla 400 dni jednego symbolu);
+   osobny cache H1 (`h1.bin`) odłożony do fazy 2, jeśli silnik będzie go potrzebował.
+10. **Zasobnik / zbieranie w tle** odłożone do pomiaru świeżości REST w sesji (plan sekcja 7: wariant A albo B).
+11. **Syntetyczny DXY zweryfikowany:** wzór ICE na minutówkach EODHD vs `NYICDX.INDX` (1h, 122 pomiary 21.09–9.10):
+    mediana różnicy 0,003%, maks. 0,13%, kierunek zmian godzinowych zgodny 94/105. EURX – brak wzorca w EODHD,
+    porównanie z TradingView do zrobienia przez użytkownika (nie blokuje).
+12. Wykres fazy 1: lightweight-charts nie pokazuje pustego czasu, więc luka = znacznik „luka X h” na pierwszej świecy
+    po niej, świece zachodzące na lukę przyciemnione.
+13. Zależność deweloperska `ws` (serwer WebSocket w testach, `tests/helpers/fakeEodhd.ts`); aplikacja używa
+    wbudowanego `WebSocket` Node.
+
 ## Krok 1 – c.d.
 
 4. **Bezpieczeństwo klucza.** Skrypty testowe czytają `EODHD_API_TOKEN` ze zmiennej środowiskowej, maskują go w każdym

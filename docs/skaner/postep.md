@@ -15,7 +15,7 @@ Po każdym podzadaniu commit + push (przerwanie pracy niczego nie gubi).
 | 4 | Klienci EODHD (WebSocket, REST z limiterem), backfill, klucz API (safeStorage) | ✅ |
 | 5 | Usługa skanera w main + IPC + preload | ✅ |
 | 6 | UI: zakładka Skaner (Ctrl+0, pasek stanu, surowy wykres), Ustawienia → Skaner | ✅ |
-| 7 | E2E z lokalnym serwerem EODHD, DXY/EURX, pomiary po otwarciu rynku (nd 17:00 NY = 23:00 PL), przystanek | ⏳ w toku (E2E gotowe) |
+| 7 | E2E z lokalnym serwerem EODHD ✅, weryfikacja DXY ✅ (EURX czeka na odczyt z TradingView), skrypt pomiarów `scripts/eodhd-live-check.mjs` ✅, **pomiary po otwarciu rynku** (nd 17:00 NY = 23:00 PL) ⏳ | ⏳ |
 
 ## Ukończone
 
@@ -27,6 +27,11 @@ Po każdym podzadaniu commit + push (przerwanie pracy niczego nie gubi).
 - Odpowiedzi użytkownika na pytania planu i założenia: `docs/skaner/decyzje.md`.
 
 ## W toku / odroczone
+
+- **Faza 1 – zostały tylko pomiary na żywo** (po otwarciu rynku): `EODHD_API_TOKEN=… node scripts/eodhd-live-check.mjs 10`
+  (z `NODE_USE_ENV_PROXY=1` w chmurze) w sesji Asia (nd wieczór) i London (pn rano). Na ich podstawie: wybór wariantu
+  luki (plan sekcja 7: A = uzupełnianie z REST, B = zasobnik i zbieranie w tle), ostateczne bid/mid, wpis do
+  `rozpoznanie.md` (3.1, 3.5, 3.7) i `decyzje.md`, potem przystanek fazy 1.
 
 - Test wykonalności po otwarciu rynku (niedziela 11.10, 17:00 NY = 23:00 PL) – w ramach fazy 1:
   - 4.1.1 strumień FX w sesji (ticki, cisza, spread; także `WTIUSD`),
