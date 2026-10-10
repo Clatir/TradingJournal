@@ -12,7 +12,17 @@ const DEFAULTS: MachineConfig = {
   sampleMode: false,
   backupDirOverride: null,
   window: null,
-  updates: { prefs: { ...DEFAULT_UPDATE_PREFS }, pending: null, lastRunVersion: null }
+  updates: { prefs: { ...DEFAULT_UPDATE_PREFS }, pending: null, lastRunVersion: null },
+  market: { enabled: true, key: null, keyEncrypted: false }
+}
+
+function loadMarket(raw: unknown): MachineConfig['market'] {
+  const m = (raw && typeof raw === 'object' ? raw : {}) as Partial<MachineConfig['market']>
+  return {
+    enabled: typeof m.enabled === 'boolean' ? m.enabled : true,
+    key: typeof m.key === 'string' && m.key ? m.key : null,
+    keyEncrypted: m.keyEncrypted === true
+  }
 }
 
 function loadUpdates(raw: unknown): MachineConfig['updates'] {
@@ -47,7 +57,8 @@ export class ConfigStore {
         ...DEFAULTS,
         ...raw,
         recentDirs: Array.isArray(raw.recentDirs) ? raw.recentDirs.slice(0, 8) : [],
-        updates: loadUpdates(raw.updates)
+        updates: loadUpdates(raw.updates),
+        market: loadMarket(raw.market)
       }
     } catch {
       this.config = { ...DEFAULTS }

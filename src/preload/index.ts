@@ -53,6 +53,13 @@ const api: JournalApi = {
   dismissUpdateNotice: () => invoke('dismissUpdateNotice'),
   fetchFxRates: () => invoke('fetchFxRates'),
   fetchFxHistory: (code, start, end) => invoke('fetchFxHistory', code, start, end),
+  marketStatus: () => invoke('marketStatus'),
+  marketSetKey: (key) => invoke('marketSetKey', key),
+  marketSetEnabled: (enabled) => invoke('marketSetEnabled', enabled),
+  marketTest: () => invoke('marketTest'),
+  marketBars: (ticker, fromMs, toMs, opts) => invoke('marketBars', ticker, fromMs, toMs, opts),
+  marketCacheStats: () => invoke('marketCacheStats'),
+  marketClearCache: () => invoke('marketClearCache'),
   onUpdateState: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, state: UpdateState) => cb(state)
     ipcRenderer.on('journal:update', listener)

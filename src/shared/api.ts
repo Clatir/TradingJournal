@@ -3,6 +3,7 @@ import type { Collection, FileKind } from './paths'
 import type { RecordTypes } from './records'
 import type { FxFetchResult } from './fx'
 import type { FxHistoryResult } from './fxHistory'
+import type { MarketBarsResult, MarketCacheStats, MarketStatus, MarketTestResult } from './market'
 import type { XlsxSheet } from './export/xlsx'
 import type { JournalFile } from './schema'
 import type { PendingUpdate, UpdatePrefs, UpdateState } from './update'
@@ -185,6 +186,12 @@ export interface MachineConfig {
     /** Version that ran last on this machine (to say "updated to …" once). */
     lastRunVersion: string | null
   }
+  /** Market data (EODHD, 1.8.0): the key of this computer, encrypted with the system's protection when available. */
+  market: {
+    enabled: boolean
+    key: string | null
+    keyEncrypted: boolean
+  }
 }
 
 export interface AppInfo {
@@ -196,6 +203,8 @@ export interface AppInfo {
   isPortable: boolean
   /** Delay of the automatic NBP fetch after start (ICTJ_NBP_FETCH_DELAY_MS in test runs). */
   fxFetchDelayMs: number
+  /** Delay of the automatic market data fill after start (ICTJ_MARKET_DELAY_MS in test runs). */
+  marketDelayMs: number
 }
 
 export type OpenFolderResult =
@@ -279,6 +288,15 @@ export interface JournalApi {
   fetchFxRates(): Promise<FxFetchResult>
   /** Archive NBP mid rates of one currency for start…end (at most 367 days). Nothing is saved. */
   fetchFxHistory(code: string, start: string, end: string): Promise<FxHistoryResult>
+  /** Market data (EODHD): status without the key, set / remove the key, switch, connection test. */
+  marketStatus(): Promise<MarketStatus>
+  marketSetKey(key: string | null): Promise<MarketStatus>
+  marketSetEnabled(enabled: boolean): Promise<MarketStatus>
+  marketTest(): Promise<MarketTestResult>
+  /** M1 bars of [fromMs, toMs) from the cache, missing days fetched (unless `offline`). */
+  marketBars(ticker: string, fromMs: number, toMs: number, opts?: { offline?: boolean }): Promise<MarketBarsResult>
+  marketCacheStats(): Promise<MarketCacheStats>
+  marketClearCache(): Promise<void>
   onChange(cb: (change: ChangeSet) => void): () => void
   /** Main asks the renderer to flush pending saves before the window closes (false = something stayed unsaved). */
   onFlushRequest(cb: () => Promise<boolean>): () => void

@@ -3,6 +3,24 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.8.0
+
+### Nowe
+- **Dane rynkowe z EODHD.** Ustawienia → Dane rynkowe: klucz API EODHD (zapisany tylko na tym komputerze, zaszyfrowany
+  zabezpieczeniem systemu – nie trafia do folderu dziennika), „Sprawdź połączenie” (plan i dzisiejsze zapytania),
+  wyłącznik pobierania. Świece M1 są zapisywane w ukrytym folderze `.market/` dziennika, więc drugi komputer ma je
+  bez sieci i bez klucza. Do EODHD wysyłany jest wyłącznie symbol i zakres dat.
+- **MAE / MFE i podsumowanie każdej zamkniętej transakcji z rynku.** W tle (i przyciskiem „Uzupełnij wszystkie”)
+  aplikacja mierzy na świecach M1: MAE i MFE w pipsach i w R, po ilu minutach od wejścia, czy przed wyjściem cena
+  doszła do 1R, 2R, TP1, TP2 oraz czy dotknęła SL. Puste MAE / MFE są uzupełniane; wpisane ręcznie, ze screena
+  TradingView albo z CSV zostają – pod nimi widać wartości rynku i przycisk „Użyj danych rynkowych”.
+  EODHD to inne źródło cen niż broker (różnice ułamków pipsa), dlatego poziom w marginesie (domyślnie 1 p) to
+  „niepewne”, a nie „tak”.
+- **Wykres transakcji w edytorze.** Świece M1 / M5 / M15 / H1 od 2 h przed wejściem do 1 h po wyjściu (do zmiany),
+  czas osi NY, linie wejścia, SL, TP1, TP2, znaczniki wejścia, wyjść, MAE i MFE, killzone'y w tle, „Kopiuj jako
+  obraz”. Działa też dla transakcji z importu XTB, które nie mają screenów.
+- Symbol EODHD każdej pary do zmiany (domyślnie „EURUSD.FOREX”); WTI nie jest dostępna w EODHD.
+
 ## 1.7.3
 
 ### Nowe

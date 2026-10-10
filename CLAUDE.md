@@ -2,7 +2,8 @@
 
 Osobisty dziennik day tradera forex (metodologia ICT). Aplikacja desktopowa Electron dla Windows, działa offline,
 używana na kilku komputerach (nigdy jednocześnie). Interfejs po polsku, terminy ICT po angielsku. Z siecią łączy się
-tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba można wyłączyć, nic nie jest wysyłane.
+tylko proces główny: aktualizacje (GitHub), kursy walut (tabela A NBP) i – z kluczem użytkownika – świece EODHD (1.8.0);
+wszystko można wyłączyć, nic poza symbolem i zakresem dat (EODHD) nie jest wysyłane.
 
 ## Zasada współpracy
 - Przed wykonaniem każdego zadania podaj użytkownikowi, jaki model i jaki poziom thinking będzie najodpowiedniejszy,
@@ -57,6 +58,10 @@ Zmienne testowe:
 - `ICTJ_NBP_URL`: adres bazowy lokalnego serwera kursów zamiast api.nbp.pl (dopuszcza http; aplikacja dopisuje
   `/api/exchangerates/tables/A?format=json`), `off` = bez łączenia. `launch()` w `tests/e2e/app.ts` ustawia domyślnie `off`;
 - `ICTJ_NBP_FETCH_DELAY_MS`: opóźnienie automatycznego pobrania kursów po otwarciu folderu, domyślnie 20 s.
+- `ICTJ_MARKET_URL`: lokalny serwer zamiast eodhd.com (dopuszcza http; `tests/helpers/market.ts` – syntetyczne świece),
+  `off` = bez łączenia (domyślnie w `launch()`); `ICTJ_MARKET_KEY`: klucz, gdy w config.json go nie ma;
+  `ICTJ_MARKET_DELAY_MS`: opóźnienie uzupełniania transakcji w tle, domyślnie 25 s.
+- `EODHD_API_TOKEN` (tylko lokalnie): `tests/fs/market-live.test.ts` łączy się z prawdziwym EODHD; bez klucza pominięty.
 
 Test aktualizacji na Windows: `playwright.update.config.ts` (`tests/update`) z `ICTJ_UPDATE_FROM`/`ICTJ_UPDATE_TO`
 (foldery z exe obu wersji) i `ICTJ_UPDATE_TO_VERSION`.
@@ -93,6 +98,7 @@ screens/RRRR/MM/ULID_etykieta.webp  (+ .thumb.webp)
 backups/                             kopie ZIP (wyłączone ze skanu)
 .presence/                           heartbeat komputerów (ignorowany przez skan)
 .history/<rodzaj>/<id>/*.json        poprzednie wersje wpisów (ignorowane przez skan, watcher i kopie ZIP)
+.market/<TICKER>/RRRR/RRRR-MM-DD.json.gz  świece M1 z EODHD (dzień UTC; ignorowane przez skan, watcher i kopie ZIP)
 ```
 - JSON z wcięciami (2 spacje) i końcowym `\n`; czasy UTC ISO 8601; identyfikatory ULID; ścieżki **względne** z `/`.
 - Każdy rekord: `schemaVersion`, `id`, `createdAt`, `updatedAt` (+ `updatedBy` = nazwa komputera, ustawiane przez main
@@ -396,6 +402,34 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Testy: `tests/unit/tv-timeframe.test.ts` (wycinki legend `tests/fixtures/tv-legend/` z generatora z
   `TV_INTERVALS=1`), `tests/e2e/tv-excursions.spec.ts` (H1 po wklejeniu, znak, skan w ustawieniach).
 
+## Dane rynkowe EODHD (1.8.0, plan 1.8–1.11 w `.eodhd/PLAN.md`)
+- Klucz i wyłącznik per komputer: `config.json` → `market {enabled, key, keyEncrypted}` (`safeStorage`, na Windows DPAPI;
+  bez szyfrowania systemu – tekst i znaczek w ustawieniach). Renderer nigdy nie dostaje klucza (`MarketStatus.keyHint`
+  = ostatnie 4 znaki). Wspólne opcje w `settings.market` (`autoFill`, `touchMarginPips` 1, okno i interwał wykresu).
+- `shared/market.ts`: `marketTicker` (`pair.marketSymbol`: null = domyślny `SYMBOL.FOREX` / znane indeksy, "" = brak;
+  WTI nie ma w EODHD, Brent = XBRUSD.FOREX), dni UTC, `dayRanges` (≤ 100 dni na zapytanie – limit EODHD 120 dni M1),
+  `parseEodhdIntraday` (płaskie wypełniacze bez wolumenu pomijane; EODHD ma też świece w soboty – nie wycinamy
+  weekendu po kalendarzu), `encodeMarketDay` / `decodeMarketDay` (ceny całkowite względem poprzedniego zamknięcia,
+  gzip ≈ 10–20 KB / dzień), `resampleBars` (M5/M15/H1 z M1, wyrównane do UTC).
+- Main `main/market/`: `eodhd.ts` (`net.fetch`, tylko https poza `ICTJ_MARKET_URL`, komunikaty po polsku bez adresu –
+  adres zawiera klucz), `cache.ts` (`.market/`, zapis atomowy, `stats`, `clear`), `service.ts` (`MarketService.bars`:
+  dni z pamięci / dysku, brakujące pobierane całymi dniami, kolejka po jednym; dzień trwający co ≥ 2 min, ostateczny
+  3 h po końcu dnia UTC; folder tylko do odczytu → w pamięci). IPC `marketStatus/SetKey/SetEnabled/Test/Bars/CacheStats/ClearCache`.
+- `shared/calc/marketStats.ts`: `marketStatsFor` (reguły `excursionsFromBars` na M1; MAE/MFE w p i R, `maeAt`/`mfeAt`,
+  minuty od wejścia, `reached1R/2R/Tp1/Tp2`, `stopTouched` – tak / nie / near w marginesie, poziom zamykający = tak; luki
+  < 80% minut → ostrzeżenie; brak świec → podsumowanie bez wartości), `tradeMarketKey` (para, kierunek, status, czasy,
+  ceny, wyjścia: inny klucz = przeliczyć), `withMarketStats` (MAE/MFE tylko puste), `marketDiffers`.
+  `trade.market` (addytywne, `tradeMarketSchema`).
+- Renderer `store/market.ts`: `marketBars` (pamięć w sesji; bez klucza / wyłączone = tylko dysk), `fillMarketStats`
+  (zamknięte z nieaktualnym podsumowaniem, najnowsze najpierw, 300 na przebieg, błąd zatrzymuje; bez danych offline –
+  pominięte do zmiany wpisu lub połączenia), `useMarketAutoFill` (25 s po otwarciu, 4 s po zmianie transakcji; nie w demo).
+- UI: Ustawienia → Dane rynkowe (`features/settings/MarketTab.tsx`: klucz, test, wyłącznik, opcje, symbole par, cache),
+  edytor: panel „Wykres (dane rynkowe)” (`features/trade/TradeChart.tsx`: lightweight-charts, czas osi NY, linie
+  wejścia/SL/TP, znaczniki wejścia/wyjść/MAE/MFE, killzone'y w tle przez prymityw serii, `shared/calc/sessionSpans.ts`,
+  „Kopiuj jako obraz”), pod MAE/MFE `MarketExcursions` (wartości rynku, „Użyj danych rynkowych”).
+- Testy: `tests/unit/market.test.ts`, `tests/fs/market.test.ts` (serwer syntetyczny), `tests/e2e/market.spec.ts`.
+  Nigdy nie commituj prawdziwych danych EODHD (licencja, repo publiczne).
+
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
 - Scenariusz prognozy: nowe `id` (także celów), nazwa „(kopia)”, „(kopia 2)”…, te same losowania; zapisany od razu.
@@ -475,6 +509,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     i dokładnie z CSV (`tests/unit/tv-chart.test.ts`, `tests/e2e/tv-excursions.spec.ts`).
 13. ✅ 1.7.0: interwał screena z legendy TradingView i znak w lewym górnym rogu (`tests/unit/tv-timeframe.test.ts`);
     1.7.1: położenie (makieta w ustawieniach) i rozmiar znaku (`tests/unit/screen-mark.test.ts`); 1.7.2: dopisek OCR.
+14. ✅ 1.8.0: dane rynkowe EODHD – klucz per komputer, świece M1 w `.market/`, MAE/MFE i podsumowanie z rynku, wykres
+    transakcji w edytorze (`tests/e2e/market.spec.ts`). Dalej wg `.eodhd/PLAN.md`: 1.9.0 poziomy/missed/tydzień,
+    1.10.0 co by było gdyby + zmienność, 1.11.0 trening z odtwarzaniem.
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

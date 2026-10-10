@@ -49,6 +49,38 @@ export const brokerFillSchema = z.looseObject({
 })
 export type BrokerFill = z.infer<typeof brokerFillSchema>
 
+const touch = z.enum(['yes', 'no', 'near']).nullable().default(null)
+
+/**
+ * Summary of the trade from the market's M1 bars (EODHD, 1.8.0), kept in the file so analytics work without the bar
+ * cache. `key` = the trade's values it was computed from (pair, direction, times, prices): another key = recompute.
+ */
+export const tradeMarketSchema = z.looseObject({
+  source: z.literal('eodhd').default('eodhd'),
+  ticker: z.string().default(''),
+  key: z.string().default(''),
+  computedAt: isoDateTime.nullable().default(null),
+  /** Negative pips (journal convention) / pips; null when not measured. */
+  maePips: nullableNumber,
+  mfePips: nullableNumber,
+  maeR: nullableNumber,
+  mfeR: nullableNumber,
+  /** UTC ISO of the minute of the extreme; minutes after the entry. */
+  maeAt: isoDateTime.nullable().default(null),
+  mfeAt: isoDateTime.nullable().default(null),
+  maeMinutes: nullableNumber,
+  mfeMinutes: nullableNumber,
+  /** Reached before the final exit (yes / no / near = within the touch margin). */
+  reached1R: touch,
+  reached2R: touch,
+  reachedTp1: touch,
+  reachedTp2: touch,
+  /** The stop level was touched before the exit by market prices (another feed than the broker's: see `near`). */
+  stopTouched: touch,
+  warnings: z.array(z.string()).default([])
+})
+export type TradeMarket = z.infer<typeof tradeMarketSchema>
+
 export const tradeSchema = z.looseObject({
   ...recordBase,
   status: tradeStatusSchema.default('closed'),
@@ -97,6 +129,8 @@ export const tradeSchema = z.looseObject({
    * Since 1.5.1: id of the closed trade this one re-opens (the same position continued after a hasty close). The
    * killzone rule then follows the first entry while the re-open is within the New York trading day of the close.
    */
-  continuationOf: ulidSchema.nullable().default(null)
+  continuationOf: ulidSchema.nullable().default(null),
+  /** Market data summary (EODHD, 1.8.0); null = not computed (no data, open trade, no key). */
+  market: tradeMarketSchema.nullable().default(null)
 })
 export type Trade = z.infer<typeof tradeSchema>

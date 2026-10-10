@@ -3,7 +3,7 @@ import { hostname, tmpdir } from 'node:os'
 import { basename, dirname, join, parse } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, protocol, safeStorage, shell, type IpcMainInvokeEvent } from 'electron'
 import { FILE_URL_SCHEME, type AppInfo, type ChangeSet, type HistoryKind, type HistoryReason, type ImportPolicy, type OpenFolderResult } from '@shared/api'
 import { isIgnoredPath } from '@shared/paths'
 import type { Collection } from '@shared/paths'
@@ -25,6 +25,10 @@ import { writeXlsx } from './export/xlsx'
 import { htmlToPdf } from './export/pdf'
 import { readBrokerFile } from './import/broker'
 import { ocrImage, stopOcr } from './ocr/ocr'
+import { fetchMarketUser, marketSource } from './market/eodhd'
+import { MarketCache } from './market/cache'
+import { MarketService } from './market/service'
+import type { MarketStatus } from '@shared/market'
 import type { XlsxSheet } from '@shared/export/xlsx'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
@@ -49,6 +53,43 @@ const imports = new Map<string, Inspected>()
 const updateCheckDelayMs = (): number => Number(process.env.ICTJ_UPDATE_CHECK_DELAY_MS) || 15_000
 /** First automatic NBP fetch after start (done by the renderer, which knows the journal settings). */
 const fxFetchDelayMs = (): number => Number(process.env.ICTJ_NBP_FETCH_DELAY_MS) || 20_000
+
+/** Delay of the automatic market data fill after start (done by the renderer, which knows the trades). */
+const marketDelayMs = (): number => Number(process.env.ICTJ_MARKET_DELAY_MS) || 25_000
+
+/** The EODHD key of this computer (decrypted); ICTJ_MARKET_KEY (test runs) when none is saved. */
+function marketKey(): string | null {
+  const m = config.get().market
+  if (m.key) {
+    if (!m.keyEncrypted) return m.key
+    try {
+      return safeStorage.decryptString(Buffer.from(m.key, 'base64'))
+    } catch {
+      return null
+    }
+  }
+  return process.env.ICTJ_MARKET_KEY?.trim() || null
+}
+
+function marketStatus(): MarketStatus {
+  const key = marketKey()
+  return {
+    enabled: config.get().market.enabled,
+    hasKey: !!key,
+    keyHint: key ? `…${key.slice(-4)}` : null,
+    encrypted: config.get().market.keyEncrypted,
+    source: marketSource(process.env.ICTJ_MARKET_URL).kind
+  }
+}
+
+const market = new MarketService({
+  fetch: (url, init) => net.fetch(url, init),
+  source: () => marketSource(process.env.ICTJ_MARKET_URL),
+  key: () => (config.get().market.enabled ? marketKey() : null),
+  root: () => store?.root ?? null,
+  readOnly: () => !!store?.status().readOnly,
+  log: (level, msg) => log(level, msg)
+})
 
 function requireUpdater(): Updater {
   if (!updater) throw new Error('Moduł aktualizacji nie jest gotowy.')
@@ -224,7 +265,8 @@ function registerIpc(): void {
     userDataDir: app.getPath('userData'),
     sampleDir: sampleDir(),
     isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR,
-    fxFetchDelayMs: fxFetchDelayMs()
+    fxFetchDelayMs: fxFetchDelayMs(),
+    marketDelayMs: marketDelayMs()
   }))
   handle('journal:getConfig', () => config.get())
   handle('journal:loadCurrent', async () => {
@@ -288,6 +330,38 @@ function registerIpc(): void {
     const result = await fetchNbpHistory((url, init) => net.fetch(url, init), nbpSource(process.env.ICTJ_NBP_URL), code, start, end)
     log(result.ok ? 'info' : 'warn', result.ok ? `NBP history ${code} ${start}…${end}: ${Object.keys(result.rates).length} tables` : `NBP history ${code} failed: ${result.message}`)
     return result
+  })
+  handle('journal:marketStatus', () => marketStatus())
+  handle('journal:marketSetKey', async (key: string | null) => {
+    const value = typeof key === 'string' ? key.trim() : ''
+    if (value && !/^[A-Za-z0-9._-]{8,128}$/.test(value)) throw new Error('Klucz API ma niepoprawny format.')
+    const encrypt = !!value && safeStorage.isEncryptionAvailable()
+    await config.update({
+      market: { ...config.get().market, key: value ? (encrypt ? safeStorage.encryptString(value).toString('base64') : value) : null, keyEncrypted: encrypt }
+    })
+    return marketStatus()
+  })
+  handle('journal:marketSetEnabled', async (enabled: boolean) => {
+    await config.update({ market: { ...config.get().market, enabled: !!enabled } })
+    return marketStatus()
+  })
+  handle('journal:marketTest', async () => {
+    const key = marketKey()
+    if (!key) return { ok: false as const, message: 'nie wpisano klucza API' }
+    const result = await fetchMarketUser((url, init) => net.fetch(url, init), marketSource(process.env.ICTJ_MARKET_URL), key)
+    log(result.ok ? 'info' : 'warn', result.ok ? `EODHD: plan ${result.plan}, requests ${result.requests}/${result.dailyLimit}` : `EODHD test failed: ${result.message}`)
+    return result
+  })
+  handle('journal:marketBars', (ticker: string, fromMs: number, toMs: number, opts?: { offline?: boolean }) => {
+    if (typeof ticker !== 'string' || !Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) throw new Error('Niepoprawny zakres danych rynkowych.')
+    // At most a year at once (about 30 requests of 100 days for a cold cache).
+    if (toMs - fromMs > 370 * 86_400_000) throw new Error('Zakres danych rynkowych dłuższy niż rok.')
+    return market.bars(ticker, fromMs, toMs, { offline: !!opts?.offline })
+  })
+  handle('journal:marketCacheStats', () => (store ? new MarketCache(store.root).stats() : { bytes: 0, days: 0, tickers: [] }))
+  handle('journal:marketClearCache', async () => {
+    if (store && !store.status().readOnly) await new MarketCache(store.root).clear()
+    market.forget()
   })
   handle('journal:openExternal', async (url: string) => {
     if (!/^https:\/\//i.test(url)) throw new Error('Można otwierać tylko adresy https://')

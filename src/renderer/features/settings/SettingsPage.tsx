@@ -10,6 +10,7 @@ import { setAccountCurrency } from '../../store/fx'
 import { enterSample, exitSample } from '../sample/sample'
 import { TransferTab } from './TransferTab'
 import { UpdatesTab } from './UpdatesTab'
+import { MarketTab } from './MarketTab'
 import { InstrumentsTab } from './InstrumentsTab'
 import { FxPanel } from './FxPanel'
 import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icons'
@@ -31,6 +32,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'screens', label: 'Screeny' },
   { id: 'display', label: 'Wyświetlanie i ryzyko' },
   { id: 'transfer', label: 'Eksport, import, kopie' },
+  { id: 'market', label: 'Dane rynkowe' },
   { id: 'updates', label: 'Aktualizacje' }
 ]
 
@@ -68,6 +70,7 @@ export function SettingsPage() {
           {tab === 'screens' && <ScreensTab settings={journal.settings} />}
           {tab === 'display' && <DisplayTab settings={journal.settings} />}
           {tab === 'transfer' && <TransferTab />}
+          {tab === 'market' && <MarketTab settings={journal.settings} />}
           {tab === 'updates' && <UpdatesTab />}
         </div>
       </div>

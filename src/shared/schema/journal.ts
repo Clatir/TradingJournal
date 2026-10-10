@@ -12,7 +12,9 @@ export const pairConfigSchema = z.looseObject({
   /** Units in 1.00 lot for this pair (e.g. 1000 barrels of WTI); null = risk.contractSize (since 1.4.5). */
   contractSize: z.number().positive().nullable().optional(),
   /** Own limit of the "SL ≤ threshold" rule in this pair's pips; null = rules.maxStopPips.value (since 1.4.5). */
-  maxStopPips: z.number().positive().nullable().optional()
+  maxStopPips: z.number().positive().nullable().optional(),
+  /** EODHD ticker of the pair's market data (1.8.0): null = default ("EURUSD.FOREX"), "" = none. */
+  marketSymbol: z.string().max(40).nullable().optional()
 })
 export type PairConfig = z.infer<typeof pairConfigSchema>
 
@@ -325,6 +327,22 @@ export const settingsSchema = z.looseObject({
       timeInputZone: z.enum(['NY', 'WAW']).default('NY'),
       /** Ask about sleep, energy and stress on a trading day until they are filled in (since 1.4.0). */
       wellbeingPrompt: z.boolean().default(true)
+    })
+    .prefault({}),
+  /**
+   * Market data (EODHD, 1.8.0): the key and the switch are per computer (main process config); here what is the same on
+   * every computer.
+   */
+  market: z
+    .looseObject({
+      /** Fill empty MAE / MFE of closed trades and keep their market summary (`trade.market`) up to date. */
+      autoFill: z.boolean().default(true),
+      /** A level counts as touched only beyond this many pips; within it the answer is "niepewne" (prices differ by broker). */
+      touchMarginPips: z.number().min(0).max(20).catch(1).default(1),
+      /** The trade chart shows this many minutes before the entry and after the exit. */
+      chartBeforeMinutes: z.number().int().min(10).max(7 * 24 * 60).catch(120).default(120),
+      chartAfterMinutes: z.number().int().min(0).max(7 * 24 * 60).catch(60).default(60),
+      chartInterval: z.enum(['1', '5', '15', '60']).catch('5').default('5')
     })
     .prefault({}),
   /** Changes of the data folder made on another computer while this one has it open (since 1.4.0). */

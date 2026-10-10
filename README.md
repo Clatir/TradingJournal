@@ -251,3 +251,11 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     wybierz rozmiar S–XL – karty screenów, podgląd i „Kopiuj z adnotacjami” pokazują znak w tym miejscu i rozmiarze.
 25. Pod znakiem rozpoznanego interwału jest dopisek „rozpoznano przy pomocy OCR”; po ręcznym wyborze interwału (np. H4)
     dopisek znika. Ustawienia → Screeny → „Interwał” wyłącza dopisek.
+
+**Wersja 1.8 – dane rynkowe EODHD**
+1. Ustawienia → Dane rynkowe: wpisz klucz API z eodhd.com, „Zapisz klucz”, „Sprawdź połączenie” – widać plan i liczbę
+   dzisiejszych zapytań. Na drugim komputerze klucz wpisuje się osobno (albo wcale – świece pobrane tu są w folderze).
+2. „Uzupełnij wszystkie zamknięte transakcje”: puste MAE / MFE dostają wartości z świec M1, licznik „z danymi
+   rynkowymi” rośnie. Otwórz transakcję: panel „Wykres (dane rynkowe)” z wejściem, SL, TP, wyjściem, MAE i MFE
+   (M1 / M5 / M15 / H1, „Kopiuj jako obraz”), pod MAE / MFE linia „Rynek (EODHD, M1)”; gdy wpisałeś inne wartości –
+   „Użyj danych rynkowych”.

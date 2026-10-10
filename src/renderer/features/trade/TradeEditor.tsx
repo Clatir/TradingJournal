@@ -23,6 +23,8 @@ import { copyTradeMarkdown } from '../export/markdownActions'
 import { duplicateTradeEntry } from '../duplicate'
 import { XtbScreenButton } from './XtbScreenImport'
 import { TvExcursionsButton, useAutoExcursions } from './TvExcursions'
+import { TradeChart } from './TradeChart'
+import { MarketExcursions } from './MarketExcursions'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -420,6 +422,7 @@ export function TradeEditor({ id }: { id: string }) {
                 <span className="num text-muted">{m.mfeR != null ? `${m.mfeR.toFixed(2)}R` : ''}</span>
               </label>
             </div>
+            <MarketExcursions trade={t} marginPips={settings.market.touchMarginPips} readOnly={readOnly} onUse={(mae, mfe) => up((r) => ({ ...r, maePips: mae, mfePips: mfe }))} />
           </Section>
 
           <Section
@@ -583,6 +586,9 @@ export function TradeEditor({ id }: { id: string }) {
         <div className="flex min-h-0 flex-col overflow-y-auto">
           <Section title="Walidator zasad">
             <ValidatorPanel v={v} date={m.tradingDate} hasPlan={!!dayEntry} />
+          </Section>
+          <Section title="Wykres (dane rynkowe)">
+            <TradeChart trade={t} settings={settings} />
           </Section>
           <Section title={`Screeny (${t.screens.length})`}>
             <ScreensPanel screens={t.screens} onChange={setScreens} date={m.tradingDate} capturePaste={!readOnly} readOnly={readOnly} />

@@ -1,6 +1,6 @@
 # Dane rynkowe EODHD – plan (do startu bez kodu)
 
-Status: PLANOWANIE. Implementacja dopiero po słowie „start” od użytkownika.
+Status: W TOKU (start 10.10.2026). 1.8.0 gotowe: fundament + 1 (MAE/MFE) + 5 (wykres). Dalej 1.9.0.
 Model do implementacji: Opus 5.5, thinking high.
 
 ## Sprawdzone na kluczu użytkownika (10.10.2026)
@@ -24,7 +24,7 @@ Model do implementacji: Opus 5.5, thinking high.
 - Ustawienia → „Dane rynkowe”: klucz (config per komputer, `safeStorage`/DPAPI, nie w journal.json), „Sprawdź
   połączenie” (plan, zużycie), wyłącznik, margines dotknięcia (domyślnie 1 p), rozmiar cache, „Wyczyść”,
   „Pobierz dla całej historii”.
-- Pary: `pair.marketSymbol` (addytywne; domyślnie `<SYMBOL>.FOREX`; brak = funkcje wyłączone z informacją).
+- Pary: `pair.marketSymbol` (addytywne; domyślnie `<SYMBOL>.FOREX`; "" = brak); edycja w zakładce Dane rynkowe.
 - Main `src/main/market/`: klient (net.fetch, tylko https poza `ICTJ_MARKET_URL`, `off` w E2E), kolejka, limit,
   cache `.market/<TICKER>/<RRRR>/<RRRR-MM-DD>.m1.json.gz` (dzień UTC, ceny całkowite, kolumny), dzień bieżący
   dociągany do zamknięcia, wypełniacze weekendowe pomijane. Do EODHD idzie tylko symbol i zakres dat.

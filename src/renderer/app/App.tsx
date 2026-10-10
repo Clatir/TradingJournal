@@ -34,6 +34,7 @@ import { setRemoteDialog, useRemote } from '../store/remote'
 import { flushSaves } from '../store/journal'
 import { initUpdates } from '../store/update'
 import { useFxAutoFetch } from '../store/fx'
+import { useMarketAutoFill } from '../store/market'
 import { toast } from '../store/ui'
 
 function useGlobalHotkeys(): void {
@@ -166,6 +167,7 @@ export function App() {
   const issues = useJournal((s) => s.conflicts.length + s.problems.filter((p) => p.kind !== 'unknown-file').length)
   useGlobalHotkeys()
   useFxAutoFetch()
+  useMarketAutoFill()
   useEffect(() => {
     void boot()
     initUpdates()
