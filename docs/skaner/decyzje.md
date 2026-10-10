@@ -77,6 +77,13 @@ wejścia na H1 (główne) i M15 (doprecyzowane). Odpowiedzi:
 8. **Konwergencja PDA daje dodatkowe punkty**: +5 (2 PDA), +10 (3+), wynik obcinany do 100 **[założenie co do wartości]**.
 9. **Maks. SL złota: 65 USD** (osobna wartość). Ropa: skalowanie ADR, tymczasowo 2% ceny.
 
+## WTI (2026-10-11)
+
+- Użytkownik: dane historyczne WTI „na razie z TradingView”. Przyjęte: **import eksportu CSV z TradingView** (H1, także 1m)
+  do magazynu świec (faza 1) + bieżące ceny ze strumienia `WTIUSD`. Odczyt świec ze zrzutu ekranu = możliwe
+  rozszerzenie później (ok. 4–6 h), jeśli użytkownik woli screeny. Do ustalenia: symbol WTI w TradingView
+  (spot/CFD vs futures CL1!) – zgodność ze strumieniem sprawdzana przy pierwszym imporcie.
+
 ## Krok 1 – c.d.
 
 4. **Bezpieczeństwo klucza.** Skrypty testowe czytają `EODHD_API_TOKEN` ze zmiennej środowiskowej, maskują go w każdym
