@@ -4,8 +4,10 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Faza 1: warstwa danych i magazyn świec – W TOKU** (start 11.10.2026 ~00:55 PL, Opus 5.5 xhigh; plan sekcja 6 i 14).
-Po każdym podzadaniu commit + push (przerwanie pracy niczego nie gubi).
+**Faza 1: warstwa danych i magazyn świec – część na danych historycznych UKOŃCZONA (przystanek), część live czeka na
+otwarcie rynku** (start 11.10.2026 ~00:55 PL, koniec ~01:55 PL, ok. 1 h; Opus 5.5 xhigh). CI zielone (przebieg 105,
+exe z testami E2E na Windows). Pomiary live zaplanowane automatycznie: nd 11.10 23:35 PL (Asia) i pn 12.10 08:40 PL
+(London) – przypomnienia w tej sesji. Po każdym podzadaniu commit + push.
 
 | # | Podzadanie | Stan |
 | --- | --- | --- |
@@ -41,8 +43,9 @@ Po każdym podzadaniu commit + push (przerwanie pracy niczego nie gubi).
 
 ## Następny krok
 
-Dokończyć fazę 1 według tabeli wyżej (szacunek całej fazy: 5–8 h + ok. 0,5 h pomiarów po otwarciu rynku).
-Model: Opus 5.5, xhigh – faza zaczęta przed resetem limitu, więc według specyfikacji kończona na tym samym ustawieniu.
+1. Pomiary live fazy 1 (zaplanowane, patrz wyżej) → wariant luki, bid/mid, ewentualnie zasobnik → formalne zamknięcie fazy 1.
+2. Po słowie „dalej”: **faza 2 – silnik ICT** (można zaczynać na danych historycznych przed pomiarami; plan sekcja 6
+   i 14). Szacunek po fazie 1: 2–4 h. Model: Fable 5.1, xhigh przed resetem limitu (nd 18:00 PL), high po resecie.
 
 ## Otwarte pytania (przed fazą 3; nie blokują fazy 1)
 

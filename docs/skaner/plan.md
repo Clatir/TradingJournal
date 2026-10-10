@@ -338,6 +338,11 @@ wydłuża pracę o ok. 30–50% względem high.
 | 7. Build, test całości, raport | 2–4 h | Przegląd końcowy (workflow agentów), dokumentacja, poprawki po przeglądzie |
 | **Razem** | **ok. 34–56 h** | Bez poprawek po Twoich sprawdzeniach (zwykle +10–20%) |
 
+**Aktualizacja po fazie 1 (11.10.2026):** faza 1 zajęła ok. 1 h czystej pracy (z CI), przy szacunku 5–8 h – pierwotne
+szacunki były ok. 5× za wysokie. Nowe: faza 2 – 2–4 h, faza 3 – 2–4 h, faza 4 – 2–3 h, faza 5 – 1–2 h, faza 6 –
+1,5–3 h, faza 7 – 1–2 h; **razem ok. 10–18 h**. Fazy 2–3 mają więcej logiki do strojenia z użytkownikiem, więc rozrzut
+jest większy.
+
 ### Faza 1 – warstwa danych i magazyn świec (Opus 5.5, xhigh / high)
 
 Zakres: klucz API (ustawienia, DPAPI), klient WS (autoryzacja, subscribe jedną wiadomością, wznawianie z rosnącym
