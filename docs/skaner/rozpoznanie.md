@@ -25,7 +25,66 @@ dlatego punkty 1, 5 i 7 testu wykonalności są częściowo odroczone (sekcja 4.
 
 ## 1. Repozytorium dziennika
 
-<!-- REPO -->
+Szczegóły są w `CLAUDE.md`; poniżej to, co ma znaczenie dla skanera (wersja 1.7.2).
+
+**Stos technologiczny.** Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4,
+zustand 5 (stan), zod 4 (schematy = źródło typów), luxon (strefy, DST), ulid, lightweight-charts 5.2 (dziś tylko
+wykres equity). **Żadnych natywnych modułów Node**: wszystko bundlowane do `out/`, `app.asar` bez `node_modules`.
+To wyklucza `better-sqlite3` i podobne. Magazyn świec trzeba oprzeć na czystym JS/wasm albo na własnym formacie plików.
+Testy: Vitest (40 plików `tests/unit`, 10 `tests/fs`), Playwright `_electron` (20 plików `tests/e2e`).
+
+**Struktura kodu.**
+- `src/shared`: czyste TS dla obu procesów (schematy, obliczenia, eksport). Tu pasują detektory ICT i agregacja świec,
+  testowalne w Vitest bez Electrona.
+- `src/main`: jedyny właściciel folderu danych i jedyny proces z siecią (`net.fetch` dla NBP i aktualizacji).
+  IPC przez helper `handle(channel, fn)` w `main/index.ts` z logowaniem błędów; kontrakt w `shared/api.ts`,
+  udostępniany w `src/preload` jako `window.journal`.
+- `src/renderer`: React. Trasy w `store/ui.ts` (`Route`), pasek nawigacji i skróty w `app/App.tsx`.
+- Okno: jedno `BrowserWindow`, contextIsolation + sandbox, jedna instancja aplikacji. CSP wstrzykiwane przy buildzie
+  (`electron.vite.config.mts`): `connect-src 'self' journal-file:`. **Renderer nie może otworzyć WebSocket ani
+  połączyć się z EODHD**: strumień, REST i magazyn świec muszą żyć w procesie głównym (albo w jego wątku roboczym),
+  zgodnie z zasadą „z siecią łączy się tylko proces główny”.
+- Brak dziś: zasobnika systemowego (Tray), powiadomień Windows (`Notification`), dźwięków, `safeStorage`,
+  `powerMonitor` (uśpienie/wybudzenie), drugiego okna. Wszystko to jest w Electronie bez dodatkowych bibliotek;
+  `safeStorage` na Windows używa DPAPI (wymóg 4.6 specyfikacji).
+- Wątki: OCR działa już w wątku procesu głównego (`?nodeWorker`); ten sam wzorzec nada się do przeliczania detektorów.
+
+**Przechowywanie danych.**
+- Folder danych wybierany przez użytkownika (synchronizowany chmurą między komputerami): JSON z wcięciami, jeden plik
+  na rekord, zapis atomowy, ULID, czasy UTC. Kolekcje: `trades`, `days`, `weeks`, `library`, `forecasts`, `drills`
+  (`shared/paths.ts`). Ustawienia wspólne w `journal.json` (`settings`, `dictionaries`), m.in. `pairs`, `killzones`,
+  `rules`, `risk`, `instruments`, `fx`, `goals`, `customFields`.
+- Ustawienia per komputer: `userData/config.json` (`main/config.ts`: folder danych, okno, aktualizacje). Logi:
+  `userData/logs/main.log` (rotacja przy 1 MB).
+- `SCHEMA_VERSION = 1`. Nowe pola dodawane addytywnie bez podbijania wersji (np. `trade.broker`, `continuationOf`,
+  `custom`), bo schematy to `z.looseObject` z domyślnymi wartościami, a nieznane pola są zachowywane.
+  Pole „id sygnału” w transakcji (10.8) można dodać tak samo, bez migracji.
+- Transakcja ma już pola potrzebne do „Wyślij do dziennika”: `pair`, `direction`, `entryTime`, `prices.entry`,
+  `stopLoss`, `takeProfit1`, `takeProfit2`, `entryModelId` / `entryPdArrayId` / `htfPdArrayId` / `liquidityTakenIds`
+  (słowniki ze stałymi ULID), `riskPercent`, `lots`, `screens` (pipeline kompresji WebP w rendererze).
+- Pod skaner: wspólne dane (ustawienia, nadpisania biasu, sygnały, oceny) pasują do folderu danych jako nowe kolekcje
+  addytywne (jak `forecasts`/`drills` w 1.3–1.4). Cache świec i klucz API muszą zostać w `userData`, poza folderem
+  synchronizowanym.
+
+**Wiele komputerów.** Komputery nie pracują jednocześnie, ale folder jest synchronizowany (Dropbox/OneDrive/Syncthing).
+Obsługiwane są: kopie konfliktowe, heartbeat `.presence/`, scalanie trójstronne zmian z drugiego komputera
+(`shared/merge.ts`), historia wersji `.history/`, `updatedBy`. Nowe kolekcje skanera dostaną to samo, jeśli będą
+zwykłymi rekordami JSON zapisywanymi przez `DataStore`. Strumień EODHD na dwóch komputerach naraz dzieli limit
+50 symboli (patrz 3.1).
+
+**Styl interfejsu.** Ciemny motyw, tokeny w `renderer/styles/index.css`: `bg #0b0d10`, `panel #111418`, `raised`,
+`line #1e232a`, `fg #c3cbd4`, jeden akcent `#e8a33d`, `up #2ebd85` / `down #f6465d` tylko dla wyniku; Inter + JetBrains
+Mono (`.num`), bez gradientów i cieni, linie 1 px, animacje 120–160 ms. Pasek nawigacji po lewej (64 px, ikony).
+Skróty Ctrl+1…9 są zajęte (Ctrl+2 = plan dnia), więc „Skaner” potrzebuje innego skrótu, np. Ctrl+0.
+Kolory stref skanera (zielone = spadkowe, burgundowe = wzrostowe) to nowe tokeny, nie `up`/`down`.
+
+**Build .exe i CI.** `.github/workflows/ci.yml` uruchamia się przy **każdym** pushu na dowolną gałąź, przy pull
+requeście i ręcznie: testy na Linuksie (Node 22.12 / 24 / 26) → build na Windows (`build-windows.cmd`, Node
+z `.node-version` = 24.21.0), smoke test, test aktualizacji → artefakt `ICT-Trade-Journal-windows-<sha>` z
+`ICT-Trade-Journal-portable.exe` i `ICT-Trade-Journal-Setup.exe` (przechowywany 14 dni). Wydanie (`release`) tylko
+na gałęzi domyślnej. **Gałąź robocza już ma buildy testowe bez zmian w workflow**: push tego kroku (commit `287ecb0`)
+dał zielony przebieg CI nr 84 z artefaktem exe (Actions → CI → przebieg gałęzi → Artifacts). electron-builder:
+`portable` + `nsis` x64, `asar: true`, pliki tylko z `out/`.
 
 ## 2. Materiały EODHD
 

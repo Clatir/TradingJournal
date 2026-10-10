@@ -32,5 +32,6 @@ Sugerowany model: Fable 5.1, xhigh przed resetem limitu (niedziela 11.10.2026 18
 2. WTI: live jest (`WTIUSD`), historii brak – wariant (zbieranie od zera / drugi dostawca / rezygnacja).
 3. Kalendarz makro: EODHD `/economic-events` → 403 w tym planie; inne źródło.
 4. Obligacje: brak ZB i intraday Bund – bias D z danych dziennych (FGBLZ26, TYX) + ręczny H4?
-5. Głębokość historii 1m (3 lata dla wszystkich symboli = ok. 1,1 mln świec na symbol).
-6. Pytania z sekcji 15 specyfikacji.
+5. Magazyn świec bez natywnych modułów (SQLite przez wasm albo własne pliki binarne w userData) – decyzja w planie.
+6. Głębokość historii 1m (3 lata dla wszystkich symboli = ok. 1,1 mln świec na symbol).
+7. Pytania z sekcji 15 specyfikacji.
