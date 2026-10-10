@@ -8,23 +8,9 @@
 import { maskToken, parseWsMessage, subscribeMessage } from '@shared/scanner/eodhd'
 import type { Tick } from '@shared/scanner/m1'
 import { isMarketOpen } from '@shared/scanner/time'
+import type { StreamState, StreamStatus } from '@shared/scanner/api'
 
-export type StreamState = 'off' | 'no-key' | 'connecting' | 'live' | 'reconnecting' | 'auth-failed' | 'symbol-limit'
-
-export interface StreamStatus {
-  state: StreamState
-  /** Since when the state holds (ms). */
-  since: number
-  connectedAt: number | null
-  lastMessageAt: number | null
-  /** Last tick with a current exchange time (not the snapshot sent after subscribing). */
-  lastLiveTickAt: number | null
-  reconnects: number
-  symbols: string[]
-  /** Polish text of the last problem (masked). */
-  message: string | null
-  nextRetryAt: number | null
-}
+export type { StreamState, StreamStatus }
 
 export interface WsLike {
   send(data: string): void

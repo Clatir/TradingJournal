@@ -1,5 +1,6 @@
 /** Contract between the main process (data folder owner) and the renderer. */
 import type { Collection, FileKind } from './paths'
+import type { ScannerApi } from './scanner/api'
 import type { RecordTypes } from './records'
 import type { FxFetchResult } from './fx'
 import type { FxHistoryResult } from './fxHistory'
@@ -203,6 +204,8 @@ export type OpenFolderResult =
   | { ok: false; reason: 'cancelled' | 'not-journal' | 'error'; message: string; dir?: string }
 
 export interface JournalApi {
+  /** ICT scanner (docs/skaner): EODHD data, candle cache, status. */
+  scanner: ScannerApi
   appInfo(): Promise<AppInfo>
   getConfig(): Promise<MachineConfig>
   /** Open the configured folder (or null when none is configured yet). */

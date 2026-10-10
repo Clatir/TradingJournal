@@ -3,7 +3,7 @@ import { hostname, tmpdir } from 'node:os'
 import { basename, dirname, join, parse } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, ClipboardItem, Menu, app, clipboard, dialog, ipcMain, net, powerMonitor, protocol, safeStorage, shell, type IpcMainInvokeEvent } from 'electron'
 import { FILE_URL_SCHEME, type AppInfo, type ChangeSet, type HistoryKind, type HistoryReason, type ImportPolicy, type OpenFolderResult } from '@shared/api'
 import { isIgnoredPath } from '@shared/paths'
 import type { Collection } from '@shared/paths'
@@ -26,6 +26,9 @@ import { htmlToPdf } from './export/pdf'
 import { readBrokerFile } from './import/broker'
 import { ocrImage, stopOcr } from './ocr/ocr'
 import type { XlsxSheet } from '@shared/export/xlsx'
+import type { ScannerConfig } from '@shared/scanner/api'
+import type { Interval } from '@shared/scanner/types'
+import { ScannerService, scannerNetwork } from './scanner/service'
 
 // Test hooks: isolated user data and a preselected data folder (no dialogs in E2E runs).
 if (process.env.ICTJ_USER_DATA) app.setPath('userData', process.env.ICTJ_USER_DATA)
@@ -44,6 +47,7 @@ let store: DataStore | null = null
 let watcher: FolderWatcher | null = null
 let presenceTimer: NodeJS.Timeout | null = null
 let updater: Updater | null = null
+let scanner: ScannerService | null = null
 const imports = new Map<string, Inspected>()
 /** First automatic update check after start (test runs shorten it). */
 const updateCheckDelayMs = (): number => Number(process.env.ICTJ_UPDATE_CHECK_DELAY_MS) || 15_000
@@ -53,6 +57,30 @@ const fxFetchDelayMs = (): number => Number(process.env.ICTJ_NBP_FETCH_DELAY_MS)
 function requireUpdater(): Updater {
   if (!updater) throw new Error('Moduł aktualizacji nie jest gotowy.')
   return updater
+}
+
+function requireScanner(): ScannerService {
+  if (!scanner) throw new Error('Skaner nie jest gotowy.')
+  return scanner
+}
+
+/** Scanner data service: EODHD stream and REST, candle cache in userData/scanner (ICTJ_EODHD_URL=off: no network). */
+function createScanner(): ScannerService {
+  return new ScannerService({
+    root: join(app.getPath('userData'), 'scanner'),
+    fetch: (url, init) => net.fetch(url, init),
+    network: scannerNetwork(process.env.ICTJ_EODHD_URL),
+    crypto: {
+      available: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (plain) => safeStorage.encryptString(plain),
+      decrypt: (data) => safeStorage.decryptString(data)
+    },
+    envToken: process.env.EODHD_API_TOKEN,
+    log: (level, message) => log(level, `scanner: ${message}`),
+    emit: (event) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('journal:scanner:event', event)
+    }
+  })
 }
 
 function createUpdater(): Updater {
@@ -398,6 +426,27 @@ function registerIpc(): void {
     if (st.size > 50 * 1024 * 1024) throw new Error('Plik jest za duży (limit 50 MB).')
     return { name: basename(file), text: await fs.readFile(file, 'utf8') }
   })
+  handle('journal:scanner:configure', (config: ScannerConfig) => requireScanner().configure(config))
+  handle('journal:scanner:status', () => requireScanner().status())
+  handle('journal:scanner:series', (symbol: string, interval: Interval, from: number, to: number) => requireScanner().series(symbol, interval, from, to))
+  handle('journal:scanner:gaps', (symbol: string, from: number, to: number) => requireScanner().gaps(symbol, from, to))
+  handle('journal:scanner:setApiKey', (key: string) => requireScanner().setApiKey(key))
+  handle('journal:scanner:clearApiKey', () => requireScanner().clearApiKey())
+  handle('journal:scanner:testApiKey', () => requireScanner().testApiKey())
+  handle('journal:scanner:symbols', () => requireScanner().symbols())
+  handle('journal:scanner:importCsv', async (symbol: string) => {
+    const res = await dialog.showOpenDialog(mainWindow!, {
+      title: `Import świec ${symbol} z TradingView`,
+      properties: ['openFile'],
+      filters: [{ name: 'TradingView – Export chart data (CSV)', extensions: ['csv', 'txt'] }]
+    })
+    const file = res.filePaths[0]
+    if (res.canceled || !file) return null
+    return requireScanner().importCsv(symbol, await fs.readFile(file, 'utf8'))
+  })
+  handle('journal:scanner:cacheUsage', () => requireScanner().cacheUsage())
+  handle('journal:scanner:clearCache', (symbol?: string) => requireScanner().clearCache(symbol))
+  handle('journal:scanner:refresh', () => requireScanner().refresh())
   handle('journal:pickBrokerFile', async () => {
     const res = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile'],
@@ -561,6 +610,10 @@ app.whenReady().then(async () => {
   updater = createUpdater()
   registerFileProtocol()
   registerIpc()
+  // Before the window: the stored API key must be loaded when the renderer sends the scanner settings.
+  scanner = createScanner()
+  await scanner.init().catch((e) => log('warn', 'scanner init failed', e))
+  powerMonitor.on('resume', () => void scanner?.refresh())
   createWindow()
   const u = updater
   void u.init().then(
@@ -570,7 +623,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  void closeStore().finally(() => app.quit())
+  void Promise.allSettled([closeStore(), scanner?.stop()]).finally(() => app.quit())
 })
 
 // Last step of quitting (data flushed, folder closed): a downloaded update is installed now; the

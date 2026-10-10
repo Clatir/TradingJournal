@@ -7,6 +7,7 @@
 import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 import { writeFileAtomic } from '../datastore/atomic'
+import type { KeySource, KeyState } from '@shared/scanner/api'
 
 export interface KeyCrypto {
   available(): boolean
@@ -14,16 +15,7 @@ export interface KeyCrypto {
   decrypt(data: Buffer): string
 }
 
-export type KeySource = 'env' | 'stored' | 'session'
-
-export interface KeyState {
-  present: boolean
-  source: KeySource | null
-  /** First and last characters only, e.g. "65f8…5678". */
-  masked: string | null
-  /** False when the key could not be stored encrypted (kept until the app closes). */
-  persisted: boolean
-}
+export type { KeySource, KeyState }
 
 export const API_KEY_PATTERN = /^[A-Za-z0-9._-]{8,128}$/
 

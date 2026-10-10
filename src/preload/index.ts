@@ -1,10 +1,30 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ChangeSet, JournalApi } from '@shared/api'
 import type { UpdateState } from '@shared/update'
+import type { ScannerEvent } from '@shared/scanner/api'
 
 const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(`journal:${channel}`, ...args)
 
 const api: JournalApi = {
+  scanner: {
+    configure: (config) => invoke('scanner:configure', config),
+    status: () => invoke('scanner:status'),
+    series: (symbol, interval, from, to) => invoke('scanner:series', symbol, interval, from, to),
+    gaps: (symbol, from, to) => invoke('scanner:gaps', symbol, from, to),
+    setApiKey: (key) => invoke('scanner:setApiKey', key),
+    clearApiKey: () => invoke('scanner:clearApiKey'),
+    testApiKey: () => invoke('scanner:testApiKey'),
+    symbols: () => invoke('scanner:symbols'),
+    importCsv: (symbol) => invoke('scanner:importCsv', symbol),
+    cacheUsage: () => invoke('scanner:cacheUsage'),
+    clearCache: (symbol) => invoke('scanner:clearCache', symbol),
+    refresh: () => invoke('scanner:refresh'),
+    onEvent: (cb) => {
+      const listener = (_e: Electron.IpcRendererEvent, event: ScannerEvent) => cb(event)
+      ipcRenderer.on('journal:scanner:event', listener)
+      return () => ipcRenderer.removeListener('journal:scanner:event', listener)
+    }
+  },
   appInfo: () => invoke('appInfo'),
   getConfig: () => invoke('getConfig'),
   loadCurrent: () => invoke('loadCurrent'),

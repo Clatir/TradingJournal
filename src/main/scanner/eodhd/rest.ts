@@ -19,8 +19,9 @@ import {
   type ExchangeSymbol
 } from '@shared/scanner/eodhd'
 import type { Candle, Range } from '@shared/scanner/types'
+import type { EodhdErrorKind, RestUsage } from '@shared/scanner/api'
 
-export type EodhdErrorKind = 'no-key' | 'auth' | 'forbidden' | 'daily-limit' | 'rate' | 'network' | 'http' | 'bad-response'
+export type { EodhdErrorKind, RestUsage }
 
 export class EodhdError extends Error {
   constructor(
@@ -39,14 +40,6 @@ const NETWORK_ERROR =
 function nextGmtMidnight(now: number): number {
   const d = new Date(now)
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
-}
-
-export interface RestUsage {
-  /** GMT day the counter belongs to. */
-  date: string
-  /** API calls (intraday = 5 per request) counted by this computer today. */
-  calls: number
-  requests: number
 }
 
 /** Daily call counter persisted in userData/scanner/usage.json. */

@@ -8,6 +8,7 @@ import type { Range } from '@shared/scanner/types'
 import { INTRADAY_1M_MAX_SECONDS } from '@shared/scanner/eodhd'
 import { EodhdError, type EodhdRest } from './eodhd/rest'
 import type { CandleStore } from './store'
+import type { BackfillProgress } from '@shared/scanner/api'
 
 export interface BackfillTarget {
   symbol: string
@@ -16,18 +17,7 @@ export interface BackfillTarget {
   depthDays: number
 }
 
-export interface BackfillProgress {
-  running: boolean
-  stage: number
-  stages: number
-  symbol: string | null
-  /** Requests done / planned in the current stage. */
-  done: number
-  total: number
-  /** Symbols whose last attempt failed, with a masked reason. */
-  errors: Record<string, string>
-  finishedAt: number | null
-}
+export type { BackfillProgress }
 
 export const BACKFILL_STAGES = [14, 120, Infinity] as const
 const DAY = 86400

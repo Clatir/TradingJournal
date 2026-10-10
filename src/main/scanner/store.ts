@@ -16,6 +16,7 @@ import { writeFileAtomic } from '../datastore/atomic'
 import { aggregate, markIncomplete } from '@shared/scanner/aggregate'
 import { marketRanges } from '@shared/scanner/time'
 import type { Candle, Interval, Range, SeriesCandle } from '@shared/scanner/types'
+import type { SymbolUsage } from '@shared/scanner/api'
 
 export type Base = 'M1' | 'H1'
 
@@ -167,13 +168,7 @@ function lowerBound(c: readonly Candle[], t: number): number {
   return lo
 }
 
-export interface SymbolUsage {
-  symbol: string
-  bytes: number
-  /** Coverage of M1 data (first / last covered second), null when empty. */
-  from: number | null
-  to: number | null
-}
+export type { SymbolUsage }
 
 export class CandleStore {
   private readonly indexes = new Map<string, IndexFile>()

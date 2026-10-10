@@ -29,6 +29,7 @@ export async function launch(
     ICTJ_MACHINE_NAME: opts.machine ?? 'E2E-PC',
     // No test talks to the real api.nbp.pl; rate tests pass a local server in `env`.
     ICTJ_NBP_URL: 'off',
+    ICTJ_EODHD_URL: 'off',
     ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     ...opts.env
   } as Record<string, string>
