@@ -79,9 +79,8 @@ wejścia na H1 (główne) i M15 (doprecyzowane). Odpowiedzi:
 
 ## WTI (2026-10-11)
 
-- Użytkownik: dane historyczne WTI „na razie z TradingView”. Przyjęte: **import eksportu CSV z TradingView** (H1, także 1m)
-  do magazynu świec (faza 1) + bieżące ceny ze strumienia `WTIUSD`. Odczyt świec ze zrzutu ekranu = możliwe
-  rozszerzenie później (ok. 4–6 h), jeśli użytkownik woli screeny. Do ustalenia: symbol WTI w TradingView
+- **Historia WTI z eksportu CSV TradingView** („Export chart data”, H1, także 1m) – potwierdzone przez użytkownika –
+  importowana do magazynu świec (faza 1) + bieżące ceny ze strumienia `WTIUSD`. Do ustalenia: symbol WTI w TradingView
   (spot/CFD vs futures CL1!) – zgodność ze strumieniem sprawdzana przy pierwszym imporcie.
 
 ## Krok 1 – c.d.

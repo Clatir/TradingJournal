@@ -4,8 +4,18 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Krok 2: plan – gotowy (z sekcją 14: top-down D → H4 → H1 → M15, wejście tylko w KZ, maks. SL 30 p / złoto 65 USD,
-premia za konwergencję PDA).** Kod skanera jeszcze nie powstał. Czekam na słowo „akceptuję”, żeby zacząć fazę 1.
+**Faza 1: warstwa danych i magazyn świec – W TOKU** (start 11.10.2026 ~00:55 PL, Opus 5.5 xhigh; plan sekcja 6 i 14).
+Po każdym podzadaniu commit + push (przerwanie pracy niczego nie gubi).
+
+| # | Podzadanie | Stan |
+| --- | --- | --- |
+| 1 | Czas NY i składanie świec (`src/shared/scanner/time.ts`, `aggregate.ts`, `types.ts`, `tests/unit/scanner-time.test.ts`) | ✅ commit 98d976f |
+| 2 | Ustawienia skanera (`settings.scanner`), presety instrumentów, parsery EODHD, budżet symboli, M1 z ticków, import CSV TradingView (shared) | ⏳ w toku |
+| 3 | Magazyn świec w `userData/scanner/` (pliki binarne M1, pokrycie, luki) | – |
+| 4 | Klienci EODHD (WebSocket, REST z limiterem), backfill, klucz API (safeStorage) | – |
+| 5 | Usługa skanera w main + IPC + preload | – |
+| 6 | UI: zakładka Skaner (Ctrl+0, pasek stanu, surowy wykres), Ustawienia → Skaner | – |
+| 7 | E2E z lokalnym serwerem EODHD, DXY/EURX, pomiary po otwarciu rynku (nd 17:00 NY = 23:00 PL), przystanek | – |
 
 ## Ukończone
 
@@ -26,9 +36,8 @@ premia za konwergencję PDA).** Kod skanera jeszcze nie powstał. Czekam na sło
 
 ## Następny krok
 
-Po „akceptuję”: **faza 1** (warstwa danych i magazyn świec) według sekcji 6 planu (bez zmian po sekcji 14). Szacunek: 5–8 h czystej pracy
-(+ ok. 0,5 h pomiarów po otwarciu rynku). Model: Opus 5.5, xhigh przed resetem limitu (niedziela 11.10.2026 18:00 PL),
-high po resecie.
+Dokończyć fazę 1 według tabeli wyżej (szacunek całej fazy: 5–8 h + ok. 0,5 h pomiarów po otwarciu rynku).
+Model: Opus 5.5, xhigh – faza zaczęta przed resetem limitu, więc według specyfikacji kończona na tym samym ustawieniu.
 
 ## Otwarte pytania (przed fazą 3; nie blokują fazy 1)
 
