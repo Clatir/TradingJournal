@@ -40,3 +40,11 @@ Wszystkie cztery osiągnęły TP; największy ruch przeciwny po wejściu (MAE) �
 Wniosek: te setupy to **model swingowy na H1** (sweep / szczyt → displacement → powrót do 60 FVG), a specyfikacja opisuje
 modele intraday M5/M15 w killzone'ach. Bez decyzji test złoty nie przejdzie z założenia. Warianty – w `postep.md`
 (otwarte pytania).
+
+## Decyzje użytkownika po teście (11.10.2026, plan sekcja 14)
+
+- Top-down D → H4 → H1 → M15, wejścia H1 / M15 zgodne z biasem; **wejście tylko w KZ** (London 02:00–04:40,
+  NY 07:00–10:00), setup może powstać o dowolnej porze; **maks. SL złota 65 USD**.
+- **Kryterium testu:** skaner wykrywa Z1–Z4 jako setupy H1 (kierunek, strefa = 60 FVG, SL i TP zbliżone do oznaczeń;
+  tolerancja do ustalenia w fazie 3 z różnicą feedu). Wejście: Z1, Z3, Z4 – poza KZ, więc oczekiwany znacznik
+  „dotknięty poza KZ” zamiast etapu „aktywny”; Z2 – zależnie od odpowiedzi o moment wejścia.

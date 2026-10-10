@@ -4,9 +4,8 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Krok 2: plan – zmiana paradygmatu naniesiona (plan sekcja 14: top-down D → H4 → H1 → M15, wejścia H1/M15 zgodne
-z biasem).** Czekam na: (1) słowo „akceptuję” przed fazą 1, (2) dwa doprecyzowania (okna – 14.3, SL złota – 14.5)
-i moment wejścia Z2 – te trzy nie blokują fazy 1, potrzebne przed fazą 3.
+**Krok 2: plan – gotowy (z sekcją 14: top-down D → H4 → H1 → M15, wejście tylko w KZ, maks. SL 30 p / złoto 65 USD,
+premia za konwergencję PDA).** Kod skanera jeszcze nie powstał. Czekam na słowo „akceptuję”, żeby zacząć fazę 1.
 
 ## Ukończone
 
@@ -33,7 +32,4 @@ high po resecie.
 
 ## Otwarte pytania (przed fazą 3; nie blokują fazy 1)
 
-1. **Okna (plan 14.3):** wymóg KZ dotyczy powstania setupu (sweep/MSS w KZ, wejście limitem później) czy także wejścia?
-   Domyślnie: powstanie dla H1, wejście dla M15.
-2. **Maks. SL złota (plan 14.5):** skalowany z 30 p FX (≈ 39 USD, odrzuca Z1/Z3/Z4) czy osobna wartość (np. 65 USD)?
-3. **Z2 (`test-zloty.md`):** wejście pt 31.07 10:00 NY czy pon 3.08 09:00 NY?
+1. **Z2 (`test-zloty.md`):** wejście pt 31.07 10:00 NY (poza KZ) czy pon 3.08 09:00 NY (w KZ)?

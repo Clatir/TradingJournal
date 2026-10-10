@@ -71,6 +71,10 @@ wejścia na H1 (główne) i M15 (doprecyzowane). Odpowiedzi:
 4. Maksymalny SL: **30 pipsów** (FX, H1 i M15). Złoto/ropa do potwierdzenia: skalowanie ADR (≈ 39 USD dziś) odrzuca
    Z1, Z3, Z4 z testu złotego; alternatywa osobna wartość (np. 65 USD).
 5. Alerty H1 przy „uzbrojony” i „gotowy”, M15 przy „gotowy” – brak odpowiedzi, przyjęta propozycja.
+7. **Doprecyzowanie okien (2026-10-11):** w KZ musi być tylko **wejście**; setup może powstać o dowolnej porze.
+   Dotknięcie strefy poza KZ = znacznik „dotknięty poza KZ”, bez alertu, setup trwa **[założenie]**.
+8. **Konwergencja PDA daje dodatkowe punkty**: +5 (2 PDA), +10 (3+), wynik obcinany do 100 **[założenie co do wartości]**.
+9. **Maks. SL złota: 65 USD** (osobna wartość). Ropa: skalowanie ADR, tymczasowo 2% ceny.
 6. Skaner ma własny preset złota (pips 0,1 USD, kontrakt 100 oz) – dziennik nie ma presetu XAUUSD.
 
 ## Krok 1 – c.d.

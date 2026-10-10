@@ -526,11 +526,14 @@ Panel bias i briefing: instrument × D / H4 / H1 / M15 (kierunek, ostatni MSS/BO
 
 - Okna: **London 02:00–04:40** i **NY 07:00–10:00** (czas NY, edytowalne). Klasyczne okna Silver Bullet 10–11 i 14–15
   **odpadają**; model Silver Bullet działa tylko w części okna, która się z nimi pokrywa (03:00–04:00) **[założenie]**.
-- **Do potwierdzenia:** czego dotyczy wymóg okna (wpływ na test złoty):
-  - (a) **powstania setupu** (sweep albo displacement/MSS w KZ), a wejście limitem może nastąpić później, dopóki setup
-    jest ważny (14.4): Z1 tak (displacement 08:00 NY), Z4 prawdopodobnie tak (szczyt 09:00 NY), Z3 nie (14:00 NY);
-  - (b) **także wejścia** (dotknięcie strefy w KZ): Z1, Z3, Z4 nie (wejścia 11:00, 21:00, 18:00 NY).
-  - Do decyzji domyślnie (a) dla H1, (b) dla M15. Parametr w ustawieniach.
+- **Decyzja użytkownika: w KZ musi być tylko wejście; setup może powstać o dowolnej porze** (H1 i M15).
+  - Etap „gotowy” / „aktywny” tylko, gdy cena wchodzi w strefę **w KZ**.
+  - Dotknięcie strefy poza KZ nie jest wejściem i nie daje alertu; setup trwa dalej do unieważnienia (14.4), a sygnał
+    dostaje znacznik „dotknięty poza KZ” (replay liczy takie przypadki osobno – widać, co ucieka poza oknami)
+    **[założenie]**.
+  - Test złoty: Z1 (11:00), Z3 (21:00), Z4 (18:00 NY) mają wejście poza KZ – skaner ma je wykryć jako setupy
+    uzbrojone z poziomami zbliżonymi do oznaczeń użytkownika, ale bez wejścia; Z2 – wejście w KZ tylko w wariancie
+    pon 3.08 09:00 NY.
 
 ### 14.4 Ważność setupu H1 (odpowiedź 3: zgoda)
 
@@ -541,10 +544,9 @@ się za ekstremum sweepu / początkiem nogi, cena dojdzie do TP1 bez cofnięcia 
 ### 14.5 Maksymalny SL (odpowiedź 4: „30 pipsów”)
 
 - **FX: 30 pipsów** dla wejść H1 i M15 (zamiast 20). Kandydaci SL A/B i kontrole bez zmian.
-- **Złoto i ropa – do potwierdzenia.** Dziennik nie ma presetu złota (pips 0,0001 jak para FX), więc skaner ma własny:
-  XAUUSD pips 0,1 USD. Skalowanie zmiennością jak w specyfikacji: 30 p = ok. 48% ADR20 EURUSD (62 p) → złoto ok.
-  **39 USD** (dziś). Test złoty: Z2 (23,8 USD) mieści się, Z1 (44,4), Z3 (56,6), Z4 (62,6) – nie. Alternatywa: osobna
-  wartość dla złota (np. 65 USD).
+- **Złoto: 65 USD** (decyzja użytkownika; skaner ma własny preset XAUUSD: pips 0,1 USD, kontrakt 100 oz, więc
+  65 USD = 650 pipsów). Test złoty: SL Z1–Z4 (23,8–62,6 USD) mieszczą się. **Ropa (WTI):** skalowana zmiennością
+  (30 p EURUSD ≈ 48% ADR20 → ten sam ułamek ADR20 WTI), tymczasowo 2% ceny do zebrania 20 dni; edytowalne.
 
 ### 14.6 Alerty (punkt 5 bez odpowiedzi – przyjęta propozycja)
 
@@ -562,8 +564,12 @@ się za ekstremum sweepu / początkiem nogi, cena dojdzie do TP1 bez cofnięcia 
 | 4. Turtle soup, breaker | tak | tak |
 
 - Pule do sweepu i celów dla wejść H1: z H1, H4, D (+ W); dla M15: także z M15. TP1/TP2 i min. R:R 2 bez zmian.
-- Ocena 8.4: „zgodność z biasem D i H4” zostaje (dla H1 jest jednocześnie warunkiem alertu); KZ przy wejściu H1
-  daje punkty w kryterium okna (zamiast warunku), wagi do strojenia.
+- Ocena 8.4: „zgodność z biasem D i H4” zostaje (dla H1 jest jednocześnie warunkiem alertu); wejście w KZ jest
+  warunkiem twardym etapu „gotowy” (14.3).
+- **Konwergencja PDA – dodatkowe punkty (decyzja użytkownika):** strefa wejścia pokrywa się z innym PD array
+  (FVG + OB, FVG z kilku interwałów, OTE + FVG/OB, breaker, BPR, poziom otwarcia). Premia: 2 nakładające się PDA
+  = +5, 3 i więcej = +10, ponad 100 punktów tabeli 8.4, wynik obcinany do 100; progi A/B/C bez zmian; wartości
+  edytowalne **[założenie co do wielkości premii]**.
 - Scalanie: ten sam ruch na H1 i M15 = jeden sygnał z listą interwałów.
 
 ### 14.8 Wpływ na fazy
