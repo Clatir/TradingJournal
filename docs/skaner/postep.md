@@ -10,8 +10,8 @@ Po każdym podzadaniu commit + push (przerwanie pracy niczego nie gubi).
 | # | Podzadanie | Stan |
 | --- | --- | --- |
 | 1 | Czas NY i składanie świec (`src/shared/scanner/time.ts`, `aggregate.ts`, `types.ts`, `tests/unit/scanner-time.test.ts`) | ✅ commit 98d976f |
-| 2 | Ustawienia skanera (`settings.scanner`), presety instrumentów, parsery EODHD, budżet symboli, M1 z ticków, import CSV TradingView (shared) | ⏳ w toku |
-| 3 | Magazyn świec w `userData/scanner/` (pliki binarne M1, pokrycie, luki) | – |
+| 2 | Ustawienia skanera (`settings.scanner`), presety instrumentów, parsery EODHD, budżet symboli, M1 z ticków, import CSV TradingView (shared) | ✅ |
+| 3 | Magazyn świec w `userData/scanner/` (pliki binarne M1, pokrycie, luki) | ⏳ w toku |
 | 4 | Klienci EODHD (WebSocket, REST z limiterem), backfill, klucz API (safeStorage) | – |
 | 5 | Usługa skanera w main + IPC + preload | – |
 | 6 | UI: zakładka Skaner (Ctrl+0, pasek stanu, surowy wykres), Ustawienia → Skaner | – |

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { scannerSettingsSchema } from '../scanner/settings'
 import { PNL_PRESETS } from '../calc/pnl'
 import { clockTime, isoDate, isoDateTime, recordBase, text, ulidSchema } from './common'
 
@@ -381,7 +382,9 @@ export const settingsSchema = z.looseObject({
         )
         .default({})
     })
-    .prefault({})
+    .prefault({}),
+  /** ICT scanner (docs/skaner): instruments, price mode, history depth, correlations… (additive, 1.8.0). */
+  scanner: scannerSettingsSchema.prefault({})
 }).transform(seedInstruments)
 export type Settings = z.infer<typeof settingsSchema>
 
