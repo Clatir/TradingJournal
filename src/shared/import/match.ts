@@ -7,8 +7,10 @@
 import { DateTime } from 'luxon'
 import { createTrade } from '../defaults'
 import { newId } from '../ids'
-import type { BrokerFill, Trade, TradeExit } from '../schema'
-import type { BrokerTrade } from './broker'
+import { rateFor } from '../fx'
+import { lotValueFor } from '../instruments'
+import type { BrokerFill, Settings, Trade, TradeExit } from '../schema'
+import type { BrokerExit, BrokerTrade } from './broker'
 
 /**
  * Zone of the file's times: MetaTrader servers mostly run on New York time + 7 h (GMT+2 / +3 with the US DST
@@ -75,7 +77,8 @@ export function matchBrokerTrades(
   opts: { zone: BrokerZone; toleranceMinutes: number }
 ): MatchResult {
   const byTicket = new Map<string, Trade>()
-  for (const t of trades) for (const k of t.broker?.tickets ?? []) byTicket.set(k, t)
+  // "wiersz N" (row number, imports before 1.7.3 without a ticket column) is no key: another file has other rows.
+  for (const t of trades) for (const k of t.broker?.tickets ?? []) if (!/^wiersz \d+$/.test(k)) byTicket.set(k, t)
   const matches: BrokerMatch[] = positions.map((b, index) => {
     const openUtc = brokerTimeToUtc(b.openTime, opts.zone)
     const closeUtc = b.closeTime ? brokerTimeToUtc(b.closeTime, opts.zone) : null
@@ -164,15 +167,25 @@ function brokerFill(m: BrokerMatch, opts: ApplyOptions): BrokerFill {
   }
 }
 
-/** Exits from the broker's partial closes: share of the volume (2 places, the last one takes the rest). */
+const REASON_NOTE: Record<NonNullable<BrokerExit['reason']>, string> = { tp: 'TP', sl: 'SL', so: 'stop out' }
+
+/**
+ * Exits from the broker's partial closes: share of the volume (2 places, the last one takes the rest); the note says
+ * what closed it at the broker ("TP", "SL").
+ */
 function brokerExits(m: BrokerMatch, zone: (wall: string) => string | null): TradeExit[] {
   const b = m.broker
   let left = 100
   return b.exits.map((x, i) => {
     const percent = i === b.exits.length - 1 ? Number(left.toFixed(2)) : Number(((x.volume / b.volume) * 100).toFixed(2))
     left -= percent
-    return { id: newId(), time: zone(x.time), price: x.price, percent, note: '' }
+    return { id: newId(), time: zone(x.time), price: x.price, percent, note: x.reason ? REASON_NOTE[x.reason] : '' }
   })
+}
+
+/** The broker's comment without the close reason tags ("[T/P]"), for the entry's notes. */
+function commentText(comment: string): string {
+  return comment.replace(/\[\s*(t\s*\/?\s*p|s\s*\/?\s*l|so)\s*\]/gi, '').trim()
 }
 
 /** A stop on the losing side of the entry; a stop moved to BE or into profit says nothing about the risk. */
@@ -242,9 +255,48 @@ export function tradeFromBroker(m: BrokerMatch, opts: ApplyOptions & { zone: Bro
       lots: b.volume,
       pnlAmountOverride: closed && b.net != null ? Number(b.net.toFixed(2)) : null,
       amountCurrency: opts.currency,
-      notes: b.comment ? `Import od brokera: ${b.comment}` : '',
+      notes: commentText(b.comment) ? `Import od brokera: ${commentText(b.comment)}` : '',
       broker: brokerFill(m, opts)
     },
     opts.now
   )
+}
+
+/**
+ * The currency of the file's amounts when the file does not say (XTB writes amounts in the account's currency without
+ * naming it): the gross result of each closed position compared with price move × lots × contract size, converted
+ * from the quote currency with the journal's rates (today's: a few % off, far less than between currencies). The
+ * candidate whose median ratio is within 8% of 1 – and clearly the best – wins; null when unsure.
+ */
+export function guessBrokerCurrency(
+  positions: readonly BrokerTrade[],
+  pairs: readonly string[],
+  settings: Pick<Settings, 'pairs' | 'instruments' | 'risk' | 'fx'>
+): string | null {
+  const moves: Array<{ quote: string; units: number; amount: number }> = []
+  for (const b of positions) {
+    const amount = b.profit ?? (b.net != null ? b.net - b.commission - b.swap : null)
+    const pair = pairForSymbol(b.symbol, pairs)
+    if (amount == null || b.closePrice == null || !pair) continue
+    const lot = lotValueFor(pair, settings)
+    const units = (b.closePrice - b.openPrice) * (b.direction === 'long' ? 1 : -1) * b.volume * (lot?.contractSize ?? 0)
+    if (!lot || Math.abs(units) < 1e-9 || Math.abs(amount) < 0.01) continue
+    moves.push({ quote: lot.quoteCurrency, units, amount })
+  }
+  if (!moves.length) return null
+  const candidates = [...new Set([settings.risk.accountCurrency, 'PLN', 'USD', 'EUR', 'GBP', 'CHF', ...moves.map((x) => x.quote)])]
+  const scored = candidates
+    .map((cur) => {
+      const errors = moves
+        .map((x) => {
+          const rate = rateFor(x.quote, cur, settings)?.rate
+          return rate ? Math.abs(x.amount / (x.units * rate) - 1) : null
+        })
+        .filter((e): e is number => e != null)
+        .sort((a, b) => a - b)
+      return { cur, error: errors.length * 2 >= moves.length ? errors[Math.floor(errors.length / 2)]! : Infinity }
+    })
+    .sort((a, b) => a.error - b.error)
+  const [best, second] = scored
+  return best && best.error <= 0.08 && (!second || second.error >= best.error + 0.04) ? best.cur : null
 }

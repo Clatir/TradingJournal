@@ -245,6 +245,13 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     = „już zaimportowana”, chyba że pozycja zmieniła się u brokera (zamknięta później, kolejny partial) – wtedy znów
     „dopasowana”, a wartości wpisane poprzednim importem liczą się jak puste. `applyBrokerMatch` uzupełnia puste pola (albo nadpisuje), SL tylko po stronie straty, wynik =
     netto w walucie konta brokera (nie, gdy kwota ryzyka wpisu jest w innej walucie); `tradeFromBroker` = nowy wpis.
+  - 1.7.3 (XTB „Closed positions”, `tests/unit/broker-import.test.ts`, E2E w `journal-tools.spec.ts`): strefa w nagłówku
+    („Open Time (UTC)”, `roleOf` + `ZONE_SUFFIX`) → `BrokerTable.timeZone` ustawia strefę; „Profit/Loss” = netto, a dwie
+    kolumny wyniku, z których jedna jest brutto („Zysk/Strata” + „Zysk brutto”) → druga = netto; bez kolumny numeru
+    pozycji ticket = `positionKey` (symbol, czas i cena otwarcia – ten sam w każdym pliku); dawne „wiersz N” są
+    pomijane przy łączeniu; `closeReason` z komentarza („[T/P]”, „[S/L]”, „[SO]”) → notatka wyjścia („TP”, „SL”);
+    `guessBrokerCurrency` – waluta kwot, gdy plik jej nie podaje (wynik brutto vs ruch × loty × kontrakt × `rateFor`,
+    mediana błędu ≤ 8% i wyraźnie najlepsza); w oknie domyślnie zaznaczone dopasowane i bez wpisu (nowe wpisy).
   - `trade.broker` (addytywne, `SCHEMA_VERSION` bez zmian): tickety, liczby brokera, czasy UTC; duplikat wpisu go nie ma.
 - Kopie przy starcie (`main/datastore/backup.ts`): `backups/daily/RRRR-MM-DD_json.zip` (14), `backups/weekly/RRRR-Wnn_full.zip`
   gdy najnowsza ≥ 7 dni (4), ręczne `backups/manual/` (5), przed migracją `backups/pre-migration/`. Demo nie ma kopii.

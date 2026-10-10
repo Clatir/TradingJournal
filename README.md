@@ -180,6 +180,8 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     → „Zapisz jako raport” (HTML); XTB – xStation → Historia → eksport XLSX. Sprawdź strefę czasu pliku (serwer MT =
     NY + 7 h, XTB = Warszawa) i tolerancję, „Zastosuj” – dopasowane wpisy dostają loty, wyjścia i wynik netto, a numer
     pozycji widać w edytorze transakcji. Ponowny import tego samego pliku pokazuje „już zaimportowana”.
+    XTB „Zamknięte pozycje” z czasem UTC (od 1.7.3): strefa i waluta kwot (np. PLN) ustawiają się same, pozycje bez
+    wpisu są od razu zaznaczone jako nowe wpisy, a „[T/P]” / „[S/L]” trafia do notatki wyjścia.
 
 **Wersja 1.4 – analiza portfolio, dwa komputery, trening**
 1. Górny pasek → „Analiza” (albo `Ctrl+Shift+A`): wybierz pary, „Start”, zaznaczaj parę, którą właśnie analizujesz,

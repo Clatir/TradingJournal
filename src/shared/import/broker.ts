@@ -13,6 +13,8 @@ export interface BrokerExit {
   time: string
   price: number
   volume: number
+  /** Why the broker closed it, from the row's comment ("[T/P]", "[S/L]", "[SO]"); null = closed by hand / unknown. */
+  reason?: 'tp' | 'sl' | 'so' | null
 }
 
 export interface BrokerTrade {
@@ -43,6 +45,8 @@ export interface BrokerTable {
   format: BrokerFormat
   /** Account currency found above the table (e.g. "Currency: USD"), else null. */
   currency: string | null
+  /** Zone written in the time headers ("Open Time (UTC)"), else null (chosen by format). */
+  timeZone: 'UTC' | null
   trades: BrokerTrade[]
   /** Rows merged into an earlier position (partial closes). */
   merged: number
@@ -140,6 +144,8 @@ const ROLES: Record<string, Role> = {
   'zysk/strata': 'profit',
   'zysk/strata brutto': 'profit',
   'p/l': 'profit',
+  // XTB: "Profit/Loss" is the net result (gross profit + swap + rollover + commission), next to "Gross Profit".
+  'profit/loss': 'net',
   'net p/l': 'net',
   'net profit': 'net',
   'zysk netto': 'net',
@@ -166,9 +172,37 @@ interface Columns {
   comment?: number
 }
 
+/** A zone after a header's name: "Open Time (UTC)", "Czas otwarcia (GMT)". */
+const ZONE_SUFFIX = / (utc|gmt)$/
+
+/** The role of a header cell, also with a zone after the name. */
+function roleOf(cell: string): Role | undefined {
+  const n = normHeader(cell)
+  return ROLES[n] ?? ROLES[n.replace(ZONE_SUFFIX, '')]
+}
+
+/** Times in UTC when a time column's header says so. */
+function headerZone(row: readonly string[]): 'UTC' | null {
+  return row.some((c) => {
+    const r = roleOf(c)
+    return (r === 'openTime' || r === 'closeTime' || r === 'time') && ZONE_SUFFIX.test(normHeader(c))
+  })
+    ? 'UTC'
+    : null
+}
+
+/** "[T/P]" → take profit, "[S/L]" → stop loss, "[SO]" → stop out (XTB, MT comments). */
+export function closeReason(comment: string): BrokerExit['reason'] {
+  const c = comment.toLowerCase()
+  if (/\[\s*t\s*\/?\s*p\s*\]|\btp\b|take profit/.test(c)) return 'tp'
+  if (/\[\s*s\s*\/?\s*l\s*\]|\bsl\b|stop loss/.test(c)) return 'sl'
+  if (/\[\s*so\b|stop ?out/.test(c)) return 'so'
+  return null
+}
+
 /** Column indexes of a header row; null when it is not one. "Time" / "Price" twice = open, then close (MT5). */
 function headerColumns(row: readonly string[]): Columns | null {
-  const roles = row.map((c) => ROLES[normHeader(c)])
+  const roles = row.map(roleOf)
   const first = (role: Role) => {
     const i = roles.indexOf(role)
     return i < 0 ? undefined : i
@@ -184,8 +218,16 @@ function headerColumns(row: readonly string[]): Columns | null {
   const type = first('type')
   const volume = first('volume')
   if (symbol == null || type == null || volume == null || openTime == null || openPrice == null) return null
-  const profit = first('profit')
-  const net = first('net')
+  let profit = first('profit')
+  let net = first('net')
+  // Two result columns, one of them gross ("Zysk/Strata" next to "Zysk brutto"): the other one is the net result.
+  const results = all('profit')
+  const gross = results.find((i) => /brutto|gross/.test(normHeader(row[i]!)))
+  const other = results.find((i) => i !== gross)
+  if (net == null && gross != null && other != null) {
+    profit = gross
+    net = other
+  }
   if (profit == null && net == null && closePrice == null) return null
   return {
     ticket: first('ticket'),
@@ -297,7 +339,7 @@ export function parseBrokerRows(rows: Rows): BrokerTable | null {
       if (row.every((c) => !c.trim())) continue
       // Next section (title row, another header): the table is over.
       if (isTitleRow(row) && !sideOf(row.find((c) => c.trim()) ?? '')) break
-      if (row.filter((c) => ROLES[normHeader(c)]).length >= 4) break
+      if (row.filter((c) => roleOf(c)).length >= 4) break
       const side = sideOf(row[cols.type] ?? '')
       if (!side) {
         if ((row[cols.type] ?? '').trim()) skipped.push({ row: i + 1, reason: `typ „${row[cols.type]}”` })
@@ -319,8 +361,12 @@ export function parseBrokerRows(rows: Rows): BrokerTable | null {
       const commission = sum(cols.commission)
       const swap = sum(cols.swap)
       const netCol = num(cols.net)
+      const comment = cols.comment != null ? (row[cols.comment] ?? '').trim() : ''
+      const reason = closeReason(comment)
       const trade: BrokerTrade = {
-        tickets: [cols.ticket != null && row[cols.ticket]?.trim() ? row[cols.ticket]!.trim() : `wiersz ${i + 1}`],
+        // Without a ticket column (XTB "Closed positions" export) the position is known by symbol, open time and
+        // price: the same in every file, so importing it again finds the entry.
+        tickets: [cols.ticket != null && row[cols.ticket]?.trim() ? row[cols.ticket]!.trim() : positionKey(symbol, openTime, openPrice)],
         symbol,
         direction: side,
         volume,
@@ -334,8 +380,8 @@ export function parseBrokerRows(rows: Rows): BrokerTable | null {
         commission,
         swap,
         net: netCol ?? (profit != null ? profit + commission + swap : null),
-        exits: closeTime && closePrice != null ? [{ time: closeTime, price: closePrice, volume }] : [],
-        comment: cols.comment != null ? (row[cols.comment] ?? '').trim() : ''
+        exits: closeTime && closePrice != null ? [{ time: closeTime, price: closePrice, volume, ...(reason ? { reason } : {}) }] : [],
+        comment
       }
       const same = trades.find(
         (t) => t.symbol === trade.symbol && t.direction === trade.direction && t.openTime === trade.openTime && t.openPrice === trade.openPrice && t.closeTime && trade.closeTime
@@ -345,15 +391,20 @@ export function parseBrokerRows(rows: Rows): BrokerTable | null {
         merged++
       } else trades.push(trade)
     }
-    return { format, currency, trades, merged, skipped }
+    return { format, currency, timeZone: headerZone(rows[h]!), trades, merged, skipped }
   }
   return null
 }
 
 const add = (a: number | null, b: number | null) => (a == null && b == null ? null : (a ?? 0) + (b ?? 0))
 
+/** The key of a position without a ticket: "EURUSD 2026-09-23T11:00:20 1.14172". */
+export function positionKey(symbol: string, openTime: string, openPrice: number): string {
+  return `${symbol} ${openTime} ${openPrice}`
+}
+
 function mergeInto(t: BrokerTrade, part: BrokerTrade): void {
-  t.tickets.push(...part.tickets)
+  t.tickets.push(...part.tickets.filter((k) => !t.tickets.includes(k)))
   t.exits = [...t.exits, ...part.exits].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0))
   t.volume = Number((t.volume + part.volume).toFixed(8))
   t.closeTime = t.exits.at(-1)!.time

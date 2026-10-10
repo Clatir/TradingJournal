@@ -133,9 +133,7 @@ test('import historii od brokera (raport MT4, UTF-16): dopasowanie, uzupełnieni
     await expect(rows.nth(1)).toContainText('(2 części)')
     await expect(panel.getByTestId('broker-journal-only')).toContainText('1')
 
-    // Matched positions are selected by default; new entries on request.
-    await expect(panel.getByTestId('broker-apply')).toHaveText('Zastosuj: uzupełnij 1, utwórz 0')
-    await panel.getByTestId('broker-select-new').click()
+    // Matched positions (fill) and positions without an entry (new entries) are selected by default.
     await expect(panel.getByTestId('broker-apply')).toHaveText('Zastosuj: uzupełnij 1, utwórz 1')
     await panel.getByTestId('broker-apply').click()
     await expect(rows.nth(0)).toHaveAttribute('data-status', 'imported')
@@ -166,6 +164,63 @@ test('import historii od brokera (raport MT4, UTF-16): dopasowanie, uzupełnieni
     await page.getByTestId('broker-pick').click()
     await expect(page.getByTestId('broker-row')).toHaveCount(2)
     await expect(page.locator('[data-testid="broker-row"][data-status="imported"]')).toHaveCount(2)
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
+
+test('import zamkniętych pozycji XTB z czasem UTC: strefa z nagłówka, waluta z wyników, nowe wpisy i uzupełnienie istniejącego', async () => {
+  const journal = createDefaultJournal()
+  journal.settings.fx.manual = { ...journal.settings.fx.manual, 'USD>PLN': 3.64 }
+  // Typed by hand a minute after the broker's entry, without the exit.
+  const own = createTrade({ pair: 'EURUSD', direction: 'short', status: 'open', entryTime: '2026-09-22T13:11:00.000Z', prices: { entry: 1.155, stopLoss: null, takeProfit1: null, takeProfit2: null } })
+  const dataDir = await seed([own], journal)
+  // Synthetic numbers in the layout of xStation's "Closed positions" export (no position number, amounts in PLN).
+  const rows = [
+    ['Instrument', 'Ticker', 'Category', 'Type', 'Volume', 'Open Price', 'Open Time (UTC)', 'Close Price', 'Close Time (UTC)', 'Product', 'Profit/Loss', 'Gross Profit', 'Purchase Value', 'Sale Value', 'Stop Loss', 'Take Profit', 'Commission', 'Margin', 'Swap', 'Rollover', 'Open Conversion Rate', 'Close Conversion Rate', 'Comment'],
+    ['EURUSD', 'EURUSD', 'CFD', 'BUY', '0,5', '1,15100', '2026-09-23 11:00:20', '1,14800', '2026-09-23 16:49:15', 'My Trades', '-546', '-546', '', '', '', '1,178', '0', '7272,8', '0', '0', '', '', ''],
+    ['EURUSD', 'EURUSD', 'CFD', 'SELL', '0,5', '1,15500', '2026-09-22 13:10:13', '1,15300', '2026-09-22 15:05:20', 'My Trades', '364', '364', '', '', '', '1,153', '0', '7239,67', '0', '0', '', '', '[T/P]'],
+    ['EURUSD', 'EURUSD', 'CFD', 'SELL', '0,5', '1,15800', '2026-09-21 12:13:25', '1,15500', '2026-09-22 06:21:13', 'My Trades', '544,07', '546', '', '', '1,15820', '1,155', '0', '7246', '-1,93', '0', '', '', '[T/P]']
+  ]
+  const file = join(await fs.mkdtemp(join(tmpdir(), 'ictj-xtb-')), 'closed-positions.csv')
+  await fs.writeFile(file, rows.map((r) => r.join('\t')).join('\r\n'))
+
+  const { app, page, errors } = await launch({ dataDir })
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(1)
+    await app.evaluate(({ dialog }, path) => {
+      ;(dialog as unknown as Record<string, unknown>).showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+    }, file)
+    await page.getByTestId('nav-settings').click()
+    await page.getByTestId('settings-tab-transfer').click()
+    const panel = page.getByTestId('broker-import')
+    await panel.getByTestId('broker-pick').click()
+    await expect(panel.getByTestId('broker-summary')).toContainText('XTB (xStation)')
+    await expect(panel.getByTestId('broker-summary')).toContainText('3 pozycje')
+    await expect(panel.getByRole('radio', { name: 'UTC' })).toHaveAttribute('aria-checked', 'true')
+    await expect(panel.getByTestId('broker-currency')).toHaveValue('PLN')
+    await expect(panel.getByTestId('broker-currency-guess')).toBeVisible()
+    const brokerRows = panel.getByTestId('broker-row')
+    await expect(brokerRows.nth(1)).toHaveAttribute('data-status', 'matched')
+    await expect(panel.getByTestId('broker-apply')).toHaveText('Zastosuj: uzupełnij 1, utwórz 2')
+    await panel.getByTestId('broker-apply').click()
+    await expect(panel.locator('[data-testid="broker-row"][data-status="imported"]')).toHaveCount(3)
+
+    await expect.poll(async () => (await readTrades(dataDir)).filter((t) => t.broker).length, { timeout: 8000 }).toBe(3)
+    const saved = await readTrades(dataDir)
+    expect(saved).toHaveLength(3)
+    const filled = saved.find((t) => t.id === own.id)!
+    expect(filled).toMatchObject({ status: 'closed', lots: 0.5, pnlAmountOverride: 364, amountCurrency: 'PLN' })
+    expect(filled.exits.map((x) => [x.time, x.price, x.note])).toEqual([['2026-09-22T15:05:20.000Z', 1.153, 'TP']])
+    const short = saved.find((t) => t.entryTime === '2026-09-21T12:13:25.000Z')!
+    expect(short).toMatchObject({ direction: 'short', status: 'closed', pnlAmountOverride: 544.07, amountCurrency: 'PLN' })
+    expect(short.prices).toMatchObject({ entry: 1.158, stopLoss: 1.1582, takeProfit1: 1.155 })
+
+    // The same file again: nothing new.
+    await panel.getByTestId('broker-pick').click()
+    await expect(page.locator('[data-testid="broker-row"][data-status="imported"]')).toHaveCount(3)
+    await expect(panel.getByTestId('broker-apply')).toHaveText('Zastosuj: uzupełnij 0, utwórz 0')
     expect(errors).toEqual([])
   } finally {
     await app.close()

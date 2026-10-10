@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { BrokerFile } from '@shared/api'
 import { formatDateTime } from '@shared/calc/time'
 import { parseBrokerRows, parseBrokerSheets, type BrokerFormat, type BrokerTable } from '@shared/import/broker'
-import { BROKER_ZONES, applyBrokerMatch, matchBrokerTrades, tradeFromBroker, type BrokerMatch, type BrokerZone, type MatchStatus } from '@shared/import/match'
+import { BROKER_ZONES, applyBrokerMatch, guessBrokerCurrency, matchBrokerTrades, tradeFromBroker, type BrokerMatch, type BrokerZone, type MatchStatus } from '@shared/import/match'
 import { decodeText, textRows } from '@shared/import/tables'
 import { api, errorMessage } from '../../lib/api'
 import { countLabel, fmtMoneyGrouped, fmtPrice, toneClass, tone } from '../../lib/format'
@@ -41,6 +41,8 @@ export function BrokerImport() {
   const [zone, setZone] = useState<BrokerZone>('mt')
   const [tolerance, setTolerance] = useState(15)
   const [currency, setCurrency] = useState('USD')
+  /** Where the currency came from: the file, the results (guessed) or the journal's account. */
+  const [currencySource, setCurrencySource] = useState<'file' | 'guess' | 'account'>('account')
   const [overwrite, setOverwrite] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -70,11 +72,15 @@ export function BrokerImport() {
         return
       }
       setTable(t)
-      setZone(t.format === 'xtb' ? 'Europe/Warsaw' : 'mt')
-      setCurrency(t.currency ?? journal.settings.risk.accountCurrency)
-      // Matched positions are selected; new entries only on request (the journal may hold a part of the trades).
-      const m = matchBrokerTrades(t.trades, kept, pairs, { zone: t.format === 'xtb' ? 'Europe/Warsaw' : 'mt', toleranceMinutes: tolerance })
-      setSelected(new Set(m.matches.filter((x) => x.status === 'matched').map((x) => x.index)))
+      // The zone in the headers ("Open Time (UTC)"), else XTB = Polish time, MetaTrader = server time.
+      const z: BrokerZone = t.timeZone ?? (t.format === 'xtb' ? 'Europe/Warsaw' : 'mt')
+      setZone(z)
+      const guessed = t.currency ? null : guessBrokerCurrency(t.trades, pairs, journal.settings)
+      setCurrency(t.currency ?? guessed ?? journal.settings.risk.accountCurrency)
+      setCurrencySource(t.currency ? 'file' : guessed ? 'guess' : 'account')
+      // Selected: positions with an entry (filled) and without one (new entries); the list shows both before applying.
+      const m = matchBrokerTrades(t.trades, kept, pairs, { zone: z, toleranceMinutes: tolerance })
+      setSelected(new Set(m.matches.filter((x) => x.status === 'matched' || x.status === 'new').map((x) => x.index)))
     } catch (e) {
       toast(errorMessage(e), 'error', 8000)
     } finally {
@@ -140,8 +146,8 @@ export function BrokerImport() {
             Wybierz plik…
           </button>
           <span className="text-[11.5px] text-muted">
-            MetaTrader 4/5: historia → „Zapisz jako raport” (HTML). XTB xStation: historia pozycji → eksport XLSX. Także CSV z tych plików. Nic się nie
-            zmienia, dopóki nie klikniesz „Zastosuj”.
+            MetaTrader 4/5: historia → „Zapisz jako raport” (HTML). XTB xStation: historia → zamknięte pozycje → eksport XLSX (także z czasem UTC).
+            Także CSV z tych plików. Nic się nie zmienia, dopóki nie klikniesz „Zastosuj”.
           </span>
         </div>
         {table && result && (
@@ -179,7 +185,22 @@ export function BrokerImport() {
               </span>
               <span className="flex items-center gap-2">
                 <span className="text-muted">Waluta konta u brokera</span>
-                <CurrencyInput className="w-[52px]" value={currency} onChange={setCurrency} aria-label="Waluta konta u brokera" data-testid="broker-currency" />
+                <CurrencyInput
+                  className="w-[52px]"
+                  value={currency}
+                  onChange={(v) => {
+                    setCurrency(v)
+                    setCurrencySource('file')
+                  }}
+                  aria-label="Waluta konta u brokera"
+                  data-testid="broker-currency"
+                />
+                {currencySource === 'guess' && (
+                  <span className="text-[11px] text-muted" title="Plik nie podaje waluty: wynik pozycji porównany z ruchem ceny × loty × kontrakt i kursami." data-testid="broker-currency-guess">
+                    rozpoznana z wyników
+                  </span>
+                )}
+                {currencySource === 'account' && <span className="text-[11px] text-muted">plik nie podaje waluty – sprawdź</span>}
               </span>
               <Toggle checked={overwrite} onChange={setOverwrite} label="Nadpisz wpisane ceny, wyjścia, loty i wynik" data-testid="broker-overwrite" />
             </div>
@@ -255,7 +276,9 @@ export function BrokerImport() {
             <p className="text-[11.5px] text-muted">
               Dopasowanie: ta sama para (symbol bez końcówek typu .pro), kierunek i czas wejścia w tolerancji – najbliższy wpis. Uzupełniane są puste pola: cena
               wejścia, TP, SL (tylko po stronie straty – SL przesunięty na BE nie mówi nic o ryzyku), wyjścia z czasem (partiale wg wolumenu), loty i wynik netto
-              (zysk + prowizja + swap) w walucie konta brokera. Numer pozycji zostaje we wpisie, więc ponowny import jej nie zdubluje.
+              (zysk + prowizja + swap) w walucie konta brokera; „[T/P]” / „[S/L]” z komentarza jako notatka wyjścia. Pozycje bez wpisu stają się
+              nowymi wpisami (odznacz te, których nie chcesz). Numer pozycji (bez numeru: symbol, czas i cena otwarcia) zostaje we wpisie, więc ponowny
+              import jej nie zdubluje.
             </p>
             {result.journalOnly.length > 0 && (
               <details className="text-[11.5px]" data-testid="broker-journal-only">

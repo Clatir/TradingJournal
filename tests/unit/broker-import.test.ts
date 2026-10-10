@@ -2,10 +2,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createTrade } from '@shared/defaults'
-import { parseBrokerRows, parseBrokerSheets, parseBrokerTime, parseNumber } from '@shared/import/broker'
-import { applyBrokerMatch, brokerTimeToUtc, matchBrokerTrades, pairForSymbol, tradeFromBroker, type BrokerMatch } from '@shared/import/match'
+import { closeReason, parseBrokerRows, parseBrokerSheets, parseBrokerTime, parseNumber } from '@shared/import/broker'
+import { applyBrokerMatch, brokerTimeToUtc, guessBrokerCurrency, matchBrokerTrades, pairForSymbol, tradeFromBroker, type BrokerMatch } from '@shared/import/match'
 import { decodeText, excelSerialToText, htmlRows, parseCsv, textRows, xlsxDateStyles, xlsxSharedStrings, xlsxSheetRows, xlsxSheets } from '@shared/import/tables'
-import { tradeSchema, type Trade } from '@shared/schema'
+import { settingsSchema, tradeSchema, type Trade } from '@shared/schema'
 
 // MT4 "Save as Detailed Report" (simplified): account block, closed transactions with a deposit, a partial close
 // (two tickets, same open time and price), a cancelled pending order, totals, then the next section.
@@ -317,5 +317,92 @@ describe('dopasowanie do dziennika', () => {
     const be = { ...m, broker: { ...m.broker, stopLoss: 1.3 } }
     expect(tradeFromBroker(be, OPTS)!.prices.stopLoss).toBeNull()
     expect(tradeFromBroker({ ...m, pair: null }, OPTS)).toBeNull()
+  })
+})
+
+// XTB xStation "Closed positions" with UTC times (synthetic numbers, the layout of a real export): no position number,
+// "Profit/Loss" = net next to "Gross Profit", decimal commas, amounts in the account's currency (PLN) without naming it.
+const XTB_UTC = [
+  'Instrument\tTicker\tCategory\tType\tVolume\tOpen Price\tOpen Time (UTC)\tClose Price\tClose Time (UTC)\tProduct\tProfit/Loss\tGross Profit\tPurchase Value\tSale Value\tStop Loss\tTake Profit\tCommission\tMargin\tSwap\tRollover\tOpen Conversion Rate\tClose Conversion Rate\tComment\t',
+  'EURUSD\tEURUSD\tCFD\tBUY\t0,5\t1,15100\t2026-09-23 11:00:20\t1,14800\t2026-09-23 16:49:15\tMy Trades\t-546\t-546\t\t\t\t1,178\t0\t7272,8\t0\t0\t\t\t\t',
+  'EURUSD\tEURUSD\tCFD\tSELL\t0,5\t1,15500\t2026-09-22 13:10:13\t1,15300\t2026-09-22 15:05:20\tMy Trades\t364\t364\t\t\t\t1,153\t0\t7239,67\t0\t0\t\t\t[T/P]\t',
+  'EURUSD\tEURUSD\tCFD\tSELL\t0,5\t1,15800\t2026-09-21 12:13:25\t1,15500\t2026-09-22 06:21:13\tMy Trades\t544,07\t546\t\t\t1,15820\t1,155\t0\t7246\t-1,93\t0\t\t\t[T/P]\t'
+].join('\n')
+
+describe('XTB: zamknięte pozycje z czasem UTC (1.7.3)', () => {
+  const table = () => parseBrokerRows(textRows(XTB_UTC))!
+  const settings = settingsSchema.parse({
+    pairs: [{ symbol: 'EURUSD', pipSize: 0.0001, quoteCurrency: 'USD' }],
+    risk: { accountCurrency: 'USD' },
+    fx: { manual: { 'USD>PLN': 3.64 } }
+  })
+
+  it('nagłówki z „(UTC)”, Profit/Loss = netto, klucz pozycji bez numeru, powód zamknięcia z komentarza', () => {
+    const t = table()
+    expect(t).toMatchObject({ format: 'xtb', currency: null, timeZone: 'UTC' })
+    expect(t.trades).toHaveLength(3)
+    expect(t.trades[2]).toMatchObject({
+      tickets: ['EURUSD 2026-09-21T12:13:25 1.158'],
+      direction: 'short',
+      volume: 0.5,
+      openPrice: 1.158,
+      closeTime: '2026-09-22T06:21:13',
+      stopLoss: 1.1582,
+      takeProfit: 1.155,
+      profit: 546,
+      swap: -1.93,
+      net: 544.07
+    })
+    expect(t.trades[2]!.exits[0]!.reason).toBe('tp')
+    expect(t.trades[0]!.exits[0]!.reason).toBeUndefined()
+    expect(['[T/P]', '[S/L]', '[SO]', 'tp', '', 'my note'].map(closeReason)).toEqual(['tp', 'sl', 'so', 'tp', null, null])
+  })
+
+  it('waluta kwot rozpoznana z wyników (PLN), niepewna – brak', () => {
+    expect(guessBrokerCurrency(table().trades, ['EURUSD'], settings)).toBe('PLN')
+    // Results in USD: 0.5 lot × 30 pips = 150 USD.
+    const usd = table().trades.map((b) => ({ ...b, profit: Math.round((b.closePrice! - b.openPrice) * (b.direction === 'long' ? 1 : -1) * 50_000 * 100) / 100 }))
+    expect(guessBrokerCurrency(usd, ['EURUSD'], settings)).toBe('USD')
+    // Without the PLN rate the amounts fit nothing.
+    expect(guessBrokerCurrency(table().trades, ['EURUSD'], { ...settings, fx: { ...settings.fx, manual: {} } })).toBeNull()
+    expect(guessBrokerCurrency(table().trades, [], settings)).toBeNull()
+  })
+
+  it('nowe wpisy i uzupełnienie istniejącego; ponowny import tego samego pliku = już zaimportowane', () => {
+    const OPTS = { currency: 'PLN', defaultAmountCurrency: 'PLN', overwrite: false, now: '2026-09-24T12:00:00.000Z', zone: 'UTC' as const }
+    // The journal has one of the three, typed by hand a minute off and without the stop and the exit.
+    const own = createTrade({ pair: 'EURUSD', direction: 'short', entryTime: '2026-09-22T13:11:00.000Z', prices: { entry: 1.155, stopLoss: null, takeProfit1: null, takeProfit2: null } })
+    const r = matchBrokerTrades(table().trades, [own], ['EURUSD'], { zone: 'UTC', toleranceMinutes: 15 })
+    expect(r.matches.map((m) => m.status)).toEqual(['new', 'matched', 'new'])
+    const filled = applyBrokerMatch(own, r.matches[1]!, OPTS).trade
+    expect(filled).toMatchObject({ status: 'closed', lots: 0.5, pnlAmountOverride: 364, amountCurrency: 'PLN' })
+    expect(filled.prices).toMatchObject({ entry: 1.155, takeProfit1: 1.153 })
+    expect(filled.exits.map((x) => [x.time, x.price, x.percent, x.note])).toEqual([['2026-09-22T15:05:20.000Z', 1.153, 100, 'TP']])
+    const created = [r.matches[0]!, r.matches[2]!].map((m) => tradeFromBroker(m, OPTS)!)
+    expect(created.map((t) => [t.entryTime, t.direction, t.prices.stopLoss, t.pnlAmountOverride, t.exits[0]!.note, t.notes])).toEqual([
+      ['2026-09-23T11:00:20.000Z', 'long', null, -546, '', ''],
+      ['2026-09-21T12:13:25.000Z', 'short', 1.1582, 544.07, 'TP', '']
+    ])
+    for (const t of created) expect(tradeSchema.safeParse(t).success).toBe(true)
+    // The same file again (or a longer one with these rows): every position is found by its key.
+    const again = matchBrokerTrades(table().trades, [filled, ...created], ['EURUSD'], { zone: 'UTC', toleranceMinutes: 15 })
+    expect(again.matches.map((m) => m.status)).toEqual(['imported', 'imported', 'imported'])
+  })
+
+  it('po polsku: „Czas otwarcia (UTC)”, „Zysk/Strata” obok „Zysk brutto” = netto', () => {
+    const t = parseBrokerRows([
+      ['Instrument', 'Typ', 'Wolumen', 'Cena otwarcia', 'Czas otwarcia (UTC)', 'Cena zamknięcia', 'Czas zamknięcia (UTC)', 'Zysk/Strata', 'Zysk brutto', 'Swap', 'Rollover', 'Komentarz'],
+      ['EURUSD', 'SELL', '0,5', '1,158', '2026-09-21 12:13:25', '1,155', '2026-09-22 06:21:13', '544,07', '546', '-1,93', '0', '[S/L]']
+    ])!
+    expect(t).toMatchObject({ format: 'xtb', timeZone: 'UTC' })
+    expect(t.trades[0]).toMatchObject({ profit: 546, swap: -1.93, net: 544.07 })
+    expect(t.trades[0]!.exits[0]!.reason).toBe('sl')
+  })
+
+  it('stare klucze „wiersz N” (bez numeru pozycji, sprzed 1.7.3) nie łączą pozycji z innego pliku', () => {
+    const old = createTrade({ pair: 'EURUSD', direction: 'long', entryTime: '2026-08-01T10:00:00.000Z' })
+    const linked = { ...old, broker: { tickets: ['wiersz 2'], symbol: 'EURUSD', volume: 0.5, openTime: null, closeTime: null, openPrice: null, closePrice: null, profit: null, commission: null, swap: null, net: null, currency: null, importedAt: null } }
+    const r = matchBrokerTrades(table().trades, [linked], ['EURUSD'], { zone: 'UTC', toleranceMinutes: 15 })
+    expect(r.matches.map((m) => m.status)).toEqual(['new', 'new', 'new'])
   })
 })

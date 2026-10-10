@@ -3,6 +3,22 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.7.3
+
+### Nowe
+- **Import zamkniętych pozycji z XTB (eksport z czasem UTC).** Raport z kolumnami „Instrument, Type, Volume, Open
+  Price, Open Time (UTC), Close Price, Close Time (UTC), Profit/Loss, Gross Profit, Stop Loss, Take Profit, Swap,
+  Rollover, Comment…” (także jako CSV / tekst z Excela) jest rozpoznawany w Ustawienia → Eksport, import, kopie →
+  „Import historii od brokera”:
+  - pozycje bez wpisu w dzienniku stają się nowymi wpisami (wejście, SL po stronie straty, TP, wyjście, loty, wynik),
+    a istniejące wpisy (ta sama para, kierunek i czas wejścia w tolerancji) dostają brakujące wartości z raportu;
+    obie grupy są od razu zaznaczone – przed „Zastosuj” można odznaczyć dowolną pozycję;
+  - strefa czasu jest brana z nagłówka („(UTC)”), a waluta kwot, której plik nie podaje, z porównania wyników
+    z ruchem ceny i kursami (np. PLN) – z dopiskiem „rozpoznana z wyników”;
+  - „Profit/Loss” to wynik netto (z swapem), „[T/P]” / „[S/L]” z komentarza trafia do notatki wyjścia („TP”, „SL”);
+  - raport nie ma numerów pozycji, więc pozycja jest rozpoznawana po symbolu, czasie i cenie otwarcia – ponowny
+    import tego samego albo dłuższego raportu nie tworzy duplikatów.
+
 ## 1.7.2
 
 ### Nowe
