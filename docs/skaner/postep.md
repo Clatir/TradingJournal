@@ -32,4 +32,6 @@ high po resecie.
 
 ## Otwarte pytania (przed fazą 3; nie blokują fazy 1)
 
-1. **Z2 (`test-zloty.md`):** wejście pt 31.07 10:00 NY (poza KZ) czy pon 3.08 09:00 NY (w KZ)?
+1. **Test złoty – do powtórzenia przez użytkownika przed fazą 3.** Użytkownik dostarczy nowe screeny setupów zgodne
+   z nowym paradygmatem (plan sekcja 14: wejście w KZ, top-down D → H4 → H1 → M15). Obecne Z1–Z4
+   (`test-zloty.md`) zostają jako materiał pomocniczy; pytanie o moment wejścia Z2 nieaktualne do czasu nowych screenów.
