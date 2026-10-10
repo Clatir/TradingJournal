@@ -4,7 +4,7 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Krok 1: rozpoznanie – ukończony (przystanek).** Czekam na słowo „dalej” przed krokiem 2 (plan).
+**Krok 1: rozpoznanie – ukończony (przystanek).** Użytkownik prosi, by nie zaczynać kroku 2 przed słowem „start”.
 
 ## Ukończone
 
@@ -19,7 +19,8 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 - Test wykonalności po otwarciu rynku (niedziela 11.10, 17:00 NY = 23:00 PL):
   - 4.1.1 strumień FX w sesji (ticki, cisza, spread),
   - 4.1.5 świeżość REST 1m w trakcie sesji,
-  - 4.1.7 zgodność cen z TradingView (czeka na odczyt użytkownika, tabela w `rozpoznanie.md` 3.7) oraz bid czy mid.
+  - 4.1.7: ostateczne bid czy mid (wstępnie bid). Zgodność cen z TradingView zrobiona na eksporcie użytkownika:
+    typowo 0,1 p (H1, PDH/PDL), wyjątek świeca 17:00 NY (`rozpoznanie.md` 3.7).
 
 ## Następny krok
 

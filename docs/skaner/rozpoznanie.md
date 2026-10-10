@@ -1,7 +1,8 @@
 # Skaner ICT – rozpoznanie (krok 1)
 
 Stan na sobotę 10.10.2026, ok. 17:00–18:30 czasu NY. Rynek FX był zamknięty (piątek 17:00 NY → niedziela 17:00 NY),
-dlatego punkty 1, 5 i 7 testu wykonalności są częściowo odroczone (sekcja 4.1 specyfikacji).
+dlatego punkty 1 i 5 testu wykonalności są odroczone (sekcja 4.1 specyfikacji); punkt 7 wykonany na eksporcie z
+TradingView od użytkownika (bez ostatecznego bid/mid).
 
 ## W skrócie (prostym językiem)
 
@@ -20,8 +21,10 @@ dlatego punkty 1, 5 i 7 testu wykonalności są częściowo odroczone (sekcja 4.
   rynku; (2) świece 5-minutowe i godzinowe z EODHD pochodzą z innego źródła niż minutowe i różnią się o ok. 3 pipsy,
   mają też puste i błędne świece – wszystko trzeba składać z minutówek; (3) limit 50 symboli liczy się na cały klucz,
   a za duża subskrypcja jest odrzucana w całości.
+- **Ceny zgadzają się z TradingView (OANDA)**: typowo 0,1 pipsa na świecach H1 i na PDH/PDL. Wyjątek to świeca
+  o 17:00 NY (otwarcie po przerwie), gdzie różnica sięga kilku pipsów (punkt 3.7).
 - **Do zrobienia po otwarciu rynku** (niedziela 17:00 NY = 23:00 w Polsce): strumień FX na żywo, świeżość historii
-  minutowej w trakcie sesji, bid czy mid, porównanie z TradingView (potrzebny Twój odczyt – tabela w punkcie 7).
+  minutowej w trakcie sesji, ostateczne rozstrzygnięcie bid czy mid.
 
 ## 1. Repozytorium dziennika
 
@@ -209,30 +212,60 @@ Zgodne z opisem planu (Economic Events Data API: nie). Potrzebne inne źródło 
 w dokumentacji odpowiedź tego endpointu nie ma pola „ważności” (impact), więc nawet po dokupieniu klasyfikacja
 high-impact szłaby po liście nazw wydarzeń.
 
-### 3.7 Zgodność cen z TradingView – czeka na Twój odczyt
+### 3.7 Zgodność cen z TradingView – zrobione
 
-Świece EURUSD złożone z minutówek EODHD, granica doby 17:00 NY (tak jak w TradingView na OANDA). Proszę odczytaj z
-TradingView (EURUSD, OANDA, strefa New York) high i low tych świec i wpisz obok – policzę typową różnicę w pipsach.
+Źródło porównania: eksport z TradingView od użytkownika (EURUSD, OANDA): 300 świec H1 (23.09–9.10.2026) i świece D
+(od 08.2025). Po stronie EODHD: świece złożone wyłącznie z minutówek (REST 1m), tylko godziny rynku (niedziela
+17:00 NY → piątek 17:00 NY), granica doby 17:00 NY, H1 wyrównane do pełnych godzin. Różnica = EODHD − TradingView, w pipsach.
 
-| Dzień (świeca D, koniec 17:00 NY) | Open | High | Low | Close | TV High | TV Low |
+**Wynik: zgodność bardzo dobra.**
+
+| Świece | Liczba | Pole | Średnia | Mediana \|Δ\| | 90% świec \|Δ\| ≤ | Max \|Δ\| |
 | --- | --- | --- | --- | --- | --- | --- |
-| pon 2026-10-05 | 1.12583 | 1.12617 | 1.11613 | 1.12231 | | |
-| wt 2026-10-06 | 1.12232 | 1.12766 | 1.12030 | 1.12593 | | |
-| śr 2026-10-07 | 1.12595 | 1.12630 | 1.11650 | 1.11965 | | |
-| czw 2026-10-08 | 1.11964 | 1.12266 | 1.11721 | 1.12113 | | |
-| pt 2026-10-09 | 1.12115 | 1.12428 | 1.11876 | 1.12017 | | |
+| H1 | 300 | open | +0,04 | 0,1 | 0,4 | 10,1 |
+| H1 | 300 | high | −0,05 | 0,1 | 0,4 | 9,0 |
+| H1 | 300 | low | +0,07 | 0,1 | 0,3 | 1,2 |
+| H1 | 300 | close | +0,01 | 0,1 | 0,4 | 3,9 |
+| D | 14 | open | +0,34 | 2,2 | 5,0 | 10,1 |
+| D | 14 | high | +0,05 | 0,2 | 0,3 | 1,6 |
+| D | 14 | low | +0,10 | 0,1 | 0,2 | 0,4 |
+| D | 14 | close | −0,16 | 0,4 | 0,7 | 1,5 |
 
-| H1 (godzina otwarcia, czas NY) | Open | High | Low | Close | TV High | TV Low |
-| --- | --- | --- | --- | --- | --- | --- |
-| wt 2026-10-06 03:00 | 1.12106 | 1.12426 | 1.12032 | 1.12407 | | |
-| wt 2026-10-06 09:00 | 1.12587 | 1.12661 | 1.12471 | 1.12505 | | |
-| śr 2026-10-07 08:00 | 1.11827 | 1.11873 | 1.11650 | 1.11734 | | |
-| czw 2026-10-08 04:00 | 1.11953 | 1.12001 | 1.11861 | 1.11901 | | |
-| czw 2026-10-08 10:00 | 1.11954 | 1.12266 | 1.11925 | 1.12080 | | |
-| pt 2026-10-09 08:00 | 1.12090 | 1.12121 | 1.11928 | 1.11978 | | |
+(D: tylko dni w pełni objęte pobranymi minutówkami od 22.09.)
 
-Bid czy mid: porównanie migawki ze strumienia (bid/ask) ze świecą REST tej samej minuty nie wyszło, bo REST nie ma
-jeszcze sobotnich minut. Odroczone na sesję.
+- **Typowa różnica feedu: 0,1 pipsa**, w 90% świec do 0,3–0,4 pipsa. PDH/PDL zgadzają się z TradingView do 0,1–0,4 pipsa
+  (max 1,6 p). To jest tolerancja dla kryterium odbioru „PDH i PDL zgadzają się z TradingView”.
+- **Wyjątek: świece o 17:00 NY** (otwarcie po przerwie dobowej, a zwłaszcza niedzielne otwarcie). Największe odchylenia H1:
+  niedziela 27.09 17:00 (high +9,0 p), 8.10 17:00 (+2,2 p), 28.09 17:00 (+1,2 p). W tych minutach spread jest szeroki
+  i każdy dostawca notuje inne pierwsze ceny. Dlatego **open świecy D różni się typowo o 2,2 p (do 10 p)**, a high/low
+  dzienne już nie. Do planu: NDOG/NWOG (luka 17:00 → 18:00 NY, otwarcie tygodnia) mogą odbiegać od TradingView
+  o kilka pipsów. Trzeba to pokazać w definicjach, a ewentualnie pomijać pierwsze minuty po otwarciu.
+- **Bid czy mid (wstępnie).** Średnie różnice wynoszą ok. 0 (−0,05 … +0,07 p). Gdyby EODHD 1m było liczone z mid,
+  a TradingView z OANDA bid, przy typowym spreadzie EURUSD ok. 0,2 p (migawki ze strumienia) średnia wynosiłaby ok.
+  +0,1 p. Wynik wskazuje raczej na bid, ale różnica jest na granicy szumu. Rozstrzygnie porównanie świec ze strumienia
+  (bid i mid) z REST i TradingView w sesji. Do tego czasu domyślnie: **bid**.
+
+Wiersze z tabeli kontrolnej:
+
+| Dzień (świeca D, koniec 17:00 NY) | Open | High | Low | Close | TV High | TV Low | Δ High | Δ Low |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| pon 2026-10-05 | 1.12583 | 1.12617 | 1.11613 | 1.12231 | 1.12614 | 1.11612 | +0,3 | +0,1 |
+| wt 2026-10-06 | 1.12232 | 1.12766 | 1.12030 | 1.12593 | 1.12768 | 1.12028 | −0,2 | +0,2 |
+| śr 2026-10-07 | 1.12595 | 1.12630 | 1.11650 | 1.11965 | 1.12632 | 1.11646 | −0,2 | +0,4 |
+| czw 2026-10-08 | 1.11964 | 1.12266 | 1.11721 | 1.12113 | 1.12269 | 1.11720 | −0,3 | +0,1 |
+| pt 2026-10-09 | 1.12115 | 1.12428 | 1.11876 | 1.12017 | 1.12428 | 1.11876 | 0,0 | 0,0 |
+
+| H1 (godzina otwarcia, czas NY) | Open | High | Low | Close | TV High | TV Low | Δ High | Δ Low |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| wt 2026-10-06 03:00 | 1.12106 | 1.12426 | 1.12032 | 1.12407 | 1.12430 | 1.12030 | −0,4 | +0,2 |
+| wt 2026-10-06 09:00 | 1.12587 | 1.12661 | 1.12471 | 1.12505 | 1.12660 | 1.12470 | +0,1 | +0,1 |
+| śr 2026-10-07 08:00 | 1.11827 | 1.11873 | 1.11650 | 1.11734 | 1.11880 | 1.11646 | −0,7 | +0,4 |
+| czw 2026-10-08 04:00 | 1.11953 | 1.12001 | 1.11861 | 1.11901 | 1.12006 | 1.11861 | −0,5 | 0,0 |
+| czw 2026-10-08 10:00 | 1.11954 | 1.12266 | 1.11925 | 1.12080 | 1.12269 | 1.11926 | −0,3 | −0,1 |
+| pt 2026-10-09 08:00 | 1.12090 | 1.12121 | 1.11928 | 1.11978 | 1.12122 | 1.11927 | −0,1 | +0,1 |
+
+Dodatkowe potwierdzenie z punktu 4.2: gdyby użyć gotowych świec 1h z EODHD, różnice wobec TradingView byłyby
+rzędu 3 p (to inne źródło). Składanie wszystkiego z minutówek jest więc konieczne.
 
 ## 4. Dodatkowe ustalenia ważne dla planu
 
@@ -259,7 +292,7 @@ jeszcze sobotnich minut. Odroczone na sesję.
 | --- | --- | --- |
 | 4.1.1 strumień FX | 10–15 min nasłuchu w sesji: ticki na symbol, cisza, spread | nic (albo uruchomienie skryptu u siebie, jeśli strumień z chmury nie zadziała) |
 | 4.1.5 świeżość REST | kilka pomiarów „teraz − ostatnia świeca 1m” w London i NY | nic |
-| 4.1.7 zgodność cen | różnica w pipsach z tabeli 3.7 + bid czy mid | odczyt high/low z TradingView do tabeli 3.7 |
+| 4.1.7 bid czy mid | świece ze strumienia (bid i mid) vs REST i TradingView | ewentualnie nowy eksport H1 z TradingView po sesji |
 
 Rynek otwiera się w niedzielę 11.10 o 17:00 NY (23:00 w Polsce). Fazy 1–3 i 6 mogą powstawać na historii bez czekania;
 część „live” fazy 1 zamknę po tych pomiarach.
