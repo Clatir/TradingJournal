@@ -215,7 +215,7 @@ export class ScannerService {
     const now = this.now()
     for (const c of this.m1.flush(now)) void this.persist(c)
     if (++this.ticks % 5 === 0) this.stream?.checkHealth()
-    void this.extendStreamCoverage(now)
+    this.extendStreamCoverage(now).catch((e) => this.d.log('warn', `pokrycie: ${e instanceof Error ? e.message : String(e)}`))
     if (this.live.size && now - this.lastLiveEmit >= 250) {
       const updates = [...this.live.values()].map((u) => ({ ...u, forming: this.m1.forming(u.symbol) }))
       this.live.clear()

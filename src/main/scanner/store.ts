@@ -177,6 +177,8 @@ export class CandleStore {
   /** Last bar time per M1 file, for the append fast path. */
   private readonly lastTime = new Map<string, number>()
   private saveTimer: ReturnType<typeof setTimeout> | null = null
+  /** The index write in progress; flush() and clear() wait for it. */
+  private flushing: Promise<void> = Promise.resolve()
 
   constructor(
     readonly root: string,
@@ -343,22 +345,34 @@ export class CandleStore {
     if (this.saveTimer) return
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null
-      void this.flush()
+      // A failed background write keeps the symbol dirty and tries again later (never an unhandled rejection).
+      this.flush().catch(() => this.scheduleSave())
     }, this.saveDelayMs)
   }
 
-  /** Writes changed coverage indexes (also called on shutdown). */
-  async flush(): Promise<void> {
+  /** Writes changed coverage indexes (also called on shutdown); waits for a write already in progress. */
+  flush(): Promise<void> {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
+    const run = this.flushing.catch(() => undefined).then(() => this.writeDirty())
+    this.flushing = run
+    return run
+  }
+
+  private async writeDirty(): Promise<void> {
     for (const symbol of [...this.dirty]) {
       this.dirty.delete(symbol)
       const idx = this.indexes.get(symbol)
       if (!idx) continue
       const path = join(this.symbolDir(symbol), 'index.json')
-      await this.locked(path, () => writeFileAtomic(path, `${JSON.stringify(idx)}\n`))
+      try {
+        await this.locked(path, () => writeFileAtomic(path, `${JSON.stringify(idx)}\n`))
+      } catch (e) {
+        this.dirty.add(symbol)
+        throw e
+      }
     }
   }
 
@@ -417,6 +431,7 @@ export class CandleStore {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
+    await this.flushing.catch(() => undefined)
     const targets = symbol ? [symbol] : await fs.readdir(this.root).catch(() => [] as string[])
     for (const s of targets) {
       await fs.rm(join(this.root, s), { recursive: true, force: true })

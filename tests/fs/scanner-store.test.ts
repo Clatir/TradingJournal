@@ -123,6 +123,17 @@ describe('CandleStore', () => {
     expect(partial.at(-2)!.incomplete).toBeUndefined()
   })
 
+  it('flush waits for a background index write already in progress', async () => {
+    const fast = new CandleStore(dir, 0)
+    await fast.addCoverage('EURUSD', 'M1', { from: 0, to: 60 })
+    await new Promise((r) => setTimeout(r, 1)) // the timer fired: its write is running
+    await fast.flush()
+    // Resolved flush = the index is on disk (the caller may remove the folder right away).
+    expect(JSON.parse(await fs.readFile(join(dir, 'EURUSD', 'index.json'), 'utf8')).m1).toEqual([{ from: 0, to: 60 }])
+    await fast.clear()
+    expect(await fs.readdir(dir)).toEqual([])
+  })
+
   it('reports usage and clears a symbol', async () => {
     const t = ny('2026-10-13T09:30')
     await store.write('EURUSD', 'M1', minutes(t, 100), true)
