@@ -33,6 +33,29 @@ decyzja, powód.
     H4 ręcznie.
 14. **Skrót zakładki `Ctrl+0`** (Ctrl+1…9 zajęte).
 
+## Odpowiedzi użytkownika na pytania planu (2026-10-11)
+
+Użytkownik przyjął wszystkie wartości domyślne z sekcji 12 planu:
+
+1. XAUUSD: pips 0,1 USD, kontrakt 100 uncji, max SL = ułamek ADR20 jak 20 p dla EURUSD (dziś ≈ 26 USD/oz, wyliczany
+   na bieżąco, widoczny i edytowalny). WTI: pips 0,01, 1 lot = 1000 baryłek, max SL tymczasowo 2% ceny do zebrania 20 dni.
+2. Kapitał, ryzyko i krok lota z istniejących ustawień dziennika (`settings.risk`), waluta konta PLN.
+3. Świece z ceny **bid** (ostatecznie po pomiarze w sesji w fazie 1).
+4. WTI: wariant A (live `WTIUSD` + historia od włączenia + import CSV z TradingView). Kalendarz: Forex Factory + ręczne.
+5. Zbieranie w tle przez zasobnik i start z systemem, jeśli REST okaże się nieświeży.
+6. Test złoty: **brak dni** – czeka na wskazanie użytkownika (najpóźniej w fazie 3).
+7. Powody ocen: zły bias, słaby displacement, mało istotna płynność, za późno w oknie, przeszkoda przed TP, SL za szeroki,
+   za blisko newsów, zła strefa wejścia, inne (edytowalne).
+8. **Gałąź: zostajemy na `claude/quirky-bohr-o95s2l`** (odstępstwo od `feature/skaner-ict` ze specyfikacji).
+9. Skrót zakładki: `Ctrl+0`.
+10. Przełączniki dźwięku i powiadomień per komputer.
+11. Alerty przy niepełnej sesji działają z flagą „niepełne dane”.
+12. Głębokość historii 1m: 400 dni dla instrumentów, 120 dni dla składników indeksów.
+13. Obligacje: TYX (rentowność 30Y) jako odwrotność ZB, Bund tylko dziennie (`FGBLZ<m><r>.US`); H4 ręcznie.
+
+Dodatkowa zasada od użytkownika: **przed każdą fazą podać szacowany czas czystej pracy Claude'a** (tabela w sekcji 6
+planu, aktualizowana przed każdą fazą).
+
 ## Krok 1 – c.d.
 
 4. **Bezpieczeństwo klucza.** Skrypty testowe czytają `EODHD_API_TOKEN` ze zmiennej środowiskowej, maskują go w każdym

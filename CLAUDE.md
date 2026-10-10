@@ -12,7 +12,9 @@ tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba m
 - `docs/skaner/specyfikacja.md` – specyfikacja modułu „Skaner” (tryb pracy: kroki i fazy z przystankami, sekcja 3).
 - `docs/skaner/postep.md` – bieżący etap, co ukończone, co w toku, następny krok, otwarte pytania.
   Po wznowieniu pracy (limit, nowa sesja, streszczenie rozmowy) najpierw przeczytaj oba pliki i kontynuuj od zapisanego
-  miejsca. Wyniki rozpoznania: `docs/skaner/rozpoznanie.md`, założenia: `docs/skaner/decyzje.md`.
+  miejsca. Wyniki rozpoznania: `docs/skaner/rozpoznanie.md`, plan: `docs/skaner/plan.md`, założenia:
+  `docs/skaner/decyzje.md`.
+- Przed każdą fazą podaj użytkownikowi szacowany czas czystej pracy Claude'a (tabela w sekcji 6 planu, zaktualizowana).
 
 ## Stack
 - Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4.

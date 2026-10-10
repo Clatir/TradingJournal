@@ -4,38 +4,32 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Krok 2: plan – napisany (`docs/skaner/plan.md`), przystanek.** Czekam na słowo „akceptuję” (albo uwagi do planu)
-przed fazą 1. Odpowiedzi na pytania z sekcji 12 planu wpisać do `decyzje.md`.
+**Krok 2: plan – gotowy, odpowiedzi na pytania przyjęte (wszystkie domyślne, gałąź bez zmian).** Przed fazą 1 podane
+oszacowanie czasu; czekam na słowo „akceptuję”, żeby zacząć fazę 1.
 
 ## Ukończone
 
 - Specyfikacja przeniesiona do `docs/skaner/specyfikacja.md` (wersja z tabelą modeli „do resetu / po resecie”).
-- Sekcja w `CLAUDE.md` wskazująca na specyfikację i ten plik.
-- Krok 2: plan `docs/skaner/plan.md` (architektura, dane, fazy, ryzyka, pytania).
-- Rozpoznanie repozytorium dziennika i EODHD, test wykonalności (punkty 2, 3, 4, 6 pełne; 1 częściowo):
-  `docs/skaner/rozpoznanie.md`.
-- Założenia: `docs/skaner/decyzje.md`.
+- Sekcja w `CLAUDE.md` wskazująca na pliki skanera (+ zasada: oszacowanie czasu przed każdą fazą).
+- Krok 1: rozpoznanie repozytorium dziennika i EODHD, test wykonalności (punkty 2, 3, 4, 6, 7 – bez ostatecznego
+  bid/mid; 1 częściowo): `docs/skaner/rozpoznanie.md`.
+- Krok 2: plan `docs/skaner/plan.md` (architektura, dane, fazy z oszacowaniem czasu, ryzyka, pytania).
+- Odpowiedzi użytkownika na pytania planu i założenia: `docs/skaner/decyzje.md`.
 
 ## W toku / odroczone
 
-- Test wykonalności po otwarciu rynku (niedziela 11.10, 17:00 NY = 23:00 PL):
-  - 4.1.1 strumień FX w sesji (ticki, cisza, spread),
-  - 4.1.5 świeżość REST 1m w trakcie sesji,
+- Test wykonalności po otwarciu rynku (niedziela 11.10, 17:00 NY = 23:00 PL) – w ramach fazy 1:
+  - 4.1.1 strumień FX w sesji (ticki, cisza, spread; także `WTIUSD`),
+  - 4.1.5 świeżość REST 1m w trakcie sesji → wybór wariantu luki (sekcja 7 planu),
   - 4.1.7: ostateczne bid czy mid (wstępnie bid). Zgodność cen z TradingView zrobiona na eksporcie użytkownika:
     typowo 0,1 p (H1, PDH/PDL), wyjątek świeca 17:00 NY (`rozpoznanie.md` 3.7).
 
 ## Następny krok
 
-Po „akceptuję”: **faza 1** (warstwa danych i magazyn świec) według sekcji 6 planu. Sugerowany model: Opus 5.5,
-xhigh przed resetem limitu (niedziela 11.10.2026 18:00 PL), high po resecie. W fazie 1 domknąć odroczone testy
-4.1.1 / 4.1.5 / bid-mid po otwarciu rynku i wybrać wariant luki (sekcja 7 planu).
+Po „akceptuję”: **faza 1** (warstwa danych i magazyn świec) według sekcji 6 planu. Szacunek: 5–8 h czystej pracy
+(+ ok. 0,5 h pomiarów po otwarciu rynku). Model: Opus 5.5, xhigh przed resetem limitu (niedziela 11.10.2026 18:00 PL),
+high po resecie.
 
-## Otwarte pytania (do planu)
+## Otwarte pytania
 
-1. Gałąź: zostać na `claude/quirky-bohr-o95s2l` czy założyć `feature/skaner-ict`?
-2. WTI: live jest (`WTIUSD`), historii brak – wariant (zbieranie od zera / drugi dostawca / rezygnacja).
-3. Kalendarz makro: EODHD `/economic-events` → 403 w tym planie; inne źródło.
-4. Obligacje: brak ZB i intraday Bund – bias D z danych dziennych (FGBLZ26, TYX) + ręczny H4?
-5. Magazyn świec bez natywnych modułów (SQLite przez wasm albo własne pliki binarne w userData) – decyzja w planie.
-6. Głębokość historii 1m (3 lata dla wszystkich symboli = ok. 1,1 mln świec na symbol).
-7. Pytania z sekcji 15 specyfikacji.
+1. Test złoty: 3–5 dni (data, instrument, kierunek, orientacyjne poziomy) – potrzebne najpóźniej w fazie 3.

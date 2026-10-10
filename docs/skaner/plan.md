@@ -318,6 +318,22 @@ CHF→PLN = USDPLN / USDCHF…), więc **bez dodatkowych symboli** poza USDPLN. 
 
 Model i effort z tabeli specyfikacji (kolumna zależna od resetu limitu w niedzielę 11.10, 18:00 PL).
 
+**Szacowany czas czystej pracy Claude'a** (na prośbę użytkownika – przed każdą fazą podaję oszacowanie zaktualizowane
+o to, co wyszło w poprzedniej). Liczony jest czas samej pracy w sesji: pisanie kodu, testy, poprawki, czekanie na CI
+(ok. 12–15 min na przebieg). Nie wliczam przerw na limity użycia i oczekiwania na odpowiedzi użytkownika. Effort xhigh
+wydłuża pracę o ok. 30–50% względem high.
+
+| Faza | Szacunek | Co najbardziej wpływa na czas |
+| --- | --- | --- |
+| 1. Dane i magazyn świec | 5–8 h (+ ok. 0,5 h pomiarów po otwarciu rynku) | Klient WS z odpornością, magazyn binarny z pokryciem, agregacja z DST, E2E z lokalnym serwerem |
+| 2. Silnik ICT | 6–10 h | Liczba detektorów, test „przyrostowy = wsadowy” i brak zaglądania w przyszłość dla każdego, warstwy wykresu |
+| 3. Modele, ocena, cykl życia | 6–9 h | Kombinacje warunków modeli, scalanie M5/M15, bias, SMT, intermarket |
+| 4. Interfejs, briefing, oceny | 6–10 h | Dużo ekranów, wydajność 16 wykresów, „Wyślij do dziennika” |
+| 5. Alerty, kalkulator, newsy | 3–5 h | Kalendarz Forex Factory, reguły alertów, okno publikacji |
+| 6. Replay, statystyki, kalibracja | 5–8 h | Determinizm, symulacja wyniku, raport kalibracji, zestawy parametrów |
+| 7. Build, test całości, raport | 2–4 h | Przegląd końcowy (workflow agentów), dokumentacja, poprawki po przeglądzie |
+| **Razem** | **ok. 33–54 h** | Bez poprawek po Twoich sprawdzeniach (zwykle +10–20%) |
+
 ### Faza 1 – warstwa danych i magazyn świec (Opus 5.5, xhigh / high)
 
 Zakres: klucz API (ustawienia, DPAPI), klient WS (autoryzacja, subscribe jedną wiadomością, wznawianie z rosnącym
@@ -442,7 +458,9 @@ Niezależnie od wariantu: ręczne dodawanie i edycja, godziny przeliczane do NY,
 
 ## 12. Pytania do użytkownika (sekcja 15 + własne)
 
-Do odpowiedzi stosuję wartość domyślną.
+**Odpowiedź użytkownika (11.10.2026): wszystkie wartości domyślne poniżej; gałąź – zostajemy na
+`claude/quirky-bohr-o95s2l`.** Pytanie 6 nie ma wartości domyślnej: test złoty czeka na wskazanie dni (najpóźniej
+w fazie 3). Zapis w `decyzje.md`.
 
 1. **Pips i kontrakt dla XAUUSD i WTI, maksymalny SL.** Domyślnie: XAUUSD pips 0,1 USD (2 miejsca po przecinku
    w cenie), kontrakt 100 uncji; WTI pips 0,01, 1 lot = 1000 baryłek (jak preset dziennika). Wyliczony max SL złota:
@@ -465,7 +483,8 @@ Do odpowiedzi stosuję wartość domyślną.
 
 ## 13. Gałąź, CI, wydanie
 
-- Praca na gałęzi z pytania 8; commit po każdej fazie; `postep.md` aktualizowany z każdym commitem.
+- Praca na gałęzi `claude/quirky-bohr-o95s2l` (decyzja użytkownika, zamiast `feature/skaner-ict` ze specyfikacji);
+  commit po każdej fazie; `postep.md` aktualizowany z każdym commitem.
 - CI już buduje exe dla każdego pusha (artefakt `ICT-Trade-Journal-windows-<sha>`, 14 dni) – przy każdym przystanku
   podam link do przebiegu i artefaktu. Bez zmian w workflow.
 - Wersja w `package.json` i `CHANGELOG` podniesione dopiero w fazie 7 (np. `1.8.0`), bez tagu; wydanie robi użytkownik
