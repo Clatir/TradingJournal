@@ -85,6 +85,34 @@ test('screen „po” z TradingView uzupełnia MAE / MFE; okno z podglądem, pom
     await page.getByTestId('settings-tab-screens').click()
     await page.getByTestId('timeframe-scan').click()
     await expect.poll(async () => (await tradeFile()).screens[0], { timeout: 60_000 }).toMatchObject({ timeframe: 'H1', timeframeAuto: 'sure' })
+
+    // The mark's place: clicked on the mock chart (bottom right), size XL; saved in journal.json and used on the card.
+    const mockup = page.getByTestId('tf-mark-mockup')
+    const mb = (await mockup.boundingBox())!
+    await page.mouse.click(mb.x + mb.width - 4, mb.y + mb.height - 4)
+    await expect(mockup).toHaveAttribute('data-x', '1')
+    await expect(mockup).toHaveAttribute('data-y', '1')
+    await page.getByRole('radiogroup', { name: 'Rozmiar znaku interwału' }).getByRole('radio', { name: 'XL' }).click()
+    const settingsFile = async () => JSON.parse(await fs.readFile(join(dataDir, 'journal.json'), 'utf8')).settings.screens
+    await expect.poll(settingsFile, { timeout: 10_000 }).toMatchObject({ timeframeMarkPos: { x: 1, y: 1 }, timeframeMarkSize: 2 })
+    await page.getByTestId('tf-mark-placement').screenshot({ path: shots('82-znak-polozenie') })
+    // Dragging moves it as well (released in the middle).
+    await page.mouse.move(mb.x + mb.width - 4, mb.y + mb.height - 4)
+    await page.mouse.down()
+    await page.mouse.move(mb.x + mb.width * 0.3, mb.y + mb.height * 0.4, { steps: 5 })
+    await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2, { steps: 5 })
+    await page.mouse.up()
+    await expect.poll(async () => (await settingsFile()).timeframeMarkPos.x, { timeout: 10_000 }).toBeCloseTo(0.5, 1)
+    await page.getByTestId('tf-mark-corner-br').click()
+    await expect.poll(settingsFile, { timeout: 10_000 }).toMatchObject({ timeframeMarkPos: { x: 1, y: 1 } })
+    await page.keyboard.press('Control+1')
+    await page.getByTestId('journal-row').first().dblclick()
+    const markBox = card.getByTestId('tf-mark').locator('rect')
+    const vb = (await card.getByTestId('tf-mark').getAttribute('viewBox'))!.split(' ').map(Number)
+    const rx = Number(await markBox.getAttribute('x'))
+    const rw = Number(await markBox.getAttribute('width'))
+    expect(rx + rw).toBeGreaterThan(vb[2]! * 0.95)
+    expect(Number(await markBox.getAttribute('y'))).toBeGreaterThan(vb[3]! * 0.5)
     expect(errors).toEqual([])
   } finally {
     await app.close()

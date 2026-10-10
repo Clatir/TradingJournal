@@ -375,7 +375,11 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   i ≥ 3× więcej niż inna odpowiedź, remis = brak. Pomiar: 8/8 prawdziwych screenów z legendą, 80/80 syntetycznych
   (15 interwałów, także stratne), 0 błędnych, 0 fałszywych na obrazach bez legendy; ≈2,5 s na screen.
 - `ScreenRef.timeframeAuto` ('sure' / 'unsure', addytywne): ustawiane przy rozpoznaniu, czyszczone przy ręcznej zmianie.
-  Ustawienia `screens.autoTimeframe`, `screens.timeframeMark`.
+  Ustawienia `screens.autoTimeframe`, `screens.timeframeMark`; od 1.7.1 `screens.timeframeMarkPos` {x, y} (ułamki
+  wolnego miejsca: 0 = lewo / góra, 1 = prawo / dół, znak zawsze w obrazie; domyślnie 0, 0) i `screens.timeframeMarkSize`
+  (× domyślny, S–XL = 0,6–2; za duży na mały obraz jest zmniejszany); błędne wartości → domyślne (`.catch`).
+  Geometria: `shared/screenMark.ts` (`markGeometry`, `markPositionAt`), makieta `features/settings/MarkPlacement.tsx`
+  (klik / przeciąganie, zapis po puszczeniu, strzałki, przyciski rogów).
 - Renderer: `detectTimeframe` (`lib/tvOcr.ts`) z oryginału wklejonego obrazu w `ScreensPanel.addFiles` (tylko gdy
   interwał wciąż pusty); `TimeframeMark` + `useTimeframeMark` (`components/annotations.tsx`; karta, lightbox,
   edytor adnotacji; `flattenScreen` rysuje znak), `features/screens/timeframes.ts` (`detectMissingTimeframes` –
@@ -460,7 +464,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     (ponowne otwarcie, KZ z pierwszego wejścia do końca dnia NY, `tests/unit/continuation.test.ts`).
 12. ✅ 1.6.0: MAE / MFE ze screena TradingView „po” (narzędzie Long / Short Position, OCR osi, autouzupełnianie)
     i dokładnie z CSV (`tests/unit/tv-chart.test.ts`, `tests/e2e/tv-excursions.spec.ts`).
-13. ✅ 1.7.0: interwał screena z legendy TradingView i znak w lewym górnym rogu (`tests/unit/tv-timeframe.test.ts`).
+13. ✅ 1.7.0: interwał screena z legendy TradingView i znak w lewym górnym rogu (`tests/unit/tv-timeframe.test.ts`);
+    1.7.1: położenie (makieta w ustawieniach) i rozmiar znaku (`tests/unit/screen-mark.test.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

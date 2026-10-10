@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fileUrl } from '@shared/api'
 import { newId } from '@shared/ids'
 import type { Annotation, ScreenRef } from '@shared/schema'
+import { DEFAULT_MARK_POSITION, markGeometry, type MarkPosition } from '@shared/screenMark'
 import { api, errorMessage } from '../lib/api'
 import { useJournal } from '../store/journal'
 import { toast } from '../store/ui'
@@ -25,30 +26,56 @@ function geometry(w: number) {
   return { stroke: Math.max(2, w * 0.0022), font: Math.max(12, w * 0.0135), head: Math.max(8, w * 0.009) }
 }
 
-/** The timeframe mark in the top left corner: box and text in image pixels (a ~1920 px chart: 62 px tall text). */
-function markGeometry(w: number, h: number, text: string) {
-  const font = Math.max(16, Math.min(w * 0.032, h * 0.06))
-  const pad = font * 0.28
-  const x = Math.max(4, w * 0.006)
-  const y = Math.max(4, h * 0.008)
-  return { font, pad, x, y, width: text.length * font * 0.66 + pad * 2, height: font + pad * 1.6 }
-}
-
 /** Whether screens show their timeframe as a mark (setting, on by default). */
 export function useTimeframeMark(): boolean {
   return useJournal((s) => s.journal?.settings.screens.timeframeMark ?? true)
 }
 
+/** The mark's place and size from the settings (primitives selected one by one: stable across renders). */
+function useMarkPlacement(): { position: MarkPosition; size: number } {
+  const x = useJournal((s) => s.journal?.settings.screens.timeframeMarkPos?.x ?? 0)
+  const y = useJournal((s) => s.journal?.settings.screens.timeframeMarkPos?.y ?? 0)
+  const size = useJournal((s) => s.journal?.settings.screens.timeframeMarkSize ?? 1)
+  return { position: { x, y }, size }
+}
+
+function markPlacement(): { position: MarkPosition; size: number } {
+  const sc = useJournal.getState().journal?.settings.screens
+  return { position: sc?.timeframeMarkPos ?? DEFAULT_MARK_POSITION, size: sc?.timeframeMarkSize ?? 1 }
+}
+
 /**
- * The screen's timeframe as a large mark in its top left corner (SVG in image pixels, scales with the picture). An
+ * The screen's timeframe as a large mark, where the settings put it (SVG in image pixels, scales with the picture). An
  * unsure reading of the chart's legend shows a "?" and a dashed frame.
  */
 export function TimeframeMark({ timeframe, unsure, width, height }: { timeframe: string; unsure?: boolean; width: number; height: number }) {
+  const { position, size } = useMarkPlacement()
   if (!width || !height) return null
+  return <TimeframeMarkSvg timeframe={timeframe} unsure={unsure} width={width} height={height} position={position} size={size} />
+}
+
+/** The mark itself, with an explicit place and size (the settings' mock chart draws it while it is dragged). */
+export function TimeframeMarkSvg({
+  timeframe,
+  unsure,
+  width,
+  height,
+  position,
+  size,
+  testId = 'tf-mark'
+}: {
+  timeframe: string
+  unsure?: boolean
+  width: number
+  height: number
+  position: MarkPosition
+  size: number
+  testId?: string
+}) {
   const text = `${timeframe}${unsure ? '?' : ''}`
-  const g = markGeometry(width, height, text)
+  const g = markGeometry(width, height, text, position, size)
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" data-testid="tf-mark">
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" data-testid={testId}>
       <rect
         x={g.x}
         y={g.y}
@@ -210,7 +237,8 @@ export async function flattenScreen(screen: ScreenRef): Promise<Uint8Array> {
   }
   if (screen.timeframe && (useJournal.getState().journal?.settings.screens.timeframeMark ?? true)) {
     const text = `${screen.timeframe}${screen.timeframeAuto === 'unsure' ? '?' : ''}`
-    const m = markGeometry(W, H, text)
+    const { position, size } = markPlacement()
+    const m = markGeometry(W, H, text, position, size)
     x.fillStyle = 'rgba(11,13,16,0.78)'
     x.fillRect(m.x, m.y, m.width, m.height)
     x.strokeStyle = '#e8a33d'

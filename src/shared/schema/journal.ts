@@ -307,7 +307,14 @@ export const settingsSchema = z.looseObject({
       /** A pasted TradingView screen gets its timeframe from the chart's legend (1.7.0). */
       autoTimeframe: z.boolean().default(true),
       /** The timeframe shown as a large mark in the top left corner of screens (and in copies with annotations). */
-      timeframeMark: z.boolean().default(true)
+      timeframeMark: z.boolean().default(true),
+      /** Where the mark sits: fractions of the free room, 0 = left / top, 1 = right / bottom (1.7.1). */
+      timeframeMarkPos: z
+        .object({ x: z.number().min(0).max(1).catch(0), y: z.number().min(0).max(1).catch(0) })
+        .catch({ x: 0, y: 0 })
+        .default({ x: 0, y: 0 }),
+      /** The mark's size, × the default (S 0.6 … XL 2). */
+      timeframeMarkSize: z.number().min(0.25).max(4).catch(1).default(1)
     })
     .prefault({}),
   display: z

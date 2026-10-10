@@ -245,3 +245,5 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
     i w rogu screena pojawia się duży znak „H1” (także w podglądzie i w „Kopiuj z adnotacjami”). Kliknij H1 – znak
     znika; Ustawienia → Screeny → „Rozpoznaj interwał na zapisanych screenach” przywraca go. Screen bez legendy
     (np. panel XTB) zostaje bez interwału.
+24. Ustawienia → Screeny → „Interwał”: kliknij albo przeciągnij znak na makiecie wykresu (np. w prawy dolny róg),
+    wybierz rozmiar S–XL – karty screenów, podgląd i „Kopiuj z adnotacjami” pokazują znak w tym miejscu i rozmiarze.

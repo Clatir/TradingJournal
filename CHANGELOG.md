@@ -3,6 +3,15 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.7.1
+
+### Nowe
+- **Położenie i rozmiar znaku interwału do wyboru.** Ustawienia → Screeny → „Interwał”: makieta wykresu TradingView,
+  na której znak ustawia się kliknięciem albo przeciągnięciem (strzałki przesuwają go o 5%, z Shift o 1%; przyciski
+  rogów), oraz rozmiar S / M / L / XL. Położenie jest zapisane względnie, więc znak trafia w to samo miejsce na
+  screenach każdej wielkości i nigdy nie wychodzi poza obraz. Dotyczy kart, podglądu, edytora adnotacji
+  i „Kopiuj z adnotacjami”; domyślnie, jak w 1.7.0, lewy górny róg.
+
 ## 1.7.0
 
 ### Nowe

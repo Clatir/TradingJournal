@@ -16,6 +16,7 @@ import { IconFolder, IconPlus, IconSync, IconTrash } from '../../components/icon
 import { detectMissingTimeframes } from '../screens/timeframes'
 import { CurrencyInput, Field, NameInput, NumberField, Panel, Segmented, TextField, Toggle, cx } from '../../components/ui'
 import { CustomFieldsPanel } from './CustomFieldsPanel'
+import { MarkPlacement } from './MarkPlacement'
 import { oilScaleMismatch, pairPreset } from '@shared/pairs'
 import { shownDecimals } from '@shared/calc/position'
 
@@ -644,8 +645,14 @@ function ScreensTab({ settings }: { settings: Settings }) {
               <Toggle
                 checked={sc.timeframeMark}
                 onChange={(v) => setSc({ timeframeMark: v })}
-                label="Pokazuj interwał jako znak w lewym górnym rogu screena (także w „Kopiuj z adnotacjami”)"
+                label="Pokazuj interwał jako znak na screenie (także w „Kopiuj z adnotacjami”)"
                 data-testid="timeframe-mark"
+              />
+              <MarkPlacement
+                position={sc.timeframeMarkPos}
+                size={sc.timeframeMarkSize}
+                disabled={!sc.timeframeMark}
+                onChange={(p) => setSc({ ...(p.position ? { timeframeMarkPos: p.position } : {}), ...(p.size != null ? { timeframeMarkSize: p.size } : {}) })}
               />
               <TimeframeScanButton />
             </div>
