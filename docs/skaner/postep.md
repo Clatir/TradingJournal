@@ -4,12 +4,14 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Krok 1: rozpoznanie – ukończony (przystanek).** Użytkownik prosi, by nie zaczynać kroku 2 przed słowem „start”.
+**Krok 2: plan – napisany (`docs/skaner/plan.md`), przystanek.** Czekam na słowo „akceptuję” (albo uwagi do planu)
+przed fazą 1. Odpowiedzi na pytania z sekcji 12 planu wpisać do `decyzje.md`.
 
 ## Ukończone
 
 - Specyfikacja przeniesiona do `docs/skaner/specyfikacja.md` (wersja z tabelą modeli „do resetu / po resecie”).
 - Sekcja w `CLAUDE.md` wskazująca na specyfikację i ten plik.
+- Krok 2: plan `docs/skaner/plan.md` (architektura, dane, fazy, ryzyka, pytania).
 - Rozpoznanie repozytorium dziennika i EODHD, test wykonalności (punkty 2, 3, 4, 6 pełne; 1 częściowo):
   `docs/skaner/rozpoznanie.md`.
 - Założenia: `docs/skaner/decyzje.md`.
@@ -24,8 +26,9 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Następny krok
 
-Krok 2: `docs/skaner/plan.md` (architektura, technologie, schemat danych, fazy, wynik testu, ryzyka, pytania z sekcji 15).
-Sugerowany model: Fable 5.1, xhigh przed resetem limitu (niedziela 11.10.2026 18:00 PL), high po resecie.
+Po „akceptuję”: **faza 1** (warstwa danych i magazyn świec) według sekcji 6 planu. Sugerowany model: Opus 5.5,
+xhigh przed resetem limitu (niedziela 11.10.2026 18:00 PL), high po resecie. W fazie 1 domknąć odroczone testy
+4.1.1 / 4.1.5 / bid-mid po otwarciu rynku i wybrać wariant luki (sekcja 7 planu).
 
 ## Otwarte pytania (do planu)
 

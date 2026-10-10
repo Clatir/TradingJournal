@@ -15,5 +15,25 @@ decyzja, powód.
    wykonać z sesji w chmurze. Repozytorium `EodHistoricalData/eodhd-claude-skills` (commit `9839c79`, 2026-10-10)
    pobrane przez git do katalogu tymczasowego i czytane jako dokumentacja; nie jest częścią repozytorium dziennika.
    Fakty, które miały znaczenie, sprawdzone kluczem użytkownika (patrz `rozpoznanie.md`).
+## Krok 2 (2026-10-10, plan do akceptacji)
+
+5. **Wszystko z M1.** Gotowe świece 5m/1h z EODHD pochodzą z innego źródła (różnice ~3 p, błędne świece, brak dla
+   złota), więc każdy wyższy interwał składa aplikacja z M1. Głębokość pierwszego pobrania: 14 → 120 → 400 dni 1m
+   zamiast „1h z 3 lat” ze specyfikacji.
+6. **Magazyn świec = własne pliki binarne** w `userData/scanner/` (bez SQLite: brak natywnych modułów, `sql.js`
+   trzyma bazę w pamięci, `node:sqlite` niepewny w Electronie, SQL niepotrzebny).
+7. **Pokrycie zamiast luk.** Magazyn zapisuje okresy z potwierdzonymi danymi; luka = godziny rynku poza pokryciem.
+8. **Nowe kolekcje w folderze dziennika:** `signals/`, `replays/`, `biases/`, `events/`, `missed/` + `settings.scanner`
+   w `journal.json`, `SCHEMA_VERSION` bez zmian. Sygnały z replay trafiają do rekordu przebiegu, nie do `signals/`.
+9. **Silnik w wątkach procesu głównego** (live i replay osobno), renderer tylko wyświetla; sieć tylko w main (CSP).
+10. **Przełączniki alertów per komputer** (`config.json`), reszta ustawień skanera wspólna – do potwierdzenia (pytanie 10).
+11. **Bez osobnego procesu zbierającego** – zbieranie w tle przez zasobnik tej samej aplikacji (wariant B, sekcja 7 planu).
+12. **Przeliczenie na PLN przez USD** (USDPLN + pary z USD) zamiast dodatkowych symboli w subskrypcji.
+13. **Obligacje:** bias D automatycznie z serii dziennych (TYX jako odwrotność ZB, Bund `FGBLZ<m><r>.US` z rolowaniem),
+    H4 ręcznie.
+14. **Skrót zakładki `Ctrl+0`** (Ctrl+1…9 zajęte).
+
+## Krok 1 – c.d.
+
 4. **Bezpieczeństwo klucza.** Skrypty testowe czytają `EODHD_API_TOKEN` ze zmiennej środowiskowej, maskują go w każdym
    wypisie i leżą poza repozytorium. Z User API zapisywane są tylko pola techniczne (bez imienia i e-maila).
