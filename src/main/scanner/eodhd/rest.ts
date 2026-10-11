@@ -75,6 +75,11 @@ export class UsageCounter {
     return { ...this.usage }
   }
 
+  /** Resolves once every `add` so far has been written to disk (writes never reject). */
+  flush(): Promise<void> {
+    return this.saving
+  }
+
   add(calls: number): void {
     const u = this.get()
     this.usage = { ...u, calls: u.calls + calls, requests: u.requests + 1 }

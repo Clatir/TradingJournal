@@ -117,7 +117,7 @@ describe('EODHD REST client', () => {
     const a = new UsageCounter(join(dir, 'usage.json'), () => now)
     a.add(5)
     a.add(1)
-    await wait(50)
+    await a.flush()
     const b = new UsageCounter(join(dir, 'usage.json'), () => now)
     await b.load()
     expect(b.get()).toMatchObject({ date: '2026-10-12', calls: 6, requests: 2 })
