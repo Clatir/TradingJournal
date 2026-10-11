@@ -24,11 +24,13 @@ export const drillCardSchema = z.looseObject({
   /** Guessed stop loss in pips (optional). */
   slPips: z.number().positive().max(100000).nullable().default(null),
   answeredAt: isoDateTime.nullable().default(null),
-  truth: drillTruthSchema.nullable().default(null)
+  truth: drillTruthSchema.nullable().default(null),
+  /** What the card is shown with (1.11.0): the "before" screen or the market chart up to the entry; null = screen. */
+  source: z.enum(['screen', 'chart']).nullable().optional()
 })
 export type DrillCard = z.infer<typeof drillCardSchema>
 
-/** One training session (drills/ULID.json): "before" screens of past trades, the answer, then the reveal. */
+/** One training session (drills/ULID.json): "before" screens or charts of past trades, the answer, then the reveal. */
 export const drillSessionSchema = z.looseObject({
   ...recordBase,
   startedAt: isoDateTime,

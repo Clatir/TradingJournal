@@ -267,3 +267,5 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
 5. Analityka → „Co by było, gdyby”: dla transakcji z danymi rynkowymi (po 17:00 NY dnia transakcji) tabela planów
    (TP1, TP2, BE po 1R, 2R, 3R, połowa na 1R) z różnicą względem rzeczywistego wyniku; obok wyniki wg zmienności dnia
    (ATR 14) i wielkości SL w ATR. W edytorze pod wykresem: ATR, SL w ATR, zakres Azji i wyniki planów tej transakcji.
+6. Trening (Ctrl+8) → „Karty: wykres” → Start: wykres do chwili wejścia, kliknij poziom SL, wybierz Long / Short /
+   Nie wchodzę – wykres odtworzy resztę dnia („Do końca”, „Pauza”). Działa też dla transakcji bez screenów.

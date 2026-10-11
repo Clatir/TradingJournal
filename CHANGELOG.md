@@ -3,6 +3,17 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.11.0
+
+### Nowe
+- **Trening z odtwarzaniem wykresu.** Karta treningu może pokazywać wykres ze świec rynkowych do chwili wejścia (bez
+  świecy wejścia i bez przyszłości), z killzone'ami i poziomami dnia znanymi w tamtym momencie. Kliknięcie na wykresie
+  ustawia Twój SL. Po odpowiedzi wykres odtwarza resztę dnia handlowego (do 17:00 NY) z wejściem, wyjściami, SL i TP;
+  „Pauza”, „Do końca”, „Od wejścia”, interwał M1 / M5 / M15 / H1.
+- **Więcej kart:** kartą jest też transakcja bez screena „przed”, gdy ma dane rynkowe (np. z importu XTB). Wybór
+  „Karty: wszystkie / screeny / wykres”; przy karcie ze screenem i danymi przełącznik „wykres”.
+- Trafność osobno dla kart ze screenem i z wykresu.
+
 ## 1.10.0
 
 ### Nowe

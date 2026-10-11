@@ -2,8 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultJournal } from '@shared/defaults'
 import { newId } from '@shared/ids'
 import { metricsContext, tradeMetrics } from '@shared/calc/trade'
-import { answerCard, cardHistory, drillCandidates, drillStats, isDrillable, pickDrillCards, scoreCard, tally, truthOf, type DrillRow } from '@shared/calc/drills'
-import { drillSessionSchema, type DrillCard, type DrillSession, type ScreenRef, type Trade } from '@shared/schema'
+import {
+  answerCard,
+  cardHistory,
+  cardSource,
+  drillCandidates,
+  drillReplayWindow,
+  drillStats,
+  hasMarketChart,
+  isDrillable,
+  pickDrillCards,
+  scoreCard,
+  slPipsFromPrice,
+  tally,
+  truthOf,
+  type DrillRow
+} from '@shared/calc/drills'
+import { drillSessionSchema, tradeMarketSchema, type DrillCard, type DrillSession, type ScreenRef, type Trade } from '@shared/schema'
 import { closedTradeAt } from './helpers/trades'
 
 const ctx = metricsContext(createDefaultJournal().settings)
@@ -123,5 +138,71 @@ describe('karty treningowe', () => {
       ['GBPUSD', 2],
       ['EURUSD', 1]
     ])
+  })
+})
+
+describe('karty z wykresu (dane rynkowe, 1.11.0)', () => {
+  const market = (over: Record<string, unknown>) => tradeMarketSchema.parse({ v: 3, ticker: 'EURUSD.FOREX', ...over })
+  // 2026-09-23 09:00 NY, exit 10:00 NY.
+  const chartOnly = row(
+    closedTradeAt('2026-09-23T13:00:20.000Z', 2, {
+      exits: [{ id: '01K6H3Z0W8Q4M2N5P7R9S1T3V5', time: '2026-09-23T14:00:00.000Z', price: 1.082, percent: 100, note: '' }],
+      market: market({ maePips: -3, mfePips: 25 })
+    })
+  )
+  const both = withBefore('2026-09-22T13:00:00.000Z', -1, { market: market({ maePips: -10, mfePips: 2 }) })
+  const screenOnly = withBefore('2026-09-21T13:00:00.000Z', 1)
+  const noBars = row(closedTradeAt('2026-09-20T13:00:00.000Z', 1, { market: market({ warnings: ['Brak świec M1 z czasu transakcji w danych rynkowych.'] }) }))
+  const missed = row(
+    closedTradeAt('2026-09-24T13:00:00.000Z', 0, {
+      status: 'missed',
+      exits: [],
+      missed: { reasonId: null, hypotheticalOutcome: 'tp1' } as Trade['missed'],
+      market: market({ missed: { outcome: 'tp1', certain: true, at: null, until: null } })
+    })
+  )
+
+  it('karta bez screena „przed”, gdy są zmierzone świece; filtr źródła; co karta pokazuje najpierw', () => {
+    expect([chartOnly, both, screenOnly, noBars, missed].map((r) => hasMarketChart(r.trade))).toEqual([true, true, false, false, true])
+    expect([chartOnly, both, screenOnly, noBars, missed].map((r) => isDrillable(r))).toEqual([true, true, true, false, true])
+    expect([chartOnly, both, screenOnly, noBars, missed].map((r) => isDrillable(r, 'screen'))).toEqual([false, true, true, false, false])
+    expect([chartOnly, both, screenOnly, noBars, missed].map((r) => isDrillable(r, 'chart'))).toEqual([true, true, false, false, true])
+    const opts = { pair: null, minAgeDays: 0, today: '2026-10-11' }
+    expect(drillCandidates([chartOnly, both, screenOnly, noBars], { ...opts, source: 'chart' }).map((r) => r.trade.id)).toEqual([chartOnly.trade.id, both.trade.id])
+    expect(cardSource(chartOnly.trade, 'all')).toBe('chart')
+    expect(cardSource(both.trade, 'all')).toBe('screen')
+    expect(cardSource(both.trade, 'chart')).toBe('chart')
+    expect(cardSource(screenOnly.trade, 'screen')).toBe('screen')
+  })
+
+  it('okno odtwarzania: od poprzedniego tygodnia, ukryta przyszłość od minuty wejścia, koniec o 17:00 NY / horyzont missed', () => {
+    expect(drillReplayWindow(chartOnly.trade)).toEqual({
+      fromMs: Date.parse('2026-09-13T21:00:00Z'), // Sunday 17:00 NY of the previous week
+      entryMs: Date.parse('2026-09-23T13:00:00Z'),
+      toMs: Date.parse('2026-09-23T21:00:00Z')
+    })
+    expect(drillReplayWindow(missed.trade)?.toMs).toBe(Date.parse('2026-09-24T21:00:00Z'))
+    expect(drillReplayWindow(row(closedTradeAt('2026-09-23T13:00:00.000Z', 1, { status: 'open', exits: [] })).trade)).toBeNull()
+  })
+
+  it('SL z kliknięcia na wykresie: odległość od wejścia w pipsach (0,1)', () => {
+    expect(slPipsFromPrice(1.08, 1.07876, 0.0001)).toBe(12.4)
+    expect(slPipsFromPrice(1.08, 1.08153, 0.0001)).toBe(15.3)
+    expect(slPipsFromPrice(4300, 4296.5, 0.1)).toBe(35)
+    expect(slPipsFromPrice(1.08, 1.08, 0.0001)).toBeNull()
+  })
+
+  it('statystyki osobno dla screenów i wykresu (stare karty = screen)', () => {
+    const s = session([
+      { ...answerCard({ tradeId: chartOnly.trade.id, pair: 'EURUSD', answer: null, slPips: null, answeredAt: null, truth: null, source: 'chart' }, 'long', null, chartOnly, '2026-10-01T10:00:00.000Z') },
+      answerCard({ tradeId: screenOnly.trade.id, pair: 'EURUSD', answer: null, slPips: null, answeredAt: null, truth: null }, 'skip', null, screenOnly, '2026-10-01T10:01:00.000Z')
+    ])
+    expect(s.cards.map((c) => c.source ?? null)).toEqual(['chart', null])
+    const st = drillStats([s])
+    expect(st.sources.map((x) => [x.source, x.tally.answered, x.tally.decisionOk])).toEqual([
+      ['screen', 1, 0],
+      ['chart', 1, 1]
+    ])
+    expect(drillStats([]).sources).toEqual([])
   })
 })

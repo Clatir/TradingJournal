@@ -204,3 +204,56 @@ test('dane rynkowe 1.9–1.10: poziomy w planie dnia, płynność przed wejście
     await server.close()
   }
 })
+
+test('trening z odtwarzaniem 1.11: karta z wykresu bez screena, przyszłość ukryta, SL kliknięciem, odtworzenie dnia po odpowiedzi', async () => {
+  const server = await startMarketServer({ key: KEY })
+  const t = marketTrade('01K6H40000000000000000000E', '2026-09-23T14:00:20.000Z') // 10:00 NY, no screens
+  const dataDir = await seed([t])
+  const { app, page, errors } = await launch({ dataDir, env: { ICTJ_MARKET_URL: server.url, ICTJ_MARKET_KEY: KEY, ICTJ_MARKET_DELAY_MS: '300' } })
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(1)
+    await expect.poll(async () => (await readTrades(dataDir))[0]!.market?.v, { timeout: 20_000 }).toBe(MARKET_STATS_VERSION)
+
+    await page.keyboard.press('Control+8')
+    await expect(page.getByTestId('drill-page')).toBeVisible()
+    const sources = page.getByRole('radiogroup', { name: 'Źródło kart' })
+    await expect(sources.getByRole('radio', { name: 'screeny (0)' })).toBeVisible()
+    await sources.getByRole('radio', { name: 'wykres (1)' }).click()
+    await expect(page.getByTestId('drill-available')).toContainText('1')
+    await page.getByTestId('drill-start').click()
+
+    // The chart up to the entry: the last M5 candle starts before 10:00 NY, nothing of the trade on it.
+    const canvas = page.getByTestId('drill-chart-canvas')
+    await expect(canvas).toHaveAttribute('data-last', '2026-09-23T13:55:00.000Z', { timeout: 15_000 })
+    await expect(page.getByTestId('drill-view-chart')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('drill-entry')).toContainText('10:00')
+    await expect(page.getByTestId('drill-result')).toHaveCount(0)
+    // A click on the chart sets the SL guess.
+    const box = (await canvas.boundingBox())!
+    await canvas.click({ position: { x: box.width * 0.5, y: box.height * 0.8 } })
+    await expect(page.getByTestId('drill-sl')).not.toHaveValue('')
+    await page.getByTestId('drill-chart').screenshot({ path: shots('94-trening-wykres-przed') })
+
+    await page.getByTestId('drill-answer-long').click()
+    await expect(page.getByTestId('drill-reveal')).toBeVisible()
+    await page.getByTestId('drill-replay-end').click()
+    await expect(page.getByTestId('drill-replay-time')).toHaveText('do 17:00 NY')
+    await expect(canvas).toHaveAttribute('data-last', '2026-09-23T20:55:00.000Z')
+    await page.getByTestId('drill-card').screenshot({ path: shots('95-trening-wykres-odtworzony') })
+
+    await page.getByTestId('drill-next').click()
+    await expect(page.getByTestId('drill-summary')).toBeVisible()
+    await expect(page.getByTestId('drill-summary-row')).toContainText('Wykres (dane rynkowe)')
+    await expect
+      .poll(async () => {
+        const names = await fs.readdir(join(dataDir, 'drills')).catch(() => [] as string[])
+        const f = names.find((n) => n.endsWith('.json'))
+        return f ? (JSON.parse(await fs.readFile(join(dataDir, 'drills', f), 'utf8')) as { cards: Array<{ source: string; answer: string; slPips: number | null }> }).cards[0] : null
+      })
+      .toMatchObject({ source: 'chart', answer: 'long', slPips: expect.any(Number) })
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+    await server.close()
+  }
+})

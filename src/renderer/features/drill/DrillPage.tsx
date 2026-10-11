@@ -1,7 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { create } from 'zustand'
-import { ANSWER_LABEL, answerCard, drillCandidates, drillStats, pickDrillCards, ratio, scoreCard, tally, type DrillRow, type Tally } from '@shared/calc/drills'
-import { tradingDateNy } from '@shared/calc/time'
+import {
+  ANSWER_LABEL,
+  SOURCE_LABEL,
+  answerCard,
+  cardSource,
+  drillCandidates,
+  drillStats,
+  hasBeforeScreen,
+  hasMarketChart,
+  hasOutcome,
+  pickDrillCards,
+  ratio,
+  scoreCard,
+  slPipsFromPrice,
+  tally,
+  type DrillRow,
+  type DrillSourceFilter,
+  type Tally
+} from '@shared/calc/drills'
+import { tradingDateNy, ZONE_NY } from '@shared/calc/time'
+import { DateTime } from 'luxon'
 import { newId } from '@shared/ids'
 import { SCHEMA_VERSION, type DrillAnswer, type DrillCard, type DrillSession, type ScreenRef } from '@shared/schema'
 import { useTradeRows, type TradeRow } from '../../store/derived'
@@ -10,9 +29,12 @@ import { navigate, openLightbox } from '../../store/ui'
 import { ZoomImage } from '../../components/Lightbox'
 import { Badge, Cell, Kbd, NumberField, Panel, Segmented, Toggle, cx } from '../../components/ui'
 import { fmtNum, fmtPercent, fmtR, toneClass, tone } from '../../lib/format'
+import { DrillChart } from './DrillChart'
 
 interface DrillUi {
   pair: string
+  /** Cards from "before" screens, market charts or both. */
+  source: DrillSourceFilter
   minAge: '0' | '7' | '30'
   count: '5' | '10' | '20'
   /** Card index whose answer is being shown (reveal), cleared by "Dalej". */
@@ -23,7 +45,7 @@ interface DrillUi {
 }
 
 // All trades by default: an age filter on by default hid fresh trades without saying why.
-const useDrillUi = create<DrillUi>(() => ({ pair: '', minAge: '0', count: '10', revealed: null, summary: null, annotations: false }))
+const useDrillUi = create<DrillUi>(() => ({ pair: '', source: 'all', minAge: '0', count: '10', revealed: null, summary: null, annotations: false }))
 const setUi = (patch: Partial<DrillUi>) => useDrillUi.setState(patch)
 
 /** Pips without a sign (a distance, not a result). */
@@ -43,6 +65,7 @@ function startDrill(rows: readonly DrillRow[], sessions: readonly DrillSession[]
   const ids = pickDrillCards(rows, sessions, {
     count: Number(ui.count),
     pair: ui.pair || null,
+    source: ui.source,
     minAgeDays: Number(ui.minAge),
     today: tradingDateNy(now),
     random: Math.random
@@ -57,7 +80,10 @@ function startDrill(rows: readonly DrillRow[], sessions: readonly DrillSession[]
     startedAt: now,
     machine,
     finishedAt: null,
-    cards: ids.map((tradeId) => ({ tradeId, pair: byId.get(tradeId)?.trade.pair ?? '', answer: null, slPips: null, answeredAt: null, truth: null }))
+    cards: ids.map((tradeId) => {
+      const t = byId.get(tradeId)?.trade
+      return { tradeId, pair: t?.pair ?? '', answer: null, slPips: null, answeredAt: null, truth: null, source: t ? cardSource(t, ui.source) : 'screen' }
+    })
   }
   // A draft until the first answer: an abandoned, unanswered session never reaches the disk.
   addRecord('drills', session, { draft: true })
@@ -108,11 +134,15 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
   const sessions = useMemo(() => Object.values(drills).map((e) => e.record), [drills])
   const today = tradingDateNy(new Date().toISOString())
   const all = useMemo(() => drillCandidates(rows, { pair: null, minAgeDays: 0, today }), [rows, today])
-  const available = useMemo(() => drillCandidates(rows, { pair: ui.pair || null, minAgeDays: Number(ui.minAge), today }), [rows, ui.pair, ui.minAge, today])
+  const available = useMemo(
+    () => drillCandidates(rows, { pair: ui.pair || null, source: ui.source, minAgeDays: Number(ui.minAge), today }),
+    [rows, ui.pair, ui.source, ui.minAge, today]
+  )
   const pairs = [...new Set(all.map((r) => r.trade.pair))].sort()
-  const byAge = (days: number) => drillCandidates(rows, { pair: ui.pair || null, minAgeDays: days, today }).length
-  // Closed (or missed with an outcome) trades that only lack a "before" screen to become cards.
-  const noBefore = rows.filter((r) => r.trade.status !== 'open' && r.m.resultR != null && r.m.outcome != null && !r.trade.screens.some((x) => x.phase === 'before')).length
+  const byAge = (days: number) => drillCandidates(rows, { pair: ui.pair || null, source: ui.source, minAgeDays: days, today }).length
+  const bySource = (source: DrillSourceFilter) => drillCandidates(rows, { pair: ui.pair || null, source, minAgeDays: Number(ui.minAge), today }).length
+  // Closed (or missed with an outcome) trades with neither a "before" screen nor market bars.
+  const noBefore = rows.filter((r) => hasOutcome(r) && !hasBeforeScreen(r.trade) && !hasMarketChart(r.trade)).length
   const stats = useMemo(() => drillStats(sessions), [sessions])
   const recent = [...sessions].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)).slice(0, 12)
   const [none, setNone] = useState(false)
@@ -123,9 +153,22 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
         <Panel title="Nowy trening" className="border-0 border-r border-line">
           <div className="flex flex-col gap-2.5 text-[12px]">
             <p className="text-muted">
-              Zobaczysz screen „przed” z dawnej transakcji (bez wyniku). Zdecyduj: long, short albo nie wchodzę, opcjonalnie wpisz SL w pipsach – potem odkryjesz, co się stało.
-              Najlepiej działa ze screenami sprzed wejścia, bez narysowanej pozycji.
+              Zobaczysz screen „przed” z dawnej transakcji albo wykres z danych rynkowych do chwili wejścia (bez wyniku). Zdecyduj: long, short albo nie wchodzę, opcjonalnie wpisz
+              SL w pipsach (na wykresie – kliknij poziom) – potem odkryjesz, co się stało, a wykres odtworzy resztę dnia.
             </p>
+            <span className="label">Karty</span>
+            <Segmented
+              size="sm"
+              value={ui.source}
+              onChange={(source) => setUi({ source })}
+              options={[
+                { value: 'all', label: `wszystkie (${bySource('all')})` },
+                { value: 'screen', label: `screeny (${bySource('screen')})` },
+                { value: 'chart', label: `wykres (${bySource('chart')})` }
+              ]}
+              aria-label="Źródło kart"
+              className="self-start"
+            />
             <span className="label">Para</span>
             <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Para treningu">
               {['', ...pairs].map((p) => (
@@ -183,13 +226,14 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
             )}
             {noBefore > 0 && (
               <p className="text-[11.5px] text-dim" data-testid="drill-no-before">
-                {noBefore} {noBefore === 1 ? 'transakcja ma' : 'transakcji ma'} wynik, ale bez screena w fazie „przed” – dodaj go w edytorze (Screeny → Przed), a stanie się kartą.
+                {noBefore} {noBefore === 1 ? 'transakcja ma' : 'transakcji ma'} wynik, ale bez screena w fazie „przed” i bez danych rynkowych – dodaj screen w edytorze (Screeny →
+                Przed) albo włącz dane rynkowe (Ustawienia → Dane rynkowe), a stanie się kartą.
               </p>
             )}
             {(available.length === 0 || none) && (
               <p className="text-[11.5px] text-dim">
-                Karta to zamknięta transakcja (albo missed z wynikiem hipotetycznym) ze screenem w fazie „przed”. Kolejność: najpierw nigdy nie ćwiczone, potem te z błędną
-                odpowiedzią, potem najdawniej powtarzane.
+                Karta to zamknięta transakcja (albo missed z wynikiem hipotetycznym) ze screenem w fazie „przed” albo ze świecami z danych rynkowych. Kolejność: najpierw nigdy nie
+                ćwiczone, potem te z błędną odpowiedzią, potem najdawniej powtarzane.
               </p>
             )}
           </div>
@@ -213,6 +257,9 @@ function DrillHome({ rows }: { rows: TradeRow[] }) {
               </div>
               <TallyTable title="Miesiąc" rows={stats.months.map((m) => ({ key: m.month, label: m.month, tally: m.tally }))} testId="drill-months" />
               <TallyTable title="Para" rows={stats.pairs.map((p) => ({ key: p.pair, label: p.pair, tally: p.tally }))} testId="drill-pairs" />
+              {stats.sources.some((x) => x.source === 'chart') && (
+                <TallyTable title="Źródło" rows={stats.sources.map((x) => ({ key: x.source, label: x.source === 'chart' ? 'wykres' : 'screen', tally: x.tally }))} testId="drill-sources" />
+              )}
               <p className="text-[11.5px] text-dim">
                 Decyzja: transakcję zyskowną trzeba wziąć w jej kierunku, stratną – odpuścić; BE nie jest oceniany. Kierunek: czy dobrze odczytany, gdy wchodzisz. SL „blisko” = w
                 granicach 2 pipsów albo 25% rzeczywistego SL.
@@ -305,20 +352,32 @@ function CardView({ session, index, rows }: { session: DrillSession; index: numb
   const row = rows.find((r) => r.trade.id === card?.tradeId) ?? null
   const ui = useDrillUi()
   const dictionaries = useJournal((s) => s.journal?.dictionaries)
+  const settings = useJournal((s) => s.journal?.settings)
   const [slGuess, setSlGuess] = useState<number | null>(null)
+  /** The SL guess picked on the chart (price), drawn as a line; typing in the field clears it. */
+  const [slPrice, setSlPrice] = useState<number | null>(null)
   const [screenIdx, setScreenIdx] = useState(0)
+  const [showChart, setShowChart] = useState(false)
   const [view, setView] = useState<Parameters<typeof ZoomImage>[0]['view']>(null)
   const answered = card?.answer != null
   const before = useMemo(() => row?.trade.screens.filter((s) => s.phase === 'before') ?? [], [row])
   const screens: ScreenRef[] = answered ? (row?.trade.screens ?? []) : before
+  const chartOk = !!row && !!settings && hasMarketChart(row.trade)
+  const pipSize = settings?.pairs.find((p) => p.symbol === row?.trade.pair)?.pipSize ?? 0.0001
 
+  // A new card (not a market fill in the background, which renews the rows): its first view, no SL guess.
   useEffect(() => {
     setSlGuess(null)
+    setSlPrice(null)
+    setView(null)
+    setShowChart(chartOk && (card?.source === 'chart' || !before.length))
+  }, [session.id, index, row?.trade.id])
+  useEffect(() => {
     setView(null)
     // After the reveal start on the first "after" screen, if any.
     const after = answered ? (row?.trade.screens.findIndex((s) => s.phase === 'after') ?? -1) : -1
     setScreenIdx(after >= 0 ? after : 0)
-  }, [session.id, index, answered, row])
+  }, [session.id, index, answered, row?.trade.id])
 
   const answer = (a: DrillAnswer) => {
     if (!card || answered) return
@@ -364,20 +423,45 @@ function CardView({ session, index, rows }: { session: DrillSession; index: numb
             Karta {index + 1} / {session.cards.length}
           </span>
           <span className="num text-[13px] text-fg-strong">{card.pair}</span>
+          {chartOk && (
+            <button className="chip" aria-pressed={showChart} onClick={() => setShowChart(true)} data-testid="drill-view-chart">
+              wykres
+            </button>
+          )}
           {screens.map((s, i) => (
-            <button key={s.id} className="chip" aria-pressed={i === screenIdx} onClick={() => setScreenIdx(i)}>
+            <button
+              key={s.id}
+              className="chip"
+              aria-pressed={!showChart && i === screenIdx}
+              onClick={() => {
+                setShowChart(false)
+                setScreenIdx(i)
+              }}
+            >
               {[s.phase === 'before' ? 'przed' : s.phase === 'after' ? 'po' : s.phase === 'during' ? 'w trakcie' : null, s.timeframe].filter(Boolean).join(' · ') || `screen ${i + 1}`}
             </button>
           ))}
           <span className="ml-auto text-muted">
-            <Toggle checked={ui.annotations || answered} onChange={(v) => setUi({ annotations: v })} disabled={answered} label="adnotacje" />
+            {!showChart && <Toggle checked={ui.annotations || answered} onChange={(v) => setUi({ annotations: v })} disabled={answered} label="adnotacje" />}
           </span>
           <button className="btn btn-ghost h-[22px]" onClick={() => finish(session.id)} title="Zakończ trening; karty bez odpowiedzi się nie liczą" data-testid="drill-stop">
             Zakończ
           </button>
         </div>
         <div className="flex min-h-0 flex-1 bg-bg">
-          {shown ? (
+          {showChart && row && settings ? (
+            <DrillChart
+              trade={row.trade}
+              settings={settings}
+              revealed={answered}
+              slPrice={answered ? answeredSlPrice(card, row.trade.prices.entry, pipSize) : slPrice}
+              onPick={(price) => {
+                if (row.trade.prices.entry == null) return
+                setSlGuess(slPipsFromPrice(row.trade.prices.entry, price, pipSize))
+                setSlPrice(price)
+              }}
+            />
+          ) : shown ? (
             <ZoomImage screen={ui.annotations || answered ? shown : { ...shown, annotations: [] }} view={view} onView={setView} />
           ) : (
             <div className="m-auto text-[12px] text-dim">{row ? 'Brak screenu „przed”.' : 'Transakcja została usunięta – pomiń kartę.'}</div>
@@ -389,9 +473,25 @@ function CardView({ session, index, rows }: { session: DrillSession; index: numb
           <>
             <span className="label">Co robisz?</span>
             {row?.m.killzoneNames.length ? <span className="text-muted">Sesja: {row.m.killzoneNames.join(', ')}</span> : null}
+            {showChart && row && (
+              <span className="text-muted" data-testid="drill-entry">
+                Wejście: <span className="num text-fg-strong">{DateTime.fromISO(row.trade.entryTime, { zone: ZONE_NY }).toFormat('HH:mm')}</span> NY
+                {row.trade.prices.entry != null && <span className="num"> · {row.trade.prices.entry}</span>}
+              </span>
+            )}
             <label className="flex items-center gap-2">
               <span className="text-muted">Twój SL (pips, opcjonalnie)</span>
-              <NumberField className="ml-auto w-[70px]" value={slGuess} onChange={setSlGuess} isValid={(v) => v == null || v > 0} aria-label="Twój SL w pipsach" data-testid="drill-sl" />
+              <NumberField
+                className="ml-auto w-[70px]"
+                value={slGuess}
+                onChange={(v) => {
+                  setSlGuess(v)
+                  setSlPrice(null)
+                }}
+                isValid={(v) => v == null || v > 0}
+                aria-label="Twój SL w pipsach"
+                data-testid="drill-sl"
+              />
             </label>
             <div className="flex flex-col gap-1.5">
               {ANSWERS.map((a) => (
@@ -406,7 +506,11 @@ function CardView({ session, index, rows }: { session: DrillSession; index: numb
                 Pomiń kartę
               </button>
             )}
-            <p className="text-[11.5px] text-dim">Wynik, kierunek i screeny „po” pokażą się po odpowiedzi. Kółko myszy – powiększenie, przeciąganie – przesuwanie.</p>
+            <p className="text-[11.5px] text-dim">
+              {showChart
+                ? 'Wynik i kierunek pokażą się po odpowiedzi, a wykres odtworzy dalszą część dnia. Kliknięcie na wykresie ustawia SL.'
+                : 'Wynik, kierunek i screeny „po” pokażą się po odpowiedzi. Kółko myszy – powiększenie, przeciąganie – przesuwanie.'}
+            </p>
           </>
         ) : (
           <div className="flex flex-col gap-2" data-testid="drill-reveal">
@@ -446,7 +550,7 @@ function CardView({ session, index, rows }: { session: DrillSession; index: numb
               </div>
             )}
             <div className="mt-1 flex gap-2">
-              {row && (
+              {row && row.trade.screens.length > 0 && (
                 <button className="btn" onClick={() => openLightbox(row.trade.screens, Math.max(0, screenIdx))}>
                   Screeny
                 </button>
@@ -465,6 +569,12 @@ function CardView({ session, index, rows }: { session: DrillSession; index: numb
       </div>
     </div>
   )
+}
+
+/** The SL guess of an answered card as a price on the side of the answer (none for "stay out"). */
+function answeredSlPrice(card: DrillCard, entry: number | null, pipSize: number): number | null {
+  if (card.slPips == null || entry == null || (card.answer !== 'long' && card.answer !== 'short')) return null
+  return entry + (card.answer === 'long' ? -1 : 1) * card.slPips * pipSize
 }
 
 function Verdict({ label, ok, na }: { label: string; ok: boolean | null; na: string }) {
@@ -511,7 +621,10 @@ function SessionSummary({ session }: { session: DrillSession }) {
                   <span>{c.answer ? ANSWER_LABEL[c.answer] : <span className="text-dim">bez odpowiedzi</span>}</span>
                   <span className="text-muted">{c.truth ? `było: ${c.truth.direction === 'long' ? 'Long' : 'Short'}` : ''}</span>
                   <span className={cx('num', c.truth ? toneClass[tone(c.truth.resultR)] : '')}>{c.truth ? fmtR(c.truth.resultR) : ''}</span>
-                  <span className="flex gap-1">{s && <Verdict label="Decyzja" ok={s.decision} na="BE" />}</span>
+                  <span className="flex items-center gap-1">
+                    {s && <Verdict label="Decyzja" ok={s.decision} na="BE" />}
+                    {c.source === 'chart' && <span className="text-[11px] text-dim">{SOURCE_LABEL.chart}</span>}
+                  </span>
                 </div>
               )
             })}

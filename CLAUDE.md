@@ -315,7 +315,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Mapa godzin: `shared/calc/heatmap.ts` (dzień tygodnia × godzina wejścia NY; Σ R, śr. R, win rate bez BE, liczba,
   błędy = tag błędu albo złamana zasada), komponent `components/charts/WeekdayHourHeatmap.tsx`.
 - Trening (`Ctrl+8`, `features/drill/DrillPage.tsx`, `shared/calc/drills.ts`): karta = zamknięta albo missed z wynikiem
-  i screenem „przed”. Kolejność: nigdy nie ćwiczone → ostatnio błędne → najdawniej powtarzane (losowo w grupach).
+  i screenem „przed” albo (1.11.0) danymi rynkowymi – wykres do wejścia, patrz „Dane rynkowe EODHD”. Kolejność: nigdy nie ćwiczone → ostatnio błędne → najdawniej powtarzane (losowo w grupach).
   Odpowiedź zapisuje `truth` z chwili odpowiedzi. Ocena: decyzja (zysk → wziąć w kierunku, strata → odpuścić, BE bez
   oceny), kierunek (gdy wchodzisz), SL „blisko” ≤ max(2 p, 25% SL). Nowa sesja jest szkicem do pierwszej odpowiedzi.
 - Własne pola: `settings.customFields` (select / number / check / text, opcje jak słownik), wartości `trade.custom[fieldId]`
@@ -402,7 +402,7 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 - Testy: `tests/unit/tv-timeframe.test.ts` (wycinki legend `tests/fixtures/tv-legend/` z generatora z
   `TV_INTERVALS=1`), `tests/e2e/tv-excursions.spec.ts` (H1 po wklejeniu, znak, skan w ustawieniach).
 
-## Dane rynkowe EODHD (1.8.0, plan 1.8–1.11 w `.eodhd/PLAN.md`)
+## Dane rynkowe EODHD (1.8.0–1.11.0, plan w `.eodhd/PLAN.md`)
 - Klucz i wyłącznik per komputer: `config.json` → `market {enabled, key, keyEncrypted}` (`safeStorage`, na Windows DPAPI;
   bez szyfrowania systemu – tekst i znaczek w ustawieniach). Renderer nigdy nie dostaje klucza (`MarketStatus.keyHint`
   = ostatnie 4 znaki). Wspólne opcje w `settings.market` (`autoFill`, `touchMarginPips` 1, okno i interwał wykresu).
@@ -451,6 +451,14 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   różnica = Σ R planu − Σ R rzeczywiste na tych samych), `volatilityBreakdown` (reżim = ATR wobec p25 / p75 pary,
   min. 4 transakcje; kubełki SL ≤ 0,1 / 0,2 / 0,35 / więcej ATR), `excursionTiming`. Raport: sekcja `market`
   (domyślnie włączona, tylko z danymi). Edytor: linia pod wykresem z zapisanego `trade.market` (gdy `key` aktualny).
+- 1.11.0 trening z wykresu (`shared/calc/drills.ts`, `features/drill/DrillChart.tsx`): `hasMarketChart` (zmierzone
+  `trade.market`: `maePips` albo `missed` – świece są w `.market/`), `isDrillable(r, źródło)` ('all' / 'screen' /
+  'chart'), `cardSource` (wykres, gdy wybrany albo brak screena „przed”), `card.source` (addytywne, brak = screen),
+  `drillStats.sources`. `drillReplayWindow`: świece od poprzedniego tygodnia (poziomy) do `whatIfHorizon` /
+  `missedHorizon`; przed odpowiedzią tylko świece przed minutą wejścia (M5 itd. z M1 przed wejściem) i poziomy z
+  `knownFrom` ≤ wejście; klik = SL (`slPipsFromPrice`), po odpowiedzi odtwarzanie ≈ 100 kroków co 40 ms, widok
+  ustawiany `setVisibleLogicalRange` (przyszłość dopełnia puste miejsce). Wspólne części wykresu z `TradeChart.tsx`
+  (`createMarketChart`, `setChartBars`, `levelPriceLine`). E2E: `data-last` = początek ostatniej świecy na wykresie.
 - Testy: `tests/unit/market.test.ts`, `tests/unit/market-levels.test.ts`, `tests/unit/what-if.test.ts`,
   `tests/fs/market.test.ts` (serwer syntetyczny), `tests/e2e/market.spec.ts`. Nigdy nie commituj prawdziwych danych
   EODHD (licencja, repo publiczne).
@@ -537,8 +545,8 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 14. ✅ 1.8.0: dane rynkowe EODHD – klucz per komputer, świece M1 w `.market/`, MAE/MFE i podsumowanie z rynku, wykres
     transakcji w edytorze (`tests/e2e/market.spec.ts`); 1.9.0: poziomy ICT w planie dnia i na wykresie, zebrana
     płynność przed wejściem, missed z danych, tydzień z danych; 1.10.0: co by było gdyby, zmienność (ATR, reżimy,
-    SL w ATR) w Analityce i raporcie (`tests/unit/what-if.test.ts`). Dalej wg `.eodhd/PLAN.md`: 1.11.0 trening
-    z odtwarzaniem.
+    SL w ATR) w Analityce i raporcie (`tests/unit/what-if.test.ts`); 1.11.0: trening z odtwarzaniem wykresu (karty
+    bez screena „przed”, SL kliknięciem, `tests/e2e/market.spec.ts`).
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

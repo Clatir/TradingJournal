@@ -35,12 +35,12 @@ import { marketBars, marketOnline, marketSummary, tradeTicker, useMarket } from 
 import { navigate, toast } from '../../store/ui'
 import { Segmented } from '../../components/ui'
 
-const UP = '#2ebd85'
-const DOWN = '#f6465d'
-const ACCENT = '#e8a33d'
+export const UP = '#2ebd85'
+export const DOWN = '#f6465d'
+export const ACCENT = '#e8a33d'
 const MIN = 60_000
-type Interval = '1' | '5' | '15' | '60'
-const INTERVALS: Array<{ value: Interval; label: string }> = [
+export type Interval = '1' | '5' | '15' | '60'
+export const INTERVALS: Array<{ value: Interval; label: string }> = [
   { value: '1', label: 'M1' },
   { value: '5', label: 'M5' },
   { value: '15', label: 'M15' },
@@ -102,7 +102,7 @@ class SessionBands implements ISeriesPrimitive<Time> {
 
 const NO_BARS: Bar[] = []
 const NO_LEVELS: MarketLevel[] = []
-const SHORT: Record<LevelId, string> = {
+export const SHORT: Record<LevelId, string> = {
   pdh: 'PDH',
   pdl: 'PDL',
   pwh: 'PWH',
@@ -283,6 +283,72 @@ function CopyChartButton({ disabled }: { disabled: boolean }) {
   )
 }
 
+/** A candle chart in the app's style: NY time axis, killzone bands behind the candles (also used by the drill). */
+export interface MarketChartHandle {
+  chart: IChartApi
+  series: ISeriesApi<'Candlestick'>
+  markers: ISeriesMarkersPluginApi<Time>
+  bands: SessionBands
+  lines: IPriceLine[]
+}
+
+export function createMarketChart(el: HTMLElement, decimals: number): MarketChartHandle {
+  const c = createChart(el, {
+    autoSize: true,
+    layout: { background: { type: ColorType.Solid, color: '#111418' }, textColor: '#7a838e', fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, attributionLogo: false },
+    grid: { vertLines: { color: '#171b20' }, horzLines: { color: '#171b20' } },
+    rightPriceScale: { borderColor: '#1e232a' },
+    timeScale: {
+      borderColor: '#1e232a',
+      timeVisible: true,
+      secondsVisible: false,
+      tickMarkFormatter: (time: Time, type: TickMarkType) => nyTime(time as number, type <= TickMarkType.DayOfMonth ? 'dd.MM' : 'HH:mm')
+    },
+    crosshair: { mode: CrosshairMode.Normal, vertLine: { color: '#4f5862', labelBackgroundColor: '#2b323b' }, horzLine: { color: '#4f5862', labelBackgroundColor: '#2b323b' } },
+    localization: { locale: 'pl-PL', timeFormatter: (time: Time) => nyTime(time as number, 'yyyy-MM-dd HH:mm') }
+  })
+  const series = c.addSeries(CandlestickSeries, {
+    upColor: UP,
+    downColor: DOWN,
+    borderVisible: false,
+    wickUpColor: UP,
+    wickDownColor: DOWN,
+    priceLineVisible: false,
+    // The last price's label would look like a level of the trade.
+    lastValueVisible: false,
+    priceFormat: { type: 'price', precision: decimals, minMove: 10 ** -decimals }
+  })
+  const bands = new SessionBands()
+  series.attachPrimitive(bands)
+  return { chart: c, series, markers: createSeriesMarkers(series, []), bands, lines: [] }
+}
+
+/** Candles and the killzones behind them (the view is left as it is). */
+export function setChartBars(h: MarketChartHandle, bars: readonly Bar[], interval: number, killzones: Settings['killzones']): void {
+  h.series.setData(bars.map((b) => ({ time: (b.t / 1000) as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close })))
+  const times = bars.map((b) => b.t)
+  const snapFrom = (ms: number) => times.find((t) => t >= ms)
+  const snapTo = (ms: number) => {
+    for (let i = times.length - 1; i >= 0; i--) if (times[i]! < ms) return times[i]
+    return undefined
+  }
+  const spans = bars.length ? sessionSpans(bars[0]!.t, bars[bars.length - 1]!.t + interval * MIN, killzones) : []
+  h.bands.set(
+    spans.flatMap((s) => {
+      const a = snapFrom(s.from)
+      const b = snapTo(s.to)
+      return a != null && b != null && b >= a
+        ? [{ from: (a / 1000) as UTCTimestamp, to: (b / 1000) as UTCTimestamp, color: s.kind === 'silverBullet' ? 'rgba(120,140,255,0.07)' : 'rgba(232,163,61,0.06)' }]
+        : []
+    })
+  )
+}
+
+/** A level of the day as a gray dotted line with its short name on the axis. */
+export function levelPriceLine(h: MarketChartHandle, l: MarketLevel): IPriceLine {
+  return h.series.createPriceLine({ price: l.price, color: l.side === 'open' ? '#5b6573' : '#7a838e', title: SHORT[l.id], lineStyle: LineStyle.SparseDotted, lineWidth: 1, axisLabelVisible: true, axisLabelColor: '#2b323b', axisLabelTextColor: '#9aa3ad' })
+}
+
 function ChartCanvas({
   trade,
   settings,
@@ -299,41 +365,16 @@ function ChartCanvas({
   levels: readonly MarketLevel[]
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const chart = useRef<{ chart: IChartApi; series: ISeriesApi<'Candlestick'>; markers: ISeriesMarkersPluginApi<Time>; bands: SessionBands; lines: IPriceLine[] } | null>(null)
+  const chart = useRef<MarketChartHandle | null>(null)
   const pair = settings.pairs.find((p) => p.symbol === trade.pair)
   const decimals = pair?.priceDecimals ?? 5
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const c = createChart(el, {
-      autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: '#111418' }, textColor: '#7a838e', fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, attributionLogo: false },
-      grid: { vertLines: { color: '#171b20' }, horzLines: { color: '#171b20' } },
-      rightPriceScale: { borderColor: '#1e232a' },
-      timeScale: {
-        borderColor: '#1e232a',
-        timeVisible: true,
-        secondsVisible: false,
-        tickMarkFormatter: (time: Time, type: TickMarkType) => nyTime(time as number, type <= TickMarkType.DayOfMonth ? 'dd.MM' : 'HH:mm')
-      },
-      crosshair: { mode: CrosshairMode.Normal, vertLine: { color: '#4f5862', labelBackgroundColor: '#2b323b' }, horzLine: { color: '#4f5862', labelBackgroundColor: '#2b323b' } },
-      localization: { locale: 'pl-PL', timeFormatter: (time: Time) => nyTime(time as number, 'yyyy-MM-dd HH:mm') }
-    })
-    const series = c.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
-      borderVisible: false,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
-      priceLineVisible: false,
-      // The last price's label would look like a level of the trade.
-      lastValueVisible: false,
-      priceFormat: { type: 'price', precision: decimals, minMove: 10 ** -decimals }
-    })
-    const bands = new SessionBands()
-    series.attachPrimitive(bands)
-    chart.current = { chart: c, series, markers: createSeriesMarkers(series, []), bands, lines: [] }
+    const h = createMarketChart(el, decimals)
+    const c = h.chart
+    chart.current = h
     lastChart = c
     return () => {
       c.remove()
@@ -346,20 +387,7 @@ function ChartCanvas({
   useEffect(() => {
     const h = chart.current
     if (!h) return
-    h.series.setData(bars.map((b) => ({ time: (b.t / 1000) as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close })))
-    const times = bars.map((b) => b.t)
-    const snapFrom = (ms: number) => times.find((t) => t >= ms)
-    const snapTo = (ms: number) => [...times].reverse().find((t) => t < ms)
-    const spans = bars.length ? sessionSpans(bars[0]!.t, bars[bars.length - 1]!.t + interval * MIN, settings.killzones) : []
-    h.bands.set(
-      spans.flatMap((s) => {
-        const a = snapFrom(s.from)
-        const b = snapTo(s.to)
-        return a != null && b != null && b >= a
-          ? [{ from: (a / 1000) as UTCTimestamp, to: (b / 1000) as UTCTimestamp, color: s.kind === 'silverBullet' ? 'rgba(120,140,255,0.07)' : 'rgba(232,163,61,0.06)' }]
-          : []
-      })
-    )
+    setChartBars(h, bars, interval, settings.killzones)
     h.chart.timeScale().fitContent()
   }, [bars, interval, settings.killzones])
 
@@ -371,7 +399,7 @@ function ChartCanvas({
     const line = (price: number | null, color: string, title: string, style: LineStyle) =>
       price == null ? null : h.series.createPriceLine({ price, color, title, lineStyle: style, lineWidth: 1, axisLabelVisible: true })
     h.lines = [
-      ...levels.map((l) => h.series.createPriceLine({ price: l.price, color: l.side === 'open' ? '#5b6573' : '#7a838e', title: SHORT[l.id], lineStyle: LineStyle.SparseDotted, lineWidth: 1, axisLabelVisible: true, axisLabelColor: '#2b323b', axisLabelTextColor: '#9aa3ad' })),
+      ...levels.map((l) => levelPriceLine(h, l)),
       line(trade.prices.entry, ACCENT, 'Wejście', LineStyle.Solid),
       line(trade.prices.stopLoss, DOWN, 'SL', LineStyle.Dashed),
       line(trade.prices.takeProfit1, UP, 'TP1', LineStyle.Dashed),
