@@ -115,6 +115,36 @@ wejścia na H1 (główne) i M15 (doprecyzowane). Odpowiedzi:
 13. Zależność deweloperska `ws` (serwer WebSocket w testach, `tests/helpers/fakeEodhd.ts`); aplikacja używa
     wbudowanego `WebSocket` Node.
 
+## Faza 2 – silnik ICT (2026-10-11)
+
+Szczegóły definicji: `definicje.md` (sekcja 10 = różnice wobec specyfikacji).
+
+1. **Interwały silnika: M15, H1, H4, D.** M5 i M1 nie przechodzą przez detektory (paradygmat top-down, plan sekcja 14);
+   W tylko jako źródło PWH/PWL. Dealing range liczony także dla M15.
+2. **MSS wymaga displacementu (okno 3 świec), BOS nie.** Zamknięcie za przeciwnym swingiem bez displacementu nie jest
+   zdarzeniem – swing jest tylko oznaczony jako zebrany. Pierwsze przebicie w danych (trend nieznany) liczy się jako MSS.
+3. **Sweep oznaczony interwałem świec, które go zrobiły**; każdy interwał sprawdza pule wszystkich źródeł, pulę można
+   zebrać raz (zbiera najkrótszy interwał, który zamknął się pierwszy). Próg 0,5 p, powrót w ≤ 3 świecach.
+4. **Przerzut OB** (breaker / mitigation) w oknie 3 świec od unieważnienia; breaker tylko gdy po powstaniu bloku był
+   sweep chronionej strony. Dir bloku odwraca się, ważność liczona od nowa (`flipInvalidatedAt`).
+5. **Klasy swingów z opóźnieniem jednego swingu** (IT / LT wymagają następnego swingu) – jedyne „czekanie” poza
+   potwierdzeniem swingu N świecami; dopuszczone przez test braku zaglądania w przyszłość (pole `cls` tylko rośnie).
+6. **Ranga pul liczona przy zrzucie** (nie per świeca): aktywne pule tej samej strony w tolerancji EQ, liczba różnych
+   interwałów źródła (M15 sesje, D dzienne/IPDA, W tygodniowe).
+7. **Poziomy otwarcia bez zgadywania:** midnight open tylko ze świecy z pierwszej godziny dnia, otwarcie tygodnia tylko
+   ze świecy zaczynającej tydzień (dane od środka dnia / tygodnia nie dają poziomu). NDOG: 5 aktywnych, NWOG: 3.
+8. **BPR dopuszcza odwrócony FVG** (zwykle to ruch tworzący nowy FVG odwraca stary) – inaczej BPR prawie nigdy nie
+   powstaje.
+9. **Analiza w fazie 2 w oknie (renderer) na żądanie**, ok. 150 ms dla 4 interwałów jednego symbolu; wątek procesu
+   głównego i sygnały na żywo w fazie 3 (ten sam kod, `SymbolEngine.push`).
+10. **Warstwy wykresu:** strefy niedźwiedzie zielone, bycze bordowe (konwencja użytkownika), etykiety wyższych
+    interwałów w stylu TradingView („60 FVG”, „240 OB”, „D FVG”), obiekty niższego interwału nigdy nie są rysowane na
+    wyższym; przełączniki w `localStorage` (per komputer, nie w dzienniku). DR / OTE i swingi domyślnie wyłączone.
+11. **Flaga `incomplete` (luka danych) nie jest ustawiana** na obiektach – luki widać na wykresie; do rozważenia przy
+    ocenie w fazie 3. Liquidity void, PO3 / Judas – faza 3 (bias dnia).
+12. Parametry detektorów w `settings.scanner.detectors` (wspólne dla komputerów, w `journal.json`), bez UI w fazie 2
+    (edycja w fazie 4 przy zestawach parametrów).
+
 ## Krok 1 – c.d.
 
 4. **Bezpieczeństwo klucza.** Skrypty testowe czytają `EODHD_API_TOKEN` ze zmiennej środowiskowej, maskują go w każdym

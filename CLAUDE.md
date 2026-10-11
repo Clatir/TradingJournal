@@ -21,6 +21,11 @@ tylko proces główny: aktualizacje (GitHub) i kursy walut (tabela A NBP); oba m
   `src/renderer/features/scanner/` (zakładka Ctrl+0, Ustawienia → Skaner), `store/scanner.ts`. Sieć tylko w main.
   Testy: `tests/unit/scanner-*.test.ts`, `tests/fs/scanner-*.test.ts`, `tests/e2e/scanner.spec.ts`, fałszywy EODHD
   `tests/helpers/fakeEodhd.ts`.
+- Kod (faza 2, silnik ICT): `src/shared/scanner/detectors/` (`types.ts` obiekty, `params.ts` = `settings.scanner.detectors`,
+  `interval.ts` detektory jednego interwału, `levels.ts` poziomy dzienne/sesyjne/otwarcia i ranga pul), `windows.ts`
+  (killzone'y, SB, sesje), `engine.ts` (`SymbolEngine`, `analyzeSeries`: M15/H1/H4/D, batch = live). Definicje w wersji
+  zaimplementowanej: `docs/skaner/definicje.md`. Warstwy wykresu: `renderer/features/scanner/analysis.ts` (analiza w
+  oknie), `layers.ts` (czyste, w `tsconfig.node.json`), `primitives.ts` (prymityw lightweight-charts).
 
 ## Stack
 - Electron 44 + React 19 + TypeScript 6 (strict) + Vite 7 (`electron-vite` 5) + Tailwind 4.

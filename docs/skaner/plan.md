@@ -343,6 +343,10 @@ szacunki były ok. 5× za wysokie. Nowe: faza 2 – 2–4 h, faza 3 – 2–4 h,
 1,5–3 h, faza 7 – 1–2 h; **razem ok. 10–18 h**. Fazy 2–3 mają więcej logiki do strojenia z użytkownikiem, więc rozrzut
 jest większy.
 
+**Aktualizacja po fazie 2 (11.10.2026):** faza 2 zajęła ok. 50 min czystej pracy + CI (szacunek 2–4 h). Nowe: faza 3 –
+1,5–3 h (bez poprawek z odbioru warstw), faza 4 – 1,5–3 h, faza 5 – 1–2 h, faza 6 – 1,5–3 h, faza 7 – 1–2 h; **razem
+ok. 7–13 h**.
+
 ### Faza 1 – warstwa danych i magazyn świec (Opus 5.5, xhigh / high)
 
 Zakres: klucz API (ustawienia, DPAPI), klient WS (autoryzacja, subscribe jedną wiadomością, wznawianie z rosnącym

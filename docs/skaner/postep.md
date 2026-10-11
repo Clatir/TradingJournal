@@ -4,20 +4,20 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 
 ## Bieżący etap
 
-**Faza 1: warstwa danych i magazyn świec – część na danych historycznych UKOŃCZONA (przystanek), część live czeka na
-otwarcie rynku** (start 11.10.2026 ~00:55 PL, koniec ~01:55 PL, ok. 1 h; Opus 5.5 xhigh). CI zielone (przebieg 105,
-exe z testami E2E na Windows). Pomiary live zaplanowane automatycznie: nd 11.10 23:35 PL (Asia) i pn 12.10 08:40 PL
-(London) – przypomnienia w tej sesji. Po każdym podzadaniu commit + push.
+**Faza 2: silnik ICT – UKOŃCZONA (przystanek, czeka na sprawdzenie przez użytkownika)** (start 11.10.2026 ~02:00 PL,
+koniec ~02:50 PL + CI; Fable 5.1 xhigh). Faza 1 ukończona w części historycznej; pomiary live zaplanowane automatycznie:
+nd 11.10 23:35 PL (Asia) i pn 12.10 08:40 PL (London) – przypomnienia w tej sesji.
 
-| # | Podzadanie | Stan |
+| # | Podzadanie fazy 2 | Stan |
 | --- | --- | --- |
-| 1 | Czas NY i składanie świec (`src/shared/scanner/time.ts`, `aggregate.ts`, `types.ts`, `tests/unit/scanner-time.test.ts`) | ✅ commit 98d976f |
-| 2 | Ustawienia skanera (`settings.scanner`), presety instrumentów, parsery EODHD, budżet symboli, M1 z ticków, import CSV TradingView (shared) | ✅ |
-| 3 | Magazyn świec w `userData/scanner/` (pliki binarne M1, pokrycie, luki) | ✅ |
-| 4 | Klienci EODHD (WebSocket, REST z limiterem), backfill, klucz API (safeStorage) | ✅ |
-| 5 | Usługa skanera w main + IPC + preload | ✅ |
-| 6 | UI: zakładka Skaner (Ctrl+0, pasek stanu, surowy wykres), Ustawienia → Skaner | ✅ |
-| 7 | E2E z lokalnym serwerem EODHD ✅, weryfikacja DXY ✅ i EURX ✅ (Pepperstone = wzór ICE × 9,7544), skrypt pomiarów `scripts/eodhd-live-check.mjs` ✅, **pomiary po otwarciu rynku** (nd 17:00 NY = 23:00 PL) ⏳ | ⏳ |
+| 1 | Typy obiektów, parametry detektorów (`settings.scanner.detectors`), okna czasowe (`shared/scanner/detectors/types.ts`, `params.ts`, `windows.ts`) | ✅ |
+| 2 | Detektory jednego interwału (`detectors/interval.ts`): swingi z klasami, EQH/EQL, FVG ze stanami, displacement, BPR, VI, MSS/BOS, OB/breaker/mitigation, rejection, OTE, dealing range, sweepy | ✅ |
+| 3 | Poziomy (`detectors/levels.ts`): PDH/PDL, PWH/PWL, PMH/PML, IPDA 20/40/60, sesje, otwarcia, NDOG/NWOG; ranga pul; `SymbolEngine` + `analyzeSeries` (`engine.ts`) | ✅ |
+| 4 | Testy (`tests/unit/scanner-detectors.test.ts`, 37): pozytywne/negatywne/brzegowe, przyrostowo = wsadowo, brak zaglądania w przyszłość (losowe serie) | ✅ commit 33df8d7 |
+| 5 | Warstwy na wykresie (`renderer/features/scanner/analysis.ts`, `layers.ts`, `primitives.ts`): FVG z etykietami 60/240/D, OB/breaker/BPR, pule z rangą, sweepy, MSS/BOS, DR/OTE, otwarcia i luki, tła okien, swingi; przełączniki w localStorage; `tests/unit/scanner-layers.test.ts` (8), E2E | ✅ commit 4562f62 |
+| 6 | `definicje.md` (wersja zaimplementowana), `decyzje.md`, oszacowania, CI | ✅ |
+
+Faza 1 (dane): podzadania 1–6 ✅, 7 (E2E, DXY/EURX ✅; **pomiary po otwarciu rynku** ⏳).
 
 ## Ukończone
 
@@ -27,6 +27,10 @@ exe z testami E2E na Windows). Pomiary live zaplanowane automatycznie: nd 11.10 
   bid/mid; 1 częściowo): `docs/skaner/rozpoznanie.md`.
 - Krok 2: plan `docs/skaner/plan.md` (architektura, dane, fazy z oszacowaniem czasu, ryzyka, pytania).
 - Odpowiedzi użytkownika na pytania planu i założenia: `docs/skaner/decyzje.md`.
+- Faza 1 (część historyczna): magazyn świec M1, klienci EODHD, backfill, zakładka Skaner, Ustawienia → Skaner, E2E
+  z fałszywym EODHD, DXY i EURX zweryfikowane (CI zielone, przebieg 105).
+- Faza 2: silnik ICT (detektory, poziomy, ranga pul, batch = live, brak zaglądania w przyszłość), warstwy na wykresie,
+  `docs/skaner/definicje.md`. Czas czystej pracy ≈ 50 min + CI (szacunek był 2–4 h).
 
 ## W toku / odroczone
 
@@ -43,12 +47,17 @@ exe z testami E2E na Windows). Pomiary live zaplanowane automatycznie: nd 11.10 
 
 ## Następny krok
 
-1. Pomiary live fazy 1 (zaplanowane, patrz wyżej) → wariant luki, bid/mid, ewentualnie zasobnik → formalne zamknięcie fazy 1.
-2. Po słowie „dalej”: **faza 2 – silnik ICT** (można zaczynać na danych historycznych przed pomiarami; plan sekcja 6
-   i 14). Szacunek po fazie 1: 2–4 h. Model: Fable 5.1, xhigh przed resetem limitu (nd 18:00 PL), high po resecie.
+1. **Odbiór fazy 2 przez użytkownika** (instrukcja w przystanku): otworzyć Skaner (Ctrl+0), wybrać instrument, obejrzeć
+   2–3 dni na H1 i M15 z włączonymi warstwami i wypisać, co detektor widzi inaczej (lista poprawek wchodzi do fazy 3).
+2. Pomiary live fazy 1 (zaplanowane) → wariant luki, bid/mid, ewentualnie zasobnik → formalne zamknięcie fazy 1.
+3. Po słowie „dalej”: **faza 3 – modele wejścia, ocena, cykl życia** (plan sekcja 6 i 14; silnik do wątku main,
+   sygnały, bias D/H4/H1/M15, SMT, kolekcja `signals/`). Szacunek po fazie 2: 1,5–3 h (poprawki z odbioru osobno).
+   Model: Fable 5.1, xhigh przed resetem limitu (nd 18:00 PL), high po resecie.
 
-## Otwarte pytania (przed fazą 3; nie blokują fazy 1)
+## Otwarte pytania (przed fazą 3)
 
 1. **Test złoty – do powtórzenia przez użytkownika przed fazą 3.** Użytkownik dostarczy nowe screeny setupów zgodne
    z nowym paradygmatem (plan sekcja 14: wejście w KZ, top-down D → H4 → H1 → M15). Obecne Z1–Z4
    (`test-zloty.md`) zostają jako materiał pomocniczy; pytanie o moment wejścia Z2 nieaktualne do czasu nowych screenów.
+2. **Lista różnic z odbioru fazy 2** – użytkownik porównuje warstwy ze swoim okiem (FVG, OB, pule, sweepy, MSS/BOS);
+   znane ograniczenia: brak flagi `incomplete` przy lukach danych, brak liquidity void / PO3 (definicje.md sekcja 10).
