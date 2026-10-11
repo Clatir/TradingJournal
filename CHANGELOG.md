@@ -3,6 +3,22 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.10.0
+
+### Nowe
+- **„Co by było, gdyby” w Analityce.** Te same wejścia i SL zarządzane inaczej, odtworzone na świecach M1 do 17:00 NY
+  dnia handlowego: trzymanie do TP1, do TP2, TP2 ze stopem na BE po 1R, stały cel 2R i 3R, połowa na 1R i reszta do
+  TP2. Dla każdego planu: liczba transakcji, win rate, Σ R, różnica względem tego, co zrobiłeś (na tych samych
+  transakcjach), maksymalne obsunięcie. SL i cel w tej samej minucie albo poziom w marginesie to „niepewne” (liczone
+  jako SL i pokazane osobno). Plany są liczone po zakończeniu dnia handlowego.
+- **Zmienność dnia.** ATR z 14 dni handlowych przed transakcją, SL jako ułamek ATR, zakres sesji Azji. Analityka:
+  wyniki w dni spokojne / normalne / gorące (percentyle ATR osobno dla każdej pary, min. 4 transakcje) i według
+  wielkości SL w ATR; oraz jak często cena doszła do 1R / 2R przed wyjściem i mediana czasu do MFE wygranych i do MAE
+  strat.
+- Edytor transakcji: pod wykresem ATR, SL w ATR, zakres Azji i wynik każdego planu dla tej transakcji.
+- Raporty: sekcja „Dane rynkowe: co by było gdyby, zmienność” (pojawia się tylko, gdy transakcje mają dane rynkowe).
+- Podsumowania z 1.9.0 przeliczają się same (nowe pola).
+
 ## 1.9.0
 
 ### Nowe

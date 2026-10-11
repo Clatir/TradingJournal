@@ -24,11 +24,13 @@ import { DateTime } from 'luxon'
 import { tradeLevels } from '@shared/calc/excursions'
 import { sessionSpans } from '@shared/calc/sessionSpans'
 import { dayLevels, levelSessions, levelsWindow, type LevelId, type MarketLevel } from '@shared/calc/marketLevels'
-import { missedHorizon, sessionDateOf } from '@shared/calc/marketStats'
+import { missedHorizon, sessionDateOf, tradeMarketKey } from '@shared/calc/marketStats'
+import { WHAT_IF } from '@shared/calc/whatIf'
 import { ZONE_NY } from '@shared/calc/time'
 import { resampleBars, type Bar, type MarketBarsResult } from '@shared/market'
 import type { Settings, Trade, TradeMarket } from '@shared/schema'
 import { api, errorMessage } from '../../lib/api'
+import { fmtR } from '../../lib/format'
 import { marketBars, marketOnline, marketSummary, tradeTicker, useMarket } from '../../store/market'
 import { navigate, toast } from '../../store/ui'
 import { Segmented } from '../../components/ui'
@@ -222,6 +224,39 @@ export function TradeChart({ trade, settings }: { trade: Trade; settings: Settin
           {w}
         </div>
       ))}
+      <MarketExtras trade={trade} />
+    </div>
+  )
+}
+
+/** Volatility of the day and the other ways to manage this trade, from the saved market summary (1.10.0). */
+function MarketExtras({ trade }: { trade: Trade }) {
+  const mk = trade.market
+  if (!mk || mk.key !== tradeMarketKey(trade)) return null
+  const vol = mk.vol
+  const plans = mk.whatIf ? WHAT_IF.map((p) => ({ ...p, o: mk.whatIf!.results[p.id] ?? null })).filter((p) => p.o) : []
+  if (!vol?.atrPips && !plans.length && !mk.whatIfAfter) return null
+  return (
+    <div className="num flex flex-col gap-0.5 text-[11.5px] text-muted" data-testid="trade-chart-extras">
+      {vol?.atrPips != null && (
+        <span title="ATR 14 dni handlowych (świece 17:00–17:00 NY) przed dniem transakcji">
+          ATR 14: {vol.atrPips.toFixed(1)} p{vol.slAtr != null ? ` · SL ${vol.slAtr.toFixed(2)} ATR` : ''}
+          {vol.asiaRangePips != null ? ` · zakres Azji ${vol.asiaRangePips.toFixed(1)} p` : ''}
+        </span>
+      )}
+      {plans.length > 0 && (
+        <span data-testid="trade-what-if">
+          Co by było, gdyby:{' '}
+          {plans.map((p, i) => (
+            <span key={p.id} title={`${p.hint}${p.o!.uncertain ? ' · niepewne (SL i cel w tej samej minucie albo poziom w marginesie)' : ''}`}>
+              {i ? ' · ' : ''}
+              {p.label} <span className={p.o!.r > 0 ? 'text-up' : p.o!.r < 0 ? 'text-down' : ''}>{fmtR(p.o!.r)}</span>
+              {p.o!.uncertain ? '?' : ''}
+            </span>
+          ))}
+        </span>
+      )}
+      {mk.whatIfAfter && <span>Co by było, gdyby: po końcu dnia handlowego (17:00 NY).</span>}
     </div>
   )
 }

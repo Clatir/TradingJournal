@@ -52,6 +52,12 @@ export function levelSessions(asia: { start: string; end: string }, killzones: r
 const nyDate = (date: string) => DateTime.fromISO(date, { zone: ZONE_NY })
 const iso = (d: DateTime) => d.toISODate()!
 
+/** Trading day (New York) an instant belongs to as a forex daily candle: from 17:00 NY it is the next day. */
+export function sessionDateOf(iso: string): string {
+  const ny = DateTime.fromISO(iso, { zone: 'utc' }).setZone(ZONE_NY)
+  return (ny.hour >= 17 ? ny.plus({ days: 1 }) : ny).toISODate()!
+}
+
 /** The trading day before D (Monday → Friday). */
 export function previousTradingDay(date: string): string {
   let d = nyDate(date).minus({ days: 1 })

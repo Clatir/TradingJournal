@@ -32,6 +32,7 @@ import { Panel, Segmented, cx } from '../../components/ui'
 import { todayNy } from '../day/DayPlanPage'
 import { SelectionPanel } from '../sessions/SelectionPanel'
 import { WellbeingPanel } from '../wellbeing/Wellbeing'
+import { MarketPanel } from './MarketPanel'
 
 type Preset = 'all' | '30' | '90' | 'ytd' | '365'
 
@@ -221,6 +222,8 @@ export function AnalyticsPage() {
             )}
           </Section>
         </div>
+
+        <MarketPanel rows={filtered} be={be} />
 
         <Section title="Mapa godzin: dzień tygodnia × godzina wejścia (NY)" className="border-t">
           <WeekdayHourHeatmap rows={filtered} />

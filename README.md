@@ -264,3 +264,6 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
    linia „Rynek: przed wejściem zebrano …” i „Zaznacz”; na wykresie poziomy jako linie.
 4. Missed trade z ceną wejścia, SL i TP: po 17:00 NY tego dnia wynik „Cena doszła do” ustawia się z danych (albo
    podpowiedź „Ustaw …”). Tydzień → „Z danych rynkowych”: high / low dni i ich godziny.
+5. Analityka → „Co by było, gdyby”: dla transakcji z danymi rynkowymi (po 17:00 NY dnia transakcji) tabela planów
+   (TP1, TP2, BE po 1R, 2R, 3R, połowa na 1R) z różnicą względem rzeczywistego wyniku; obok wyniki wg zmienności dnia
+   (ATR 14) i wielkości SL w ATR. W edytorze pod wykresem: ATR, SL w ATR, zakres Azji i wyniki planów tej transakcji.

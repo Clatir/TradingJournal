@@ -6,17 +6,16 @@
  * Market prices are another feed than the broker's (0.1–0.6 pip apart on EURUSD), so a level within the touch margin
  * is "near", not "yes".
  */
-import { DateTime } from 'luxon'
 import type { Trade, TradeMarket } from '../schema'
 import type { Bar } from './ohlc'
 import { excursionsFromBars, tradeLevels } from './excursions'
-import { liquidityTakenBefore, type MarketLevel } from './marketLevels'
+import { liquidityTakenBefore, sessionDateOf, type MarketLevel } from './marketLevels'
 import { nyWallToMs } from './sessionSpans'
-import { ZONE_NY } from './time'
+import { volatilityFor, whatIfFor, whatIfHorizon } from './whatIf'
 
 const MIN_MS = 60_000
-/** Version of the summary; an older one is computed again (1.9.0 added liquidity and missed trades). */
-export const MARKET_STATS_VERSION = 2
+/** Version of the summary; an older one is computed again (2 = 1.9.0 liquidity, missed; 3 = 1.10.0 what-if, volatility). */
+export const MARKET_STATS_VERSION = 3
 
 /** The trade's values its market summary depends on; another key = the summary is out of date. */
 export function tradeMarketKey(t: Trade): string {
@@ -24,11 +23,7 @@ export function tradeMarketKey(t: Trade): string {
   return JSON.stringify([t.pair, t.direction, t.status, t.entryTime, t.prices.entry, t.prices.stopLoss, t.prices.takeProfit1, t.prices.takeProfit2, exits])
 }
 
-/** Trading day (New York) the entry belongs to as a forex daily candle: from 17:00 NY it is the next day. */
-export function sessionDateOf(iso: string): string {
-  const ny = DateTime.fromISO(iso, { zone: 'utc' }).setZone(ZONE_NY)
-  return (ny.hour >= 17 ? ny.plus({ days: 1 }) : ny).toISODate()!
-}
+export { sessionDateOf }
 
 /** A missed trade is followed until 17:00 NY of its trading day (at least an hour). */
 export function missedHorizon(t: Trade): number | null {
@@ -62,7 +57,9 @@ export function needsMarketStats(t: Trade, nowMs = Date.now()): boolean {
   const win = tradeMarketWindow(t)
   if (!win) return false
   if (t.status === 'missed' && nowMs < win.toMs) return false
-  return t.market == null || t.market.key !== tradeMarketKey(t) || (t.market.v ?? 1) !== MARKET_STATS_VERSION
+  if (t.market == null || t.market.key !== tradeMarketKey(t) || (t.market.v ?? 1) !== MARKET_STATS_VERSION) return true
+  // "Co by było, gdyby" waits for the end of the trading day.
+  return t.market.whatIfAfter != null && nowMs >= Date.parse(t.market.whatIfAfter)
 }
 
 export interface MarketStatsOptions {
@@ -109,6 +106,9 @@ function emptySummary(t: Trade, opts: MarketStatsOptions, warning: string | null
     stopTouched: null,
     liquidity: [],
     missed: null,
+    whatIf: null,
+    whatIfAfter: null,
+    vol: null,
     warnings: warning ? [warning] : []
   }
 }
@@ -179,8 +179,23 @@ export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStats
     reachedTp2: exitTarget != null && exitTarget === tp2 ? 'yes' : touch(favourable, dist(tp2), margin),
     stopTouched: ex.exit === 'stop' ? 'yes' : touch(adverse, risk, margin),
     liquidity: liquidity(t, opts),
+    ...whatIfAndVolatility(t, bars, opts),
     warnings
   }
+}
+
+/** The plans replayed once the trading day has ended, and the day's volatility (with the context bars). */
+function whatIfAndVolatility(t: Trade, bars: readonly Bar[], opts: MarketStatsOptions): Pick<TradeMarket, 'whatIf' | 'whatIfAfter' | 'vol'> {
+  const context = opts.levels?.bars ?? bars
+  const asiaH = opts.levels?.levels.find((l) => l.id === 'asiaH')
+  const asiaL = opts.levels?.levels.find((l) => l.id === 'asiaL')
+  const vol = volatilityFor(t, context, opts.pipSize, asiaH && asiaL ? asiaH.price - asiaL.price : null)
+  const horizon = whatIfHorizon(t)
+  if (horizon == null) return { whatIf: null, whatIfAfter: null, vol }
+  const now = Date.parse(opts.now)
+  if (Number.isFinite(now) && now < horizon) return { whatIf: null, whatIfAfter: new Date(horizon).toISOString(), vol }
+  const results = whatIfFor(t, context, horizon, opts.marginPips * opts.pipSize)
+  return { whatIf: results ? { horizon: new Date(horizon).toISOString(), results } : null, whatIfAfter: null, vol }
 }
 
 export interface MissedOutcome {

@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { DateTime } from 'luxon'
 import { createDayPlan, createDefaultJournal, createTrade } from '../../src/shared/defaults'
-import { marketStatsFor, missedHorizon, missedOutcomeFor } from '../../src/shared/calc/marketStats'
+import { MARKET_STATS_VERSION, marketStatsFor, missedHorizon, missedOutcomeFor } from '../../src/shared/calc/marketStats'
+import { volatilityWindowFrom, whatIfHorizon } from '../../src/shared/calc/whatIf'
 import { dayLevels, levelSessions, levelsWindow } from '../../src/shared/calc/marketLevels'
 import { weekExtremes } from '../../src/shared/calc/ohlc'
 import { MARKET_DIR, parseEodhdIntraday } from '../../src/shared/market'
@@ -104,7 +105,7 @@ test('dane rynkowe EODHD: klucz w ustawieniach, sprawdzenie połączenia, MAE / 
   }
 })
 
-test('dane rynkowe 1.9: poziomy w planie dnia, płynność przed wejściem, missed z danych, tydzień z danych', async () => {
+test('dane rynkowe 1.9–1.10: poziomy w planie dnia, płynność przed wejściem, missed z danych, tydzień z danych, co by było gdyby, ATR', async () => {
   const server = await startMarketServer({ key: KEY })
   const closed = marketTrade('01K6H40000000000000000000C', '2026-09-23T14:00:20.000Z') // 10:00 NY
   const entry = syntheticPrice('EURUSD.FOREX', Date.parse('2026-09-23T13:00:00Z') / 1000)
@@ -127,16 +128,22 @@ test('dane rynkowe 1.9: poziomy w planie dnia, płynność przed wejściem, miss
     const bars = (fromMs: number, toMs: number) => parseEodhdIntraday(syntheticBars('EURUSD.FOREX', fromMs / 1000, toMs / 1000 - 1))!
     const lw = levelsWindow('2026-09-23')
     const levelBars = bars(lw.fromMs, lw.toMs)
-    const expectedClosed = marketStatsFor(closed, levelBars, { ticker: 'EURUSD.FOREX', pipSize: 0.0001, marginPips: 1, now: '', levels: { levels: dayLevels('2026-09-23', levelBars, sessions), bars: levelBars } })
+    // The closed trade's bars: from 15 trading days before (ATR) to 17:00 NY (the plans replayed until the day's end).
+    const allBars = bars(volatilityWindowFrom(closed), whatIfHorizon(closed)!)
+    const expectedClosed = marketStatsFor(closed, allBars, { ticker: 'EURUSD.FOREX', pipSize: 0.0001, marginPips: 1, now: new Date().toISOString(), levels: { levels: dayLevels('2026-09-23', allBars, sessions), bars: allBars } })
     const horizon = missedHorizon(missed)!
     const expectedMissed = missedOutcomeFor(missed, bars(Date.parse(missed.entryTime) - 60_000, horizon), horizon, 0.0001)
-    await expect.poll(async () => (await readTrades(dataDir)).filter((t) => t.market?.v === 2).length, { timeout: 20_000 }).toBe(2)
+    await expect.poll(async () => (await readTrades(dataDir)).filter((t) => t.market?.v === MARKET_STATS_VERSION).length, { timeout: 20_000 }).toBe(2)
     const saved = await readTrades(dataDir)
     const sc = saved.find((t) => t.id === closed.id)!
     const sm = saved.find((t) => t.id === missed.id)!
     expect(sc.market!.liquidity.map((l) => [l.id, l.touch])).toEqual(expectedClosed.liquidity.map((l) => [l.id, l.touch]))
     expect(sm.market!.missed).toMatchObject({ outcome: expectedMissed.outcome, certain: expectedMissed.certain })
     expect(sm.missed.hypotheticalOutcome).toBe(expectedMissed.certain ? expectedMissed.outcome : null)
+    expect(expectedClosed.vol?.atrPips).toBeGreaterThan(0)
+    expect(sc.market!.vol).toEqual(expectedClosed.vol)
+    expect(sc.market!.whatIf).toEqual(expectedClosed.whatIf)
+    expect(sc.market!.whatIfAfter).toBeNull()
 
     // The editor shows the liquidity taken before the entry (and marks the matching dictionary items).
     await page.getByTestId('journal-row').filter({ hasText: '10:00' }).dblclick()
@@ -146,6 +153,18 @@ test('dane rynkowe 1.9: poziomy w planie dnia, płynność przed wejściem, miss
       await expect.poll(async () => (await readTrades(dataDir)).find((t) => t.id === closed.id)!.liquidityTakenIds.length).toBeGreaterThan(0)
     }
     await expect(page.getByTestId('trade-chart-levels')).toBeChecked()
+    await expect(page.getByTestId('trade-chart-extras')).toContainText(`ATR 14: ${expectedClosed.vol!.atrPips!.toFixed(1)} p`)
+    await expect(page.getByTestId('trade-what-if')).toContainText('Stały cel 2R')
+
+    // Analytics: the plans on the same trade, the stop in ATR.
+    await page.getByTestId('nav-analytics').click()
+    const market = page.getByTestId('market-analytics')
+    await expect(market.getByTestId('what-if-actual')).toContainText('1')
+    const r2 = expectedClosed.whatIf!.results.r2!.r
+    const abs = Math.abs(r2).toFixed(1)
+    await expect(market.getByTestId('what-if-r2')).toContainText(`${Number(abs) === 0 ? '' : r2 < 0 ? '−' : '+'}${abs}R`)
+    await expect(market.getByTestId('sl-atr')).toBeVisible()
+    await market.screenshot({ path: shots('93-co-by-bylo-gdyby') })
 
     // Day plan of 23.09: levels from the bars, all added to the key levels.
     await page.keyboard.press('Control+d')

@@ -1,6 +1,6 @@
 # Dane rynkowe EODHD – plan (do startu bez kodu)
 
-Status: W TOKU (start 10.10.2026). 1.8.0 gotowe: fundament + 1 (MAE/MFE) + 5 (wykres). 1.9.0 gotowe: 2 + 3 + 4. Dalej 1.10.0.
+Status: W TOKU (start 10.10.2026). 1.8.0 gotowe: fundament + 1 (MAE/MFE) + 5 (wykres). 1.9.0 gotowe: 2 + 3 + 4. 1.10.0 gotowe: 6 + 7. Dalej 1.11.0.
 Model do implementacji: Opus 5.5, thinking high.
 
 ## Sprawdzone na kluczu użytkownika (10.10.2026)

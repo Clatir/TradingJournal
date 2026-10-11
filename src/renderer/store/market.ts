@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { create } from 'zustand'
 import { marketStatsFor, needsMarketStats, sessionDateOf, tradeMarketKey, tradeMarketWindow, withMarketStats } from '@shared/calc/marketStats'
 import { dayLevels, levelSessions, levelsWindow } from '@shared/calc/marketLevels'
+import { volatilityWindowFrom, whatIfHorizon } from '@shared/calc/whatIf'
 import { marketTicker, type Bar, type MarketBarsResult, type MarketStatus } from '@shared/market'
 import type { Settings, Trade } from '@shared/schema'
 import { api, errorMessage } from '../lib/api'
@@ -76,11 +77,15 @@ export function forgetMarketBars(): void {
 
 export const tradeTicker = (t: Pick<Trade, 'pair'>, settings: Pick<Settings, 'pairs'>) => marketTicker(t.pair, settings.pairs)
 
-/** Bars a trade's summary needs: from the previous week (levels, liquidity before the entry) to its end. */
+/**
+ * Bars a trade's summary needs: 15 trading days before (ATR), the previous week (levels, liquidity before the entry),
+ * the trade, and the rest of its trading day ("co by było, gdyby"; days not started yet are simply not there).
+ */
 export function summaryWindow(t: Trade): { fromMs: number; toMs: number } | null {
   const win = tradeMarketWindow(t)
   if (!win) return null
-  return { fromMs: Math.min(win.fromMs, levelsWindow(sessionDateOf(t.entryTime)).fromMs), toMs: win.toMs }
+  const from = Math.min(win.fromMs, levelsWindow(sessionDateOf(t.entryTime)).fromMs, t.status === 'closed' ? volatilityWindowFrom(t) : Infinity)
+  return { fromMs: from, toMs: Math.max(win.toMs, (t.status === 'closed' ? whatIfHorizon(t) : null) ?? 0) }
 }
 
 /**

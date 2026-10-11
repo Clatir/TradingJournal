@@ -434,13 +434,26 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   00:00, 08:30; `knownFrom` = koniec sesji; `liquidityTakenBefore` (yes / near w marginesie), `liquidityNameMatches`
   (słownik pul płynności po nazwie). Missed (`missedOutcomeFor`): świece po minucie wejścia do 17:00 NY
   (`missedHorizon`), TP1 → TP2 przed SL = tp2, SL i cel w tej samej minucie albo wcześniejsze „blisko” = niepewne;
-  ustawiane tylko puste i pewne. `trade.market.v` = `MARKET_STATS_VERSION` (2; starsze liczone ponownie),
+  ustawiane tylko puste i pewne. `trade.market.v` = `MARKET_STATS_VERSION` (starsze liczone ponownie),
   `liquidity`, `missed`. UI: `MarketLiquidity` (przycisk „Zaznacz”), `MarketMissed` („Ustaw …”), plan dnia
   `features/day/MarketLevels.tsx` („Poziomy z danych rynkowych”, „+” / „Dodaj wszystkie” do poziomów kluczowych),
   tydzień „Z danych rynkowych” (`weekExtremes`, `source: 'csv'` + `marketTicker` – enum `source` bez zmian dla
   zgodności), wykres: poziomy dnia jako linie z etykietą na osi (przełącznik).
-- Testy: `tests/unit/market.test.ts`, `tests/unit/market-levels.test.ts`, `tests/fs/market.test.ts` (serwer syntetyczny),
-  `tests/e2e/market.spec.ts`. Nigdy nie commituj prawdziwych danych EODHD (licencja, repo publiczne).
+- 1.10.0 (`shared/calc/whatIf.ts`, `shared/calc/marketAnalytics.ts`): `whatIfFor` odtwarza plany (`WHAT_IF`: tp1, tp2,
+  be1R_tp2, r2, r3, half1R_tp2) w R na M1 od minuty po wejściu do `whatIfHorizon` (17:00 NY dnia handlowego albo
+  minuta po wyjściu, gdy później); SL i cel / partial w tej samej minucie = SL + niepewne, poziom w marginesie =
+  niepewne, BE przesuwany po świecy (kolejność w świecy nieznana), bez rozstrzygnięcia = ostatnie zamknięcie; plany z
+  TP2 tylko z TP2 (> 1R dla połowy na 1R). Przed końcem dnia `whatIf` = null i `whatIfAfter` (wtedy `needsMarketStats`
+  liczy ponownie). Zmienność `vol`: `atrBefore` (TR 15 świec dziennych 17:00–17:00 NY przed dniem transakcji, ATR =
+  średnia ostatnich 14, min. 11 dni ze świecami), `slAtr`, `asiaRangePips` (Asia H − L z poziomów dnia).
+  `MARKET_STATS_VERSION` = 3; okno świec w `summaryWindow` (store) = od `volatilityWindowFrom` do horyzontu.
+  Analityka (`features/analytics/MarketPanel.tsx`): `whatIfSummary` (każdy plan na transakcjach, gdzie ma wynik;
+  różnica = Σ R planu − Σ R rzeczywiste na tych samych), `volatilityBreakdown` (reżim = ATR wobec p25 / p75 pary,
+  min. 4 transakcje; kubełki SL ≤ 0,1 / 0,2 / 0,35 / więcej ATR), `excursionTiming`. Raport: sekcja `market`
+  (domyślnie włączona, tylko z danymi). Edytor: linia pod wykresem z zapisanego `trade.market` (gdy `key` aktualny).
+- Testy: `tests/unit/market.test.ts`, `tests/unit/market-levels.test.ts`, `tests/unit/what-if.test.ts`,
+  `tests/fs/market.test.ts` (serwer syntetyczny), `tests/e2e/market.spec.ts`. Nigdy nie commituj prawdziwych danych
+  EODHD (licencja, repo publiczne).
 
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
@@ -523,8 +536,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
     1.7.1: położenie (makieta w ustawieniach) i rozmiar znaku (`tests/unit/screen-mark.test.ts`); 1.7.2: dopisek OCR.
 14. ✅ 1.8.0: dane rynkowe EODHD – klucz per komputer, świece M1 w `.market/`, MAE/MFE i podsumowanie z rynku, wykres
     transakcji w edytorze (`tests/e2e/market.spec.ts`); 1.9.0: poziomy ICT w planie dnia i na wykresie, zebrana
-    płynność przed wejściem, missed z danych, tydzień z danych. Dalej wg `.eodhd/PLAN.md`: 1.10.0 co by było
-    gdyby + zmienność, 1.11.0 trening z odtwarzaniem.
+    płynność przed wejściem, missed z danych, tydzień z danych; 1.10.0: co by było gdyby, zmienność (ATR, reżimy,
+    SL w ATR) w Analityce i raporcie (`tests/unit/what-if.test.ts`). Dalej wg `.eodhd/PLAN.md`: 1.11.0 trening
+    z odtwarzaniem.
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

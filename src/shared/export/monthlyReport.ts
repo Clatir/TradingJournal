@@ -15,6 +15,7 @@ import { rateFor } from '../fx'
 import { historicalRate, transactionDate } from '../fxHistory'
 import { minutesLabel, selectionStats, type SelectionStats } from '../calc/sessions'
 import type { DayPlan, JournalFile } from '../schema'
+import { excursionTiming, volatilityBreakdown, whatIfSummary, type ExcursionTiming, type GroupLine, type WhatIfLine } from '../calc/marketAnalytics'
 
 const MINUS = '−'
 const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień']
@@ -40,14 +41,15 @@ export const REPORT_SECTIONS = [
   { id: 'plan', label: 'Plan dnia' },
   { id: 'selection', label: 'Czas analizy i selekcja par' },
   { id: 'extremes', label: 'Najlepsza i najgorsza transakcja' },
+  { id: 'market', label: 'Dane rynkowe: co by było gdyby, zmienność' },
   { id: 'trades', label: 'Lista transakcji' },
   { id: 'tax', label: 'PIT-38 (orientacyjnie)' }
 ] as const
 
 export type ReportSectionId = (typeof REPORT_SECTIONS)[number]['id']
 
-/** Sections of the monthly report so far (the default). */
-export const DEFAULT_REPORT_SECTIONS: readonly ReportSectionId[] = ['summary', 'periods', 'pairs', 'mistakes', 'compliance', 'plan', 'selection', 'extremes']
+/** Sections of the monthly report so far (the default); market data only appear when trades have them. */
+export const DEFAULT_REPORT_SECTIONS: readonly ReportSectionId[] = ['summary', 'periods', 'pairs', 'mistakes', 'compliance', 'plan', 'selection', 'extremes', 'market']
 
 export interface ReportTrade {
   date: string
@@ -98,6 +100,8 @@ export interface MonthlyReport {
   selection: SelectionStats | null
   /** Names of the rejection reasons (for the report text). */
   rejectReasonNames: Record<string, string>
+  /** From market data (EODHD, 1.10.0); null without measured trades. */
+  market: { whatIf: WhatIfLine[]; whatIfTrades: number; regimes: GroupLine[]; stops: GroupLine[]; timing: ExcursionTiming } | null
 }
 
 /** "marzec 2026" for "2026-03". */
@@ -262,7 +266,13 @@ export function buildReport(
       const st = selectionStats(days, inMonth, { from: range.from, to: range.to, now })
       return st.sessions ? st : null
     })(),
-    rejectReasonNames: Object.fromEntries(journal.dictionaries.rejectReasons.map((r) => [r.id, r.name]))
+    rejectReasonNames: Object.fromEntries(journal.dictionaries.rejectReasons.map((r) => [r.id, r.name])),
+    market: (() => {
+      const w = whatIfSummary(inMonth, be)
+      const v = volatilityBreakdown(inMonth, be)
+      const timing = excursionTiming(inMonth, be)
+      return w.trades || v.measured || timing.measured ? { whatIf: w.lines, whatIfTrades: w.trades, regimes: v.regimes, stops: v.stops, timing } : null
+    })()
   }
 }
 
@@ -398,6 +408,34 @@ function sectionsById(r: MonthlyReport): { lead: string; byId: Partial<Record<Re
       c.broken.length ? `Najczęściej łamane: ${c.broken.map((b) => `${b.label} (${b.count})`).join(', ')}.` : 'Żadna zasada nie została złamana.'
     ]
   })
+  if (r.market) {
+    const mk = r.market
+    if (mk.whatIfTrades)
+      add('market', {
+        heading: `Co by było, gdyby (transakcje z danymi rynkowymi: ${mk.whatIfTrades})`,
+        table: {
+          head: ['Zarządzanie', 'Transakcje', 'Win rate', 'Σ R', 'Różnica', 'Maks. obsunięcie'],
+          right: [1, 2, 3, 4, 5],
+          rows: mk.whatIf.filter((x) => x.id === 'actual' || x.count).map((x) => [x.label, String(x.count), pct(x.winRate), fmtReportR(x.totalR), x.id === 'actual' ? '—' : fmtReportR(x.deltaR), `${x.maxDrawdownR.toFixed(2)}R`])
+        }
+      })
+    const groups = (heading: string, first: string, rows: GroupLine[]): Section => ({
+      heading,
+      table: { head: [first, 'Transakcje', 'Win rate', 'Σ R'], right: [1, 2, 3], rows: rows.filter((x) => x.count).map((x) => [x.label, String(x.count), pct(x.winRate), fmtReportR(x.totalR)]) }
+    })
+    if (mk.regimes.some((x) => x.count)) add('market', groups('Zmienność dnia (ATR 14, percentyle dla pary)', 'Reżim', mk.regimes))
+    if (mk.stops.some((x) => x.count)) add('market', groups('Wielkość SL względem ATR', 'SL', mk.stops))
+    const t = mk.timing
+    if (t.measured)
+      add('market', {
+        heading: 'MAE / MFE z danych rynkowych',
+        lines: [
+          `Zmierzone transakcje: ${t.measured}; przed wyjściem cena doszła do 1R w ${pct(t.reached1R)}, do 2R w ${pct(t.reached2R)}.`,
+          `Mediana czasu do MFE wygranych: ${t.mfeMinutesWinners == null ? '—' : `${Math.round(t.mfeMinutesWinners)} min`}, do MAE strat: ${t.maeMinutesLosers == null ? '—' : `${Math.round(t.maeMinutesLosers)} min`}.`,
+          t.stopTouchedSurvived ? `SL dotknięty według cen rynku, a pozycja przetrwała: ${t.stopTouchedSurvived} (inne źródło cen niż broker albo SL przesunięty).` : 'Brak pozycji, które przetrwały dotknięcie SL według cen rynku.'
+        ]
+      })
+  }
   const p = r.plan
   const inPeriod = r.periodWord === 'w tym miesiącu' ? 'w miesiącu' : 'w okresie'
   add('plan', {

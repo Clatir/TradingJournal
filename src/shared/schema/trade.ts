@@ -56,7 +56,7 @@ const touch = z.enum(['yes', 'no', 'near']).nullable().default(null)
  * cache. `key` = the trade's values it was computed from (pair, direction, times, prices): another key = recompute.
  */
 export const tradeMarketSchema = z.looseObject({
-  /** Version of the computation (an older one is recomputed): 1 = 1.8.0, 2 = 1.9.0 (liquidity, missed trades). */
+  /** Version of the computation (an older one is recomputed): 1 = 1.8.0, 2 = 1.9.0 (liquidity, missed trades), 3 = 1.10.0 (what-if, volatility). */
   v: z.number().int().default(1),
   source: z.literal('eodhd').default('eodhd'),
   ticker: z.string().default(''),
@@ -93,6 +93,18 @@ export const tradeMarketSchema = z.looseObject({
     })
     .nullable()
     .default(null),
+  /** "Co by było, gdyby" (1.10.0): other ways to manage the same trade, in R; null per plan without its target. */
+  whatIf: z
+    .looseObject({
+      horizon: isoDateTime,
+      results: z.record(z.string(), z.object({ r: z.number(), uncertain: z.boolean() }).nullable())
+    })
+    .nullable()
+    .default(null),
+  /** The trading day had not ended when computed: the plans are replayed after this moment. */
+  whatIfAfter: isoDateTime.nullable().default(null),
+  /** Volatility of the trade's day (1.10.0): ATR(14) before it, the stop in ATR, the Asia range. */
+  vol: z.object({ atrPips: nullableNumber, slAtr: nullableNumber, asiaRangePips: nullableNumber }).nullable().default(null),
   warnings: z.array(z.string()).default([])
 })
 export type TradeMarket = z.infer<typeof tradeMarketSchema>
