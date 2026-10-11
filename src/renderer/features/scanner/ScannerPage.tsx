@@ -1,19 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { nyParts } from '@shared/scanner/time'
 import { INTERVALS, type Interval } from '@shared/scanner/types'
 import type { ScannerStatus, StreamState } from '@shared/scanner/api'
 import type { ScannerInstrument } from '@shared/scanner/settings'
 import { instrumentPreset } from '@shared/scanner/instruments'
+import { defaultDetectorParams, type DetectorParams } from '@shared/scanner/detectors/params'
 import { useJournal } from '../../store/journal'
 import { useScanner } from '../../store/scanner'
 import { navigate } from '../../store/ui'
 import { api } from '../../lib/api'
 import { Badge, Panel, Segmented, cx } from '../../components/ui'
 import { CandleChart } from './CandleChart'
+import { useAnalysis } from './analysis'
+import { DEFAULT_LAYERS, LAYER_IDS, LAYER_LABELS, type LayerFlags, type LayerId } from './layers'
 
 const NO_INSTRUMENTS: readonly ScannerInstrument[] = []
+const DEFAULT_PARAMS: DetectorParams = defaultDetectorParams()
 const SYMBOL_KEY = 'ictj.scanner.symbol'
 const INTERVAL_KEY = 'ictj.scanner.interval'
+const LAYERS_KEY = 'ictj.scanner.layers'
+
+function readLayers(): LayerFlags {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAYERS_KEY) ?? '{}') as Partial<Record<string, unknown>>
+    const out = { ...DEFAULT_LAYERS }
+    for (const id of LAYER_IDS) if (typeof raw[id] === 'boolean') out[id] = raw[id]
+    return out
+  } catch {
+    return { ...DEFAULT_LAYERS }
+  }
+}
 
 export const STREAM_LABEL: Record<StreamState, string> = {
   off: 'wyłączony',
@@ -120,6 +136,7 @@ export function ScannerPage() {
   const status = useScanner((s) => s.status)
   const prices = useScanner((s) => s.prices)
   const instruments = useJournal((s) => s.journal?.settings.scanner.instruments ?? NO_INSTRUMENTS)
+  const params = useJournal((s) => s.journal?.settings.scanner.detectors ?? DEFAULT_PARAMS)
   const now = useNow(5000)
   const symbols = useMemo(() => status?.symbols ?? [], [status])
   const choices = useMemo(() => (symbols.length ? symbols.map((s) => s.symbol) : instruments.map((i) => i.symbol)), [symbols, instruments])
@@ -137,6 +154,20 @@ export function ScannerPage() {
   const dataVersion = `${status?.backfill.finishedAt ?? ''}|${row?.coverageFrom ?? ''}|${status?.backfill.stage ?? ''}`
   const inst = instruments.find((i) => i.symbol === symbol)
   const decimals = inst?.priceDecimals ?? instrumentPreset(symbol).priceDecimals
+  const pipSize = inst?.pipSize ?? instrumentPreset(symbol).pipSize
+  const [layers, setLayers] = useState<LayerFlags>(readLayers)
+  const toggleLayer = useCallback((id: LayerId) => {
+    setLayers((l) => {
+      const next = { ...l, [id]: !l[id] }
+      try {
+        localStorage.setItem(LAYERS_KEY, JSON.stringify(next))
+      } catch {
+        // Not remembered.
+      }
+      return next
+    })
+  }, [])
+  const analysis = useAnalysis(symbol, pipSize, params, dataVersion)
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="scanner-page">
@@ -204,10 +235,23 @@ export function ScannerPage() {
             </span>
           }
           className="min-w-0 flex-1"
-          bodyClassName="min-h-0 flex-1 p-0"
+          bodyClassName="flex min-h-0 flex-1 flex-col p-0"
           actions={<Segmented size="sm" value={interval} onChange={setInterval} options={[...INTERVALS].reverse().map((i) => ({ value: i, label: i }))} aria-label="Interwał" />}
         >
-          <CandleChart symbol={symbol} interval={interval} decimals={decimals} dataVersion={dataVersion} />
+          <div className="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1" data-testid="scanner-layers">
+            <span className="mr-1 text-[10.5px] tracking-wide text-dim uppercase">warstwy</span>
+            {LAYER_IDS.map((id) => (
+              <button key={id} type="button" className="chip" aria-pressed={layers[id]} onClick={() => toggleLayer(id)} data-testid={`scanner-layer-${id}`}>
+                {LAYER_LABELS[id]}
+              </button>
+            ))}
+            <span className="num ml-auto text-[10.5px] text-dim" title="Czas analizy ICT (M15, H1, H4, D) w tym oknie" data-testid="scanner-analysis">
+              {analysis ? `analiza ${analysis.ms} ms` : 'analiza…'}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1">
+            <CandleChart symbol={symbol} interval={interval} decimals={decimals} dataVersion={dataVersion} snapshot={analysis?.snapshot ?? null} layers={layers} params={params} />
+          </div>
         </Panel>
       </div>
     </div>

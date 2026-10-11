@@ -15,6 +15,7 @@
     "src/shared/**/*",
     "src/renderer/lib/format.ts",
     "src/renderer/features/forecast/texts.ts",
+    "src/renderer/features/scanner/layers.ts",
     "tests/**/*",
     "scripts/**/*"
   ],

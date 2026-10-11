@@ -46,9 +46,20 @@ test('scanner: stream, history, symbols, chart, settings (fake EODHD, key from t
     await expect(page.getByTestId('scanner-chart-info')).toContainText('świec', { timeout: 30_000 })
     await page.getByRole('radio', { name: 'M15' }).click()
     await expect(page.getByTestId('scanner-chart-info')).toContainText('świec')
-    await page.screenshot({ path: 'test-results/scanner-page.png' })
     const info = await page.getByTestId('scanner-chart-info').innerText()
     expect(Number(info.split(' ')[0])).toBeGreaterThan(100)
+
+    // ICT layers (phase 2): the engine ran in the window and the chart reports object counts per layer.
+    await expect(page.getByTestId('scanner-analysis')).toContainText(/analiza \d+ ms/, { timeout: 30_000 })
+    await expect(page.getByTestId('scanner-layers-info')).toContainText(/FVG \d+ · OB \d+ · pule [1-9]\d*/)
+    await expect(page.getByTestId('scanner-layers-info')).toContainText(/okna [1-9]\d*/)
+    await page.screenshot({ path: 'test-results/scanner-page.png' })
+    await page.getByTestId('scanner-layer-fvg').click()
+    await expect(page.getByTestId('scanner-layer-fvg')).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.getByTestId('scanner-layers-info')).not.toContainText('FVG')
+    expect(await page.evaluate(() => localStorage.getItem('ictj.scanner.layers'))).toContain('"fvg":false')
+    await page.getByTestId('scanner-layer-fvg').click()
+    await expect(page.getByTestId('scanner-layers-info')).toContainText(/FVG \d+/)
 
     // Settings → Skaner.
     await page.getByTestId('nav-settings').click()
