@@ -5,7 +5,8 @@ Czytaj razem z `specyfikacja.md` na początku każdej sesji. Aktualizuj po każd
 ## Bieżący etap
 
 **Faza 2: silnik ICT – UKOŃCZONA (przystanek, czeka na sprawdzenie przez użytkownika)** (start 11.10.2026 ~02:00 PL,
-koniec ~02:50 PL + CI; Fable 5.1 xhigh). Faza 1 ukończona w części historycznej; pomiary live zaplanowane automatycznie:
+koniec ~02:50 PL + CI; Fable 5.1 xhigh). CI zielone (przebieg 115, z exe i E2E na Windows; po drodze poprawka
+niestabilnego testu licznika EODHD na Node 24 – `UsageCounter.flush()`). Faza 1 ukończona w części historycznej; pomiary live zaplanowane automatycznie:
 nd 11.10 23:35 PL (Asia) i pn 12.10 08:40 PL (London) – przypomnienia w tej sesji.
 
 | # | Podzadanie fazy 2 | Stan |
