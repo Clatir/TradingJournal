@@ -5,6 +5,7 @@
  */
 import { z } from 'zod'
 import { instrumentPreset, START_INSTRUMENTS } from './instruments'
+import { detectorParamsSchema } from './detectors/params'
 
 const currency = z.string().regex(/^[A-Z]{3}$/)
 
@@ -70,7 +71,9 @@ export const scannerSettingsSchema = z.looseObject({
     .prefault({}),
   correlations: z.array(correlationSchema).default(() => DEFAULT_CORRELATIONS.map((c) => ({ ...c }))),
   /** Maximum stop for FX instruments in pips (user decision: 30). */
-  maxStopPips: z.number().positive().catch(30).default(30)
+  maxStopPips: z.number().positive().catch(30).default(30),
+  /** ICT detector parameters (phase 2). */
+  detectors: detectorParamsSchema.prefault({})
 })
 export type ScannerSettings = z.infer<typeof scannerSettingsSchema>
 
