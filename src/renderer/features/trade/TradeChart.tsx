@@ -23,6 +23,8 @@ import {
 import { DateTime } from 'luxon'
 import { tradeLevels } from '@shared/calc/excursions'
 import { sessionSpans } from '@shared/calc/sessionSpans'
+import { dayLevels, levelSessions, levelsWindow, type LevelId, type MarketLevel } from '@shared/calc/marketLevels'
+import { missedHorizon, sessionDateOf } from '@shared/calc/marketStats'
 import { ZONE_NY } from '@shared/calc/time'
 import { resampleBars, type Bar, type MarketBarsResult } from '@shared/market'
 import type { Settings, Trade, TradeMarket } from '@shared/schema'
@@ -49,7 +51,7 @@ export function chartWindow(t: Trade, settings: Settings, nowMs: number): { from
   if (!Number.isFinite(entry)) return null
   const lv = tradeLevels(t)
   const lastExit = t.exits.map((x) => x.time).filter((x): x is string => !!x).sort().at(-1)
-  const end = t.status === 'closed' ? Date.parse(lv.exitTime ?? lastExit ?? t.entryTime) : t.status === 'missed' ? entry + 4 * 3_600_000 : nowMs
+  const end = t.status === 'closed' ? Date.parse(lv.exitTime ?? lastExit ?? t.entryTime) : t.status === 'missed' ? (missedHorizon(t) ?? entry + 4 * 3_600_000) : nowMs
   const from = Math.floor((entry - settings.market.chartBeforeMinutes * MIN) / MIN) * MIN
   const to = Math.min(nowMs, Math.ceil((Math.max(end, entry) + settings.market.chartAfterMinutes * MIN + MIN) / MIN) * MIN)
   return to > from ? { fromMs: from, toMs: to } : null
@@ -97,6 +99,20 @@ class SessionBands implements ISeriesPrimitive<Time> {
 }
 
 const NO_BARS: Bar[] = []
+const NO_LEVELS: MarketLevel[] = []
+const SHORT: Record<LevelId, string> = {
+  pdh: 'PDH',
+  pdl: 'PDL',
+  pwh: 'PWH',
+  pwl: 'PWL',
+  asiaH: 'Asia H',
+  asiaL: 'Asia L',
+  londonH: 'Lon H',
+  londonL: 'Lon L',
+  dayOpen: '17:00',
+  midnight: '00:00',
+  open0830: '08:30'
+}
 const nyTime = (sec: number, fmt: string) => DateTime.fromSeconds(sec, { zone: ZONE_NY }).toFormat(fmt)
 const touchText = (v: TradeMarket['reached1R']) => (v === 'yes' ? 'tak' : v === 'near' ? 'niepewne' : v === 'no' ? 'nie' : '—')
 
@@ -109,7 +125,10 @@ export function TradeChart({ trade, settings }: { trade: Trade; settings: Settin
   const [now] = useState(() => Math.floor(Date.now() / (5 * MIN)) * 5 * MIN)
   const win = chartWindow(trade, settings, now)
   const [res, setRes] = useState<MarketBarsResult | null>(null)
+  const [levelBars, setLevelBars] = useState<Bar[]>(NO_BARS)
+  const [showLevels, setShowLevels] = useState(true)
   const [loading, setLoading] = useState(false)
+  const date = sessionDateOf(trade.entryTime)
   const online = marketOnline(status)
 
   useEffect(() => {
@@ -126,8 +145,23 @@ export function TradeChart({ trade, settings }: { trade: Trade; settings: Settin
     }
   }, [ticker, win?.fromMs, win?.toMs, online])
 
+  // Levels of the trading day (bars from the previous week).
+  useEffect(() => {
+    if (!ticker || !showLevels) return
+    let alive = true
+    const lw = levelsWindow(date)
+    void marketBars(ticker, lw.fromMs, Math.min(lw.toMs, now)).then((r) => alive && setLevelBars(r.bars))
+    return () => {
+      alive = false
+    }
+  }, [ticker, date, now, online, showLevels])
+
   const m1 = res?.bars ?? NO_BARS
   const bars = useMemo(() => resampleBars(m1, Number(interval)), [m1, interval])
+  const levels = useMemo(
+    () => (showLevels && levelBars.length ? dayLevels(date, levelBars, levelSessions(settings.market.asia, settings.killzones)) : NO_LEVELS),
+    [showLevels, levelBars, date, settings.market.asia, settings.killzones]
+  )
   const summary = useMemo(() => (ticker && trade.status === 'closed' && m1.length ? marketSummary(trade, m1, settings, ticker) : null), [trade, m1, settings, ticker])
 
   if (!ticker)
@@ -146,6 +180,10 @@ export function TradeChart({ trade, settings }: { trade: Trade; settings: Settin
       <div className="flex flex-wrap items-center gap-2">
         <Segmented size="sm" value={interval} onChange={setInterval} options={INTERVALS} aria-label="Interwał wykresu" />
         <span className="num text-[11px] text-muted">{ticker} · czas NY</span>
+        <label className="flex items-center gap-1 text-[11px] text-muted">
+          <input type="checkbox" checked={showLevels} onChange={(e) => setShowLevels(e.currentTarget.checked)} data-testid="trade-chart-levels" />
+          poziomy dnia
+        </label>
         {loading && <span className="text-[11px] text-muted">wczytuję…</span>}
         <CopyChartButton disabled={!bars.length} />
       </div>
@@ -158,7 +196,7 @@ export function TradeChart({ trade, settings }: { trade: Trade; settings: Settin
               : 'Brak pobranych świec z tego czasu – wpisz klucz EODHD w Ustawienia → Dane rynkowe (albo pobierz je na drugim komputerze).'}
         </div>
       ) : (
-        <ChartCanvas trade={trade} settings={settings} bars={bars} interval={Number(interval)} summary={summary} />
+        <ChartCanvas trade={trade} settings={settings} bars={bars} interval={Number(interval)} summary={summary} levels={levels} />
       )}
       {summary && summary.maePips != null && (
         <div className="num flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-muted" data-testid="trade-chart-summary">
@@ -210,7 +248,21 @@ function CopyChartButton({ disabled }: { disabled: boolean }) {
   )
 }
 
-function ChartCanvas({ trade, settings, bars, interval, summary }: { trade: Trade; settings: Settings; bars: Bar[]; interval: number; summary: TradeMarket | null }) {
+function ChartCanvas({
+  trade,
+  settings,
+  bars,
+  interval,
+  summary,
+  levels
+}: {
+  trade: Trade
+  settings: Settings
+  bars: Bar[]
+  interval: number
+  summary: TradeMarket | null
+  levels: readonly MarketLevel[]
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const chart = useRef<{ chart: IChartApi; series: ISeriesApi<'Candlestick'>; markers: ISeriesMarkersPluginApi<Time>; bands: SessionBands; lines: IPriceLine[] } | null>(null)
   const pair = settings.pairs.find((p) => p.symbol === trade.pair)
@@ -284,6 +336,7 @@ function ChartCanvas({ trade, settings, bars, interval, summary }: { trade: Trad
     const line = (price: number | null, color: string, title: string, style: LineStyle) =>
       price == null ? null : h.series.createPriceLine({ price, color, title, lineStyle: style, lineWidth: 1, axisLabelVisible: true })
     h.lines = [
+      ...levels.map((l) => h.series.createPriceLine({ price: l.price, color: l.side === 'open' ? '#5b6573' : '#7a838e', title: SHORT[l.id], lineStyle: LineStyle.SparseDotted, lineWidth: 1, axisLabelVisible: true, axisLabelColor: '#2b323b', axisLabelTextColor: '#9aa3ad' })),
       line(trade.prices.entry, ACCENT, 'Wejście', LineStyle.Solid),
       line(trade.prices.stopLoss, DOWN, 'SL', LineStyle.Dashed),
       line(trade.prices.takeProfit1, UP, 'TP1', LineStyle.Dashed),
@@ -317,7 +370,7 @@ function ChartCanvas({ trade, settings, bars, interval, summary }: { trade: Trad
       if (t != null) markers.push({ time: t as UTCTimestamp, position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: UP, text: `MFE ${summary.mfePips.toFixed(1)}` })
     }
     h.markers.setMarkers(markers.sort((a, b) => (a.time as number) - (b.time as number)))
-  }, [trade.prices, trade.exits, trade.entryTime, trade.direction, summary, bars, interval])
+  }, [trade.prices, trade.exits, trade.entryTime, trade.direction, summary, bars, interval, levels])
 
   return <div ref={ref} className="h-[300px] w-full" data-testid="trade-chart-canvas" />
 }

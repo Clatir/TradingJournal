@@ -3,7 +3,9 @@ import { DateTime } from 'luxon'
 import { newId } from '@shared/ids'
 import { parseTradingViewCsv, weekExtremes, weeksInBars } from '@shared/calc/ohlc'
 import { summarize } from '@shared/calc/stats'
-import { isoWeekOf } from '@shared/calc/time'
+import { ZONE_NY, isoWeekOf } from '@shared/calc/time'
+import { marketTicker } from '@shared/market'
+import { marketBars, marketOnline } from '../../store/market'
 import { SCHEMA_VERSION, WEEKDAYS, weekPairSchema, weekReviewSchema, type Weekday, type WeekPair, type WeekReview } from '@shared/schema'
 import { api, errorMessage } from '../../lib/api'
 import { fmtPercent, fmtR, parseClockInput, tone, toneClass } from '../../lib/format'
@@ -75,11 +77,30 @@ export function WeekPage({ week }: { week: string }) {
         toast(`Plik nie zawiera świec z tygodnia ${week}. Dostępne: ${available || 'brak'}.`, 'error', 7000)
         return
       }
-      setSection(section.pair, (p) => ({ ...p, days: res.days, weekHighDay: res.weekHighDay, weekLowDay: res.weekLowDay, source: 'csv' }))
+      setSection(section.pair, (p) => ({ ...p, days: res.days, weekHighDay: res.weekHighDay, weekLowDay: res.weekLowDay, source: 'csv', marketTicker: undefined }))
       toast(`Zaimportowano ${res.barCount} świec (${file.name})${skipped ? `, pominięto ${skipped} wierszy` : ''}.`, 'success')
     } catch (e) {
       toast(`Import CSV: ${errorMessage(e)}`, 'error', 7000)
     }
+  }
+
+  const fromMarket = async () => {
+    if (!section || !journal) return
+    const ticker = marketTicker(section.pair, journal.settings.pairs)
+    if (!ticker) {
+      toast(`Para ${section.pair} nie ma symbolu w danych rynkowych (Ustawienia → Dane rynkowe).`, 'error', 6000)
+      return
+    }
+    const from = DateTime.fromISO(dates[0]!, { zone: ZONE_NY }).toMillis()
+    const to = Math.min(DateTime.fromISO(dates[4]!, { zone: ZONE_NY }).plus({ days: 1 }).toMillis(), Date.now())
+    const res = await marketBars(ticker, from, to)
+    const ext = weekExtremes(res.bars, week)
+    if (ext.barCount === 0) {
+      toast(res.ok ? (marketOnline() ? `Brak świec ${ticker} z tygodnia ${week}.` : 'Brak pobranych świec – wpisz klucz EODHD w Ustawienia → Dane rynkowe.') : `Dane rynkowe: ${res.message}.`, 'error', 7000)
+      return
+    }
+    setSection(section.pair, (p) => ({ ...p, days: ext.days, weekHighDay: ext.weekHighDay, weekLowDay: ext.weekLowDay, source: 'csv', marketTicker: ticker }))
+    toast(`High / low dni z danych rynkowych (${ticker}, ${ext.barCount} świec M1).`, 'success')
   }
 
   return (
@@ -137,7 +158,10 @@ export function WeekPage({ week }: { week: string }) {
                     </option>
                   ))}
               </select>
-              <button className="btn ml-auto h-[22px]" onClick={importCsv} data-testid="import-ohlc" title="TradingView: menu wykresu → Export chart data… (najlepiej M5–M15)">
+              <button className="btn ml-auto h-[22px]" onClick={() => void fromMarket()} data-testid="week-from-market" title="High / low każdego dnia i ich godziny NY ze świec M1 EODHD">
+                Z danych rynkowych
+              </button>
+              <button className="btn h-[22px]" onClick={importCsv} data-testid="import-ohlc" title="TradingView: menu wykresu → Export chart data… (najlepiej M5–M15)">
                 Import CSV z TradingView
               </button>
             </div>
@@ -224,7 +248,7 @@ function PairTable({ section, dates, onChange }: { section: WeekPair; dates: str
     return [...m.entries()].map(([k, v]) => `${k} ${v}`).join(' · ') || '—'
   }
   return (
-    <Section title={`${section.pair}: high / low dnia (czas NY)${section.source === 'csv' ? ' · z CSV' : ''}`}>
+    <Section title={`${section.pair}: high / low dnia (czas NY)${section.source === 'csv' ? (typeof section.marketTicker === 'string' ? ' · z danych rynkowych' : ' · z CSV') : ''}`}>
       <div className="grid grid-cols-[52px_1fr_70px_1fr_70px_64px_64px] items-center gap-x-1.5 border-b border-line pb-1 text-[10.5px] tracking-wide text-muted uppercase">
         <span>Dzień</span>
         <span className="text-right">High</span>

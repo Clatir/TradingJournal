@@ -1,14 +1,22 @@
 /**
- * A closed trade measured on the market's M1 bars (EODHD, 1.8.0): MAE / MFE with the rules of `excursionsFromBars`
- * (the part of the entry bar beyond a level that did not close the trade was before the entry; a level that closed it
- * caps that side), when the extremes came, and which levels price reached before the exit. Market prices are another
- * feed than the broker's (0.1–0.6 pip apart on EURUSD), so a level within the touch margin is "near", not "yes".
+ * A trade measured on the market's M1 bars (EODHD). Closed trades (1.8.0): MAE / MFE with the rules of
+ * `excursionsFromBars` (the part of the entry bar beyond a level that did not close the trade was before the entry; a
+ * level that closed it caps that side), when the extremes came, which levels price reached before the exit; liquidity
+ * taken before the entry (1.9.0). Missed trades (1.9.0): what price reached first after the entry until 17:00 NY.
+ * Market prices are another feed than the broker's (0.1–0.6 pip apart on EURUSD), so a level within the touch margin
+ * is "near", not "yes".
  */
+import { DateTime } from 'luxon'
 import type { Trade, TradeMarket } from '../schema'
 import type { Bar } from './ohlc'
 import { excursionsFromBars, tradeLevels } from './excursions'
+import { liquidityTakenBefore, type MarketLevel } from './marketLevels'
+import { nyWallToMs } from './sessionSpans'
+import { ZONE_NY } from './time'
 
 const MIN_MS = 60_000
+/** Version of the summary; an older one is computed again (1.9.0 added liquidity and missed trades). */
+export const MARKET_STATS_VERSION = 2
 
 /** The trade's values its market summary depends on; another key = the summary is out of date. */
 export function tradeMarketKey(t: Trade): string {
@@ -16,19 +24,45 @@ export function tradeMarketKey(t: Trade): string {
   return JSON.stringify([t.pair, t.direction, t.status, t.entryTime, t.prices.entry, t.prices.stopLoss, t.prices.takeProfit1, t.prices.takeProfit2, exits])
 }
 
-/** The minutes the trade lived (from the entry's minute to the final exit's minute, inclusive); null = not measurable. */
-export function tradeMarketWindow(t: Trade): { fromMs: number; toMs: number } | null {
-  if (t.status !== 'closed' || t.prices.entry == null) return null
-  const lv = tradeLevels(t)
-  if (!lv.exitTime) return null
-  const from = Math.floor(Date.parse(t.entryTime) / MIN_MS) * MIN_MS
-  const to = Math.floor(Date.parse(lv.exitTime) / MIN_MS) * MIN_MS + MIN_MS
-  return Number.isFinite(from) && Number.isFinite(to) && to > from ? { fromMs: from, toMs: to } : null
+/** Trading day (New York) the entry belongs to as a forex daily candle: from 17:00 NY it is the next day. */
+export function sessionDateOf(iso: string): string {
+  const ny = DateTime.fromISO(iso, { zone: 'utc' }).setZone(ZONE_NY)
+  return (ny.hour >= 17 ? ny.plus({ days: 1 }) : ny).toISODate()!
 }
 
-/** A closed trade with an entry price and a timed exit whose summary is missing or out of date. */
-export function needsMarketStats(t: Trade): boolean {
-  return tradeMarketWindow(t) != null && (t.market == null || t.market.key !== tradeMarketKey(t))
+/** A missed trade is followed until 17:00 NY of its trading day (at least an hour). */
+export function missedHorizon(t: Trade): number | null {
+  const entry = Date.parse(t.entryTime)
+  if (!Number.isFinite(entry)) return null
+  return Math.max(nyWallToMs(sessionDateOf(t.entryTime), '17:00'), entry + 60 * MIN_MS)
+}
+
+/**
+ * The minutes to measure: a closed trade from the entry's minute to the final exit's minute (inclusive); a missed one
+ * from the entry's minute to its horizon. null = not measurable (no entry price, no timed exit, no SL / TP).
+ */
+export function tradeMarketWindow(t: Trade): { fromMs: number; toMs: number } | null {
+  if (t.prices.entry == null) return null
+  const from = Math.floor(Date.parse(t.entryTime) / MIN_MS) * MIN_MS
+  if (!Number.isFinite(from)) return null
+  if (t.status === 'missed') {
+    if (t.prices.stopLoss == null && t.prices.takeProfit1 == null && t.prices.takeProfit2 == null) return null
+    const to = missedHorizon(t)
+    return to != null && to > from ? { fromMs: from, toMs: to } : null
+  }
+  if (t.status !== 'closed') return null
+  const lv = tradeLevels(t)
+  if (!lv.exitTime) return null
+  const to = Math.floor(Date.parse(lv.exitTime) / MIN_MS) * MIN_MS + MIN_MS
+  return Number.isFinite(to) && to > from ? { fromMs: from, toMs: to } : null
+}
+
+/** Measurable, and the summary is missing, out of date or of an older version; a missed trade once its horizon passed. */
+export function needsMarketStats(t: Trade, nowMs = Date.now()): boolean {
+  const win = tradeMarketWindow(t)
+  if (!win) return false
+  if (t.status === 'missed' && nowMs < win.toMs) return false
+  return t.market == null || t.market.key !== tradeMarketKey(t) || (t.market.v ?? 1) !== MARKET_STATS_VERSION
 }
 
 export interface MarketStatsOptions {
@@ -37,6 +71,8 @@ export interface MarketStatsOptions {
   /** A level counts as reached only beyond this many pips; within it: "near". */
   marginPips: number
   now: string
+  /** Levels of the trading day and the bars from the previous week to the entry (liquidity taken before the entry). */
+  levels?: { levels: readonly MarketLevel[]; bars: readonly Bar[] }
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100 + 0
@@ -51,12 +87,9 @@ function touch(went: number, dist: number | null, margin: number): Touch | null 
   return 'no'
 }
 
-/**
- * The summary (always with `key`): MAE / MFE null and a warning when the bars do not cover the trade (no data for the
- * period, a ticker without minute bars). `bars` are M1 of the trade's window (more is fine).
- */
-export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStatsOptions): TradeMarket {
-  const empty = (warning: string): TradeMarket => ({
+function emptySummary(t: Trade, opts: MarketStatsOptions, warning: string | null): TradeMarket {
+  return {
+    v: MARKET_STATS_VERSION,
     source: 'eodhd',
     ticker: opts.ticker,
     key: tradeMarketKey(t),
@@ -74,16 +107,32 @@ export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStats
     reachedTp1: null,
     reachedTp2: null,
     stopTouched: null,
-    warnings: [warning]
-  })
+    liquidity: [],
+    missed: null,
+    warnings: warning ? [warning] : []
+  }
+}
+
+function liquidity(t: Trade, opts: MarketStatsOptions): TradeMarket['liquidity'] {
+  if (!opts.levels) return []
+  const entry = Date.parse(t.entryTime)
+  return liquidityTakenBefore(opts.levels.levels, opts.levels.bars, entry, opts.marginPips * opts.pipSize).map((l) => ({ id: l.id, label: l.label, touch: l.touch, at: new Date(l.at).toISOString() }))
+}
+
+/**
+ * The summary (always with `key` and `v`): values null and a warning when the bars do not cover the trade (no data for
+ * the period, a ticker without minute bars). `bars` are M1 of the trade's window (more is fine).
+ */
+export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStatsOptions): TradeMarket {
+  if (t.status === 'missed') return missedStatsFor(t, bars, opts)
   const win = tradeMarketWindow(t)
   const lv = tradeLevels(t)
-  if (!win || lv.entry == null || !lv.exitTime) return empty('Transakcja bez ceny wejścia albo czasu wyjścia.')
+  if (!win || lv.entry == null || !lv.exitTime) return emptySummary(t, opts, 'Transakcja bez ceny wejścia albo czasu wyjścia.')
   const inside = bars.filter((b) => b.t >= win.fromMs && b.t < win.toMs)
   const minutes = Math.round((win.toMs - win.fromMs) / MIN_MS)
   const hasEntry = inside.some((b) => b.t === win.fromMs)
   const hasExit = inside.some((b) => b.t === win.toMs - MIN_MS)
-  if (!inside.length || (!hasEntry && !hasExit)) return empty('Brak świec M1 z czasu transakcji w danych rynkowych.')
+  if (!inside.length || (!hasEntry && !hasExit)) return { ...emptySummary(t, opts, 'Brak świec M1 z czasu transakcji w danych rynkowych.'), liquidity: liquidity(t, opts) }
   // excursionsFromBars learns the step from neighbouring bars: a copy of the last bar one minute later (after the
   // exit, never measured) makes a one-bar trade measurable too.
   const last = inside[inside.length - 1]!
@@ -97,7 +146,7 @@ export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStats
     exitTime: lv.exitTime,
     pipSize: opts.pipSize
   })
-  if ('error' in ex) return empty(`Nie da się zmierzyć: ${ex.error.replace(/ w pliku CSV| pliku CSV/g, '')}`)
+  if ('error' in ex) return emptySummary(t, opts, `Nie da się zmierzyć: ${ex.error.replace(/ w pliku CSV| pliku CSV/g, '')}`)
   const pip = opts.pipSize
   const margin = opts.marginPips * pip
   const adverse = -ex.maePips * pip
@@ -115,10 +164,7 @@ export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStats
   const coverage = inside.length / Math.max(1, minutes)
   if (coverage < 0.8) warnings.push(`Dane rynkowe mają luki: ${Math.round(coverage * 100)}% minut transakcji.`)
   return {
-    source: 'eodhd',
-    ticker: opts.ticker,
-    key: tradeMarketKey(t),
-    computedAt: opts.now,
+    ...emptySummary(t, opts, null),
     maePips: ex.maePips,
     mfePips: ex.mfePips,
     maeR: risk ? round2(-adverse / risk) : null,
@@ -132,13 +178,84 @@ export function marketStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStats
     reachedTp1: exitTarget != null && exitTarget === tp1 ? 'yes' : touch(favourable, dist(tp1), margin),
     reachedTp2: exitTarget != null && exitTarget === tp2 ? 'yes' : touch(favourable, dist(tp2), margin),
     stopTouched: ex.exit === 'stop' ? 'yes' : touch(adverse, risk, margin),
+    liquidity: liquidity(t, opts),
     warnings
   }
 }
 
-/** The trade with its market summary; MAE / MFE only where empty (typed, TradingView and CSV values stay). */
+export interface MissedOutcome {
+  outcome: 'tp1' | 'tp2' | 'sl' | 'none'
+  /** No touch within the margin before the decisive one, and not two levels in the same minute. */
+  certain: boolean
+  /** UTC ms of the minute that decided (null for "none"). */
+  at: number | null
+}
+
+/**
+ * What price reached first after a missed entry (bars after the entry's minute up to `until`): TP1 (then TP2 before
+ * SL = tp2), SL, or nothing. The same minute reaching the stop and a target cannot be ordered: uncertain.
+ */
+export function missedOutcomeFor(t: Trade, bars: readonly Bar[], until: number, margin: number): MissedOutcome {
+  const entry = t.prices.entry!
+  const long = t.direction === 'long'
+  const first = t.prices.takeProfit1 ?? t.prices.takeProfit2
+  const second = t.prices.takeProfit1 != null ? t.prices.takeProfit2 : null
+  const sl = t.prices.stopLoss
+  const fromMs = Math.floor(Date.parse(t.entryTime) / MIN_MS) * MIN_MS + MIN_MS
+  // How far beyond a level the bar went (> margin = reached, > −margin = near).
+  const beyondTarget = (b: Bar, level: number) => (long ? b.high - level : level - b.low)
+  const beyondStop = (b: Bar, level: number) => (long ? level - b.low : b.high - level)
+  let near = false
+  let reachedFirst: number | null = null
+  for (const b of bars) {
+    if (b.t < fromMs || b.t >= until) continue
+    const slHit = sl != null && beyondStop(b, sl) > margin
+    const slNear = sl != null && beyondStop(b, sl) > -margin
+    if (reachedFirst == null) {
+      const t1 = first != null && beyondTarget(b, first) > margin
+      const t1Near = first != null && beyondTarget(b, first) > -margin
+      if (slHit && t1) return { outcome: 'sl', certain: false, at: b.t }
+      if (slHit) return { outcome: 'sl', certain: !near, at: b.t }
+      if (t1) {
+        reachedFirst = b.t
+        if (second == null) return { outcome: 'tp1', certain: !near, at: b.t }
+        if (beyondTarget(b, second) > margin) return { outcome: 'tp2', certain: !near, at: b.t }
+        continue
+      }
+      if (slNear || t1Near) near = true
+    } else {
+      const t2 = beyondTarget(b, second!) > margin
+      if (slHit && t2) return { outcome: 'tp1', certain: false, at: reachedFirst }
+      if (t2) return { outcome: 'tp2', certain: !near, at: b.t }
+      if (slHit) return { outcome: 'tp1', certain: !near, at: reachedFirst }
+      if (slNear || beyondTarget(b, second!) > -margin) near = true
+    }
+  }
+  if (reachedFirst != null) return { outcome: 'tp1', certain: !near, at: reachedFirst }
+  return { outcome: 'none', certain: !near, at: null }
+}
+
+function missedStatsFor(t: Trade, bars: readonly Bar[], opts: MarketStatsOptions): TradeMarket {
+  const win = tradeMarketWindow(t)
+  if (!win || t.prices.entry == null) return emptySummary(t, opts, 'Missed bez ceny wejścia albo poziomów.')
+  const after = bars.filter((b) => b.t > win.fromMs && b.t < win.toMs)
+  if (!after.length) return { ...emptySummary(t, opts, 'Brak świec M1 po wejściu w danych rynkowych.'), liquidity: liquidity(t, opts) }
+  const o = missedOutcomeFor(t, bars, win.toMs, opts.marginPips * opts.pipSize)
+  return {
+    ...emptySummary(t, opts, null),
+    liquidity: liquidity(t, opts),
+    missed: { outcome: o.outcome, certain: o.certain, at: o.at != null ? new Date(o.at).toISOString() : null, until: new Date(win.toMs).toISOString() }
+  }
+}
+
+/**
+ * The trade with its market summary. Closed: MAE / MFE only where empty (typed, TradingView and CSV values stay).
+ * Missed: the outcome only when none was chosen and the answer is certain.
+ */
 export function withMarketStats(t: Trade, m: TradeMarket): Trade {
-  return { ...t, market: m, maePips: t.maePips ?? m.maePips, mfePips: t.mfePips ?? m.mfePips }
+  const next: Trade = { ...t, market: m, maePips: t.maePips ?? m.maePips, mfePips: t.mfePips ?? m.mfePips }
+  if (t.status === 'missed' && m.missed?.certain && t.missed.hypotheticalOutcome == null) next.missed = { ...t.missed, hypotheticalOutcome: m.missed.outcome }
+  return next
 }
 
 /** MAE / MFE of the trade differ from the market's by more than the margin (for "Użyj danych rynkowych"). */

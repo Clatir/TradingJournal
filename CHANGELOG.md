@@ -3,6 +3,24 @@
 Każda sekcja `## X.Y.Z` jest opisem wydania na GitHubie (CI publikuje je samo po podbiciu wersji w `package.json`),
 a aplikacja pokazuje go w „Ustawienia → Aktualizacje” i po aktualizacji.
 
+## 1.9.0
+
+### Nowe
+- **Poziomy ICT w planie dnia z danych rynkowych.** Dla każdej pary panel „Poziomy z danych rynkowych”: PDH / PDL,
+  PWH / PWL, Asia high / low, London high / low, otwarcie dnia (17:00), NY midnight open i otwarcie 08:30 – z cenami
+  i godzinami powstania. „+” albo „Dodaj wszystkie” wpisuje je do poziomów kluczowych. Dzień handlowy liczony jak
+  dzienna świeca forex 17:00–17:00 NY (w poniedziałek PDH / PDL z piątku); sesja Azji do ustawienia w Ustawienia →
+  Dane rynkowe, Londyn = killzone London.
+- **Zebrana płynność przed wejściem.** Przy „Zebrana płynność” w transakcji widać, które z tych poziomów cena przebiła
+  przed wejściem (i które tylko dotknęła – „niepewne”); „Zaznacz” zaznacza odpowiadające pozycje słownika.
+- **Missed trades rozliczane z danych.** Co cena osiągnęła najpierw po wejściu (TP1, TP2, SL albo nic) do 17:00 NY
+  i o której. Pusty wynik jest ustawiany, gdy odpowiedź jest pewna; przy niepewnej albo innej niż wybrana – podpowiedź
+  z przyciskiem „Ustaw”.
+- **Przegląd tygodnia „Z danych rynkowych”** – high / low każdego dnia i ich godziny NY bez eksportu CSV
+  z TradingView.
+- Wykres transakcji pokazuje poziomy dnia jako linie z podpisami (przełącznik „poziomy dnia”).
+- Podsumowania liczone w 1.8.0 przeliczają się same (nowe pola).
+
 ## 1.8.0
 
 ### Nowe

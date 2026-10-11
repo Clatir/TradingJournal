@@ -342,7 +342,12 @@ export const settingsSchema = z.looseObject({
       /** The trade chart shows this many minutes before the entry and after the exit. */
       chartBeforeMinutes: z.number().int().min(10).max(7 * 24 * 60).catch(120).default(120),
       chartAfterMinutes: z.number().int().min(0).max(7 * 24 * 60).catch(60).default(60),
-      chartInterval: z.enum(['1', '5', '15', '60']).catch('5').default('5')
+      chartInterval: z.enum(['1', '5', '15', '60']).catch('5').default('5'),
+      /** Asia session of the day's levels (NY time, ends on the trading day; 1.9.0). London = the London killzone. */
+      asia: z
+        .object({ start: clockTime, end: clockTime })
+        .catch({ start: '20:00', end: '00:00' })
+        .default({ start: '20:00', end: '00:00' })
     })
     .prefault({}),
   /** Changes of the data folder made on another computer while this one has it open (since 1.4.0). */

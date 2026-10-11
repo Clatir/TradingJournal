@@ -15,6 +15,7 @@ import { SessionsSection } from '../sessions/SessionsSection'
 import { TemplatesMenu } from './TemplatesMenu'
 import { WellbeingSection } from '../wellbeing/Wellbeing'
 import { ScreensPanel } from '../screens/ScreensPanel'
+import { MarketLevelsPanel } from './MarketLevels'
 import { copyDayMarkdown } from '../export/markdownActions'
 import { copyDayPlanToDate } from '../duplicate'
 
@@ -315,6 +316,7 @@ function Section({ title, actions, children, className }: { title: ReactNode; ac
 
 function PairSection({ section, date, onChange, readOnly }: { section: DayPair; date: string; onChange: (fn: (p: DayPair) => DayPair) => void; readOnly: boolean }) {
   const pairCfg = useJournal((s) => s.journal?.settings.pairs.find((p) => p.symbol === section.pair))
+  const journal = useJournal((s) => s.journal)
   const decimals = pairCfg?.priceDecimals ?? 5
   return (
     <>
@@ -374,6 +376,11 @@ function PairSection({ section, date, onChange, readOnly }: { section: DayPair; 
           ))}
         </div>
       </Section>
+      {journal && (
+        <Section title="Poziomy z danych rynkowych">
+          <MarketLevelsPanel section={section} date={date} settings={journal.settings} readOnly={readOnly} onChange={onChange} />
+        </Section>
+      )}
       <Section title="Scenariusze">
         <div className="flex flex-col gap-1.5">
           <span className="text-[11.5px] text-muted">Główny</span>

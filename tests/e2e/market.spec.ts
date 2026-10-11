@@ -1,8 +1,11 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { createTrade } from '../../src/shared/defaults'
-import { marketStatsFor } from '../../src/shared/calc/marketStats'
+import { DateTime } from 'luxon'
+import { createDayPlan, createDefaultJournal, createTrade } from '../../src/shared/defaults'
+import { marketStatsFor, missedHorizon, missedOutcomeFor } from '../../src/shared/calc/marketStats'
+import { dayLevels, levelSessions, levelsWindow } from '../../src/shared/calc/marketLevels'
+import { weekExtremes } from '../../src/shared/calc/ohlc'
 import { MARKET_DIR, parseEodhdIntraday } from '../../src/shared/market'
 import { startMarketServer, syntheticBars, syntheticPrice } from '../helpers/market'
 import { launch } from './app'
@@ -94,6 +97,88 @@ test('dane rynkowe EODHD: klucz w ustawieniach, sprawdzenie połączenia, MAE / 
     // The key is stored for this computer only, not in the data folder.
     const journalJson = await fs.readFile(join(dataDir, 'journal.json'), 'utf8')
     expect(journalJson).not.toContain(KEY)
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+    await server.close()
+  }
+})
+
+test('dane rynkowe 1.9: poziomy w planie dnia, płynność przed wejściem, missed z danych, tydzień z danych', async () => {
+  const server = await startMarketServer({ key: KEY })
+  const closed = marketTrade('01K6H40000000000000000000C', '2026-09-23T14:00:20.000Z') // 10:00 NY
+  const entry = syntheticPrice('EURUSD.FOREX', Date.parse('2026-09-23T13:00:00Z') / 1000)
+  const missed = createTrade({
+    id: '01K6H40000000000000000000D',
+    pair: 'EURUSD',
+    direction: 'long',
+    status: 'missed',
+    entryTime: '2026-09-23T13:00:05.000Z',
+    prices: { entry, stopLoss: Number((entry - 0.0012).toFixed(5)), takeProfit1: Number((entry + 0.0012).toFixed(5)), takeProfit2: Number((entry + 0.0025).toFixed(5)) }
+  })
+  const dataDir = await seed([closed, missed], undefined, [createDayPlan('2026-09-23', ['EURUSD'], [])])
+  const { app, page, errors } = await launch({ dataDir, env: { ICTJ_MARKET_URL: server.url, ICTJ_MARKET_KEY: KEY, ICTJ_MARKET_DELAY_MS: '300' } })
+  try {
+    await expect(page.getByTestId('journal-row')).toHaveCount(2)
+
+    // In the background (key from the environment): the summary of both trades.
+    const settings = createDefaultJournal().settings
+    const sessions = levelSessions(settings.market.asia, settings.killzones)
+    const bars = (fromMs: number, toMs: number) => parseEodhdIntraday(syntheticBars('EURUSD.FOREX', fromMs / 1000, toMs / 1000 - 1))!
+    const lw = levelsWindow('2026-09-23')
+    const levelBars = bars(lw.fromMs, lw.toMs)
+    const expectedClosed = marketStatsFor(closed, levelBars, { ticker: 'EURUSD.FOREX', pipSize: 0.0001, marginPips: 1, now: '', levels: { levels: dayLevels('2026-09-23', levelBars, sessions), bars: levelBars } })
+    const horizon = missedHorizon(missed)!
+    const expectedMissed = missedOutcomeFor(missed, bars(Date.parse(missed.entryTime) - 60_000, horizon), horizon, 0.0001)
+    await expect.poll(async () => (await readTrades(dataDir)).filter((t) => t.market?.v === 2).length, { timeout: 20_000 }).toBe(2)
+    const saved = await readTrades(dataDir)
+    const sc = saved.find((t) => t.id === closed.id)!
+    const sm = saved.find((t) => t.id === missed.id)!
+    expect(sc.market!.liquidity.map((l) => [l.id, l.touch])).toEqual(expectedClosed.liquidity.map((l) => [l.id, l.touch]))
+    expect(sm.market!.missed).toMatchObject({ outcome: expectedMissed.outcome, certain: expectedMissed.certain })
+    expect(sm.missed.hypotheticalOutcome).toBe(expectedMissed.certain ? expectedMissed.outcome : null)
+
+    // The editor shows the liquidity taken before the entry (and marks the matching dictionary items).
+    await page.getByTestId('journal-row').filter({ hasText: '10:00' }).dblclick()
+    if (expectedClosed.liquidity.some((l) => l.touch === 'yes')) {
+      await expect(page.getByTestId('market-liquidity')).toContainText('przed wejściem zebrano')
+      await page.getByTestId('market-liquidity-mark').click()
+      await expect.poll(async () => (await readTrades(dataDir)).find((t) => t.id === closed.id)!.liquidityTakenIds.length).toBeGreaterThan(0)
+    }
+    await expect(page.getByTestId('trade-chart-levels')).toBeChecked()
+
+    // Day plan of 23.09: levels from the bars, all added to the key levels.
+    await page.keyboard.press('Control+d')
+    await page.getByTestId('day-date').fill('2026-09-23')
+    await page.getByTestId('day-date').press('Enter')
+    const levels = page.getByTestId('market-levels')
+    await expect(levels.getByTestId('market-level-pdh')).toBeVisible({ timeout: 15_000 })
+    const expectedLevels = dayLevels('2026-09-23', levelBars, sessions)
+    const pdh = expectedLevels.find((l) => l.id === 'pdh')!
+    await expect(levels.getByTestId('market-level-pdh')).toContainText(pdh.price.toFixed(5))
+    await levels.screenshot({ path: shots('92-poziomy-z-danych') })
+    await levels.getByTestId('market-levels-add-all').click()
+    const dayFile = join(dataDir, 'days', '2026', '2026-09-23.json')
+    await expect
+      .poll(async () => (JSON.parse(await fs.readFile(dayFile, 'utf8')) as { pairs: Array<{ keyLevels: Array<{ label: string; price: number }> }> }).pairs[0]!.keyLevels.map((k) => k.label))
+      .toEqual(expectedLevels.map((l) => l.label))
+
+    // Week 2026-W39: high / low of each day and their New York times from the bars.
+    await page.getByTestId('nav-week').click()
+    await page.getByTitle('Poprzedni tydzień').click()
+    await page.getByTitle('Poprzedni tydzień').click()
+    await expect(page.getByText('2026-W39')).toBeVisible()
+    await page.getByTestId('week-from-market').click()
+    const weekBars = bars(DateTime.fromISO('2026-09-21', { zone: 'America/New_York' }).toMillis(), DateTime.fromISO('2026-09-26', { zone: 'America/New_York' }).toMillis())
+    const ext = weekExtremes(weekBars, '2026-W39')
+    await expect(page.getByRole('heading', { name: /high \/ low dnia.*z danych rynkowych/ })).toBeVisible()
+    await expect
+      .poll(async () => {
+        const dir = join(dataDir, 'weeks')
+        const f = (await fs.readdir(dir).catch(() => [] as string[])).find((n) => n.startsWith('2026-W39'))
+        return f ? (JSON.parse(await fs.readFile(join(dir, f), 'utf8')) as { pairs: Array<{ days: unknown[]; weekHighDay: string }> }).pairs[0] : null
+      })
+      .toMatchObject({ days: ext.days, weekHighDay: ext.weekHighDay, marketTicker: 'EURUSD.FOREX' })
     expect(errors).toEqual([])
   } finally {
     await app.close()

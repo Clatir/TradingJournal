@@ -24,7 +24,7 @@ import { duplicateTradeEntry } from '../duplicate'
 import { XtbScreenButton } from './XtbScreenImport'
 import { TvExcursionsButton, useAutoExcursions } from './TvExcursions'
 import { TradeChart } from './TradeChart'
-import { MarketExcursions } from './MarketExcursions'
+import { MarketExcursions, MarketLiquidity, MarketMissed } from './MarketExcursions'
 
 const MOOD_LABELS = ['', 'bardzo źle', 'słabo', 'neutralnie', 'dobrze', 'bardzo dobrze']
 
@@ -404,6 +404,7 @@ export function TradeEditor({ id }: { id: string }) {
                     { value: 'none', label: 'nic' }
                   ]}
                 />
+                <MarketMissed trade={t} readOnly={readOnly} onSet={(o) => up((r) => ({ ...r, missed: { ...r.missed, hypotheticalOutcome: o } }))} />
               </Field>
               <ResultStrip r={m.resultR} pips={m.resultPips} money={null} be={be} note="hipotetycznie – poza statystykami" />
             </Section>
@@ -491,6 +492,7 @@ export function TradeEditor({ id }: { id: string }) {
                     setField('liquidityTakenIds', t.liquidityTakenIds.includes(v) ? t.liquidityTakenIds.filter((x) => x !== v) : [...t.liquidityTakenIds, v])
                   }
                 />
+                <MarketLiquidity trade={t} pools={journal.dictionaries.liquidityPools} readOnly={readOnly} onMark={(ids) => setField('liquidityTakenIds', ids)} />
               </Field>
               <Field label="SL poza płynnością">
                 <Segmented

@@ -56,6 +56,8 @@ const touch = z.enum(['yes', 'no', 'near']).nullable().default(null)
  * cache. `key` = the trade's values it was computed from (pair, direction, times, prices): another key = recompute.
  */
 export const tradeMarketSchema = z.looseObject({
+  /** Version of the computation (an older one is recomputed): 1 = 1.8.0, 2 = 1.9.0 (liquidity, missed trades). */
+  v: z.number().int().default(1),
   source: z.literal('eodhd').default('eodhd'),
   ticker: z.string().default(''),
   key: z.string().default(''),
@@ -77,6 +79,20 @@ export const tradeMarketSchema = z.looseObject({
   reachedTp2: touch,
   /** The stop level was touched before the exit by market prices (another feed than the broker's: see `near`). */
   stopTouched: touch,
+  /** Liquidity (levels of the day / week) price went beyond before the entry (1.9.0). */
+  liquidity: z
+    .array(z.looseObject({ id: z.string(), label: z.string(), touch: z.enum(['yes', 'near']), at: isoDateTime }))
+    .default([]),
+  /** A missed trade: what price reached first after the entry until 17:00 NY (1.9.0). */
+  missed: z
+    .looseObject({
+      outcome: z.enum(['tp1', 'tp2', 'sl', 'none']),
+      certain: z.boolean(),
+      at: isoDateTime.nullable().default(null),
+      until: isoDateTime.nullable().default(null)
+    })
+    .nullable()
+    .default(null),
   warnings: z.array(z.string()).default([])
 })
 export type TradeMarket = z.infer<typeof tradeMarketSchema>

@@ -8,6 +8,7 @@ import { updateJournal, useJournal } from '../../store/journal'
 import { fillMarketStats, forgetMarketBars, loadMarketStatus, marketOnline, setMarketEnabled, setMarketKey, useMarket } from '../../store/market'
 import { toast } from '../../store/ui'
 import { Badge, Field, NumberField, Panel, Segmented, Toggle } from '../../components/ui'
+import { ClockInput } from './SettingsPage'
 
 const setMarket = (patch: Partial<Settings['market']>) =>
   updateJournal((j) => ({ ...j, settings: { ...j.settings, market: { ...j.settings.market, ...patch } } }))
@@ -18,7 +19,7 @@ export function MarketTab({ settings }: { settings: Settings }) {
   const progress = useMarket((s) => s.progress)
   const lastError = useMarket((s) => s.lastError)
   const readOnly = useJournal((s) => !!s.status?.readOnly)
-  const tradeCount = useJournal((s) => Object.values(s.trades).filter((e) => e.record.market && e.record.market.maePips != null).length)
+  const tradeCount = useJournal((s) => Object.values(s.trades).filter((e) => e.record.market && (e.record.market.maePips != null || e.record.market.missed)).length)
   const [key, setKey] = useState('')
   const [test, setTest] = useState<MarketTestResult | null>(null)
   const [busy, setBusy] = useState(false)
@@ -58,7 +59,7 @@ export function MarketTab({ settings }: { settings: Settings }) {
   const runFill = async () => {
     const r = await fillMarketStats(true)
     if (r.error) toast(`Dane rynkowe: ${r.error}.`, 'error', 7000)
-    else if (!r.total) toast('Wszystkie zamknięte transakcje mają już podsumowanie z danych rynkowych.', 'info')
+    else if (!r.total) toast('Wszystkie transakcje mają już podsumowanie z danych rynkowych.', 'info')
     else toast(`Dane rynkowe: ${countLabel(r.filled, 'transakcja uzupełniona', 'transakcje uzupełnione', 'transakcji uzupełnionych')} z ${r.total}.`, 'success', 6000)
   }
   const clear = async () => {
@@ -139,7 +140,7 @@ export function MarketTab({ settings }: { settings: Settings }) {
           <Toggle
             checked={m.autoFill}
             onChange={(v) => setMarket({ autoFill: v })}
-            label="Zamknięte transakcje: podsumowanie z świec M1 (MAE / MFE, czas do MAE i MFE, osiągnięte 1R / 2R / TP, dotknięcie SL); puste MAE / MFE są uzupełniane"
+            label="Transakcje: podsumowanie ze świec M1 – zamknięte: MAE / MFE, czas do nich, osiągnięte 1R / 2R / TP, dotknięcie SL, zebrana płynność; missed: co cena osiągnęła najpierw (puste pola są uzupełniane)"
             data-testid="market-autofill"
           />
           <Field label="Margines dotknięcia" hint="EODHD to inne źródło cen niż broker (różnice 0,1–0,6 p na EURUSD): w tym marginesie wynik to „niepewne”">
@@ -167,9 +168,17 @@ export function MarketTab({ settings }: { settings: Settings }) {
               />
             </div>
           </Field>
+          <Field label="Sesja Azji" hint="do poziomów planu dnia i „zebranej płynności”: od godziny w dniu poprzednim do godziny w dniu handlowym (czas NY); Londyn = killzone London">
+            <div className="flex items-center gap-2 text-[11.5px] text-muted">
+              <ClockInput value={m.asia.start} onChange={(start) => setMarket({ asia: { ...m.asia, start } })} />
+              –
+              <ClockInput value={m.asia.end} onChange={(end) => setMarket({ asia: { ...m.asia, end } })} />
+              NY
+            </div>
+          </Field>
           <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
             <button className="btn" disabled={readOnly || !!progress} onClick={() => void runFill()} data-testid="market-fill">
-              {progress ? `Pobieram… ${progress.done} / ${progress.total}` : 'Uzupełnij wszystkie zamknięte transakcje'}
+              {progress ? `Pobieram… ${progress.done} / ${progress.total}` : 'Uzupełnij wszystkie transakcje'}
             </button>
             <span className="text-[11.5px] text-muted" data-testid="market-filled-count">
               z danymi rynkowymi: {tradeCount}

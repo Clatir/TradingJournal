@@ -259,3 +259,8 @@ Szczegóły formatu danych i decyzji projektowych: [CLAUDE.md](CLAUDE.md).
    rynkowymi” rośnie. Otwórz transakcję: panel „Wykres (dane rynkowe)” z wejściem, SL, TP, wyjściem, MAE i MFE
    (M1 / M5 / M15 / H1, „Kopiuj jako obraz”), pod MAE / MFE linia „Rynek (EODHD, M1)”; gdy wpisałeś inne wartości –
    „Użyj danych rynkowych”.
+3. Plan dnia (np. wczorajszy) → para → „Poziomy z danych rynkowych”: PDH / PDL, PWH / PWL, Azja, Londyn i otwarcia z
+   godzinami; „Dodaj wszystkie” wpisuje je do poziomów kluczowych. Transakcja z tego dnia: przy „Zebrana płynność”
+   linia „Rynek: przed wejściem zebrano …” i „Zaznacz”; na wykresie poziomy jako linie.
+4. Missed trade z ceną wejścia, SL i TP: po 17:00 NY tego dnia wynik „Cena doszła do” ustawia się z danych (albo
+   podpowiedź „Ustaw …”). Tydzień → „Z danych rynkowych”: high / low dni i ich godziny.

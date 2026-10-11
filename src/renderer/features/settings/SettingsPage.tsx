@@ -346,7 +346,7 @@ function PairsTab({ journal }: { journal: JournalFile }) {
 
 // ---------------------------------------------------------------- killzones
 
-function ClockInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function ClockInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null)
   return (
     <input

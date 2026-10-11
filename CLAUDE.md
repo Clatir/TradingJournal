@@ -427,8 +427,20 @@ backups/                             kopie ZIP (wyłączone ze skanu)
   edytor: panel „Wykres (dane rynkowe)” (`features/trade/TradeChart.tsx`: lightweight-charts, czas osi NY, linie
   wejścia/SL/TP, znaczniki wejścia/wyjść/MAE/MFE, killzone'y w tle przez prymityw serii, `shared/calc/sessionSpans.ts`,
   „Kopiuj jako obraz”), pod MAE/MFE `MarketExcursions` (wartości rynku, „Użyj danych rynkowych”).
-- Testy: `tests/unit/market.test.ts`, `tests/fs/market.test.ts` (serwer syntetyczny), `tests/e2e/market.spec.ts`.
-  Nigdy nie commituj prawdziwych danych EODHD (licencja, repo publiczne).
+- 1.9.0 (`shared/calc/marketLevels.ts`): dzień handlowy = świeca forex 17:00–17:00 NY (`daySession`; transakcja po
+  17:00 NY → następny dzień, `sessionDateOf`), poprzedni dzień w poniedziałek = piątek, tydzień od niedzieli 17:00
+  (`weekSession`), `levelsWindow` = od poprzedniego tygodnia do końca dnia; `dayLevels`: PDH/PDL, PWH/PWL, Asia H/L
+  (`settings.market.asia`, domyślnie 20:00–00:00 NY), London H/L (killzone „London”, inaczej 02–05), otwarcia 17:00,
+  00:00, 08:30; `knownFrom` = koniec sesji; `liquidityTakenBefore` (yes / near w marginesie), `liquidityNameMatches`
+  (słownik pul płynności po nazwie). Missed (`missedOutcomeFor`): świece po minucie wejścia do 17:00 NY
+  (`missedHorizon`), TP1 → TP2 przed SL = tp2, SL i cel w tej samej minucie albo wcześniejsze „blisko” = niepewne;
+  ustawiane tylko puste i pewne. `trade.market.v` = `MARKET_STATS_VERSION` (2; starsze liczone ponownie),
+  `liquidity`, `missed`. UI: `MarketLiquidity` (przycisk „Zaznacz”), `MarketMissed` („Ustaw …”), plan dnia
+  `features/day/MarketLevels.tsx` („Poziomy z danych rynkowych”, „+” / „Dodaj wszystkie” do poziomów kluczowych),
+  tydzień „Z danych rynkowych” (`weekExtremes`, `source: 'csv'` + `marketTicker` – enum `source` bez zmian dla
+  zgodności), wykres: poziomy dnia jako linie z etykietą na osi (przełącznik).
+- Testy: `tests/unit/market.test.ts`, `tests/unit/market-levels.test.ts`, `tests/fs/market.test.ts` (serwer syntetyczny),
+  `tests/e2e/market.spec.ts`. Nigdy nie commituj prawdziwych danych EODHD (licencja, repo publiczne).
 
 ## Duplikowanie
 - `src/shared/duplicate.ts`, akcje w `renderer/features/duplicate.ts`, Ctrl+Shift+D wg ekranu.
@@ -510,8 +522,9 @@ backups/                             kopie ZIP (wyłączone ze skanu)
 13. ✅ 1.7.0: interwał screena z legendy TradingView i znak w lewym górnym rogu (`tests/unit/tv-timeframe.test.ts`);
     1.7.1: położenie (makieta w ustawieniach) i rozmiar znaku (`tests/unit/screen-mark.test.ts`); 1.7.2: dopisek OCR.
 14. ✅ 1.8.0: dane rynkowe EODHD – klucz per komputer, świece M1 w `.market/`, MAE/MFE i podsumowanie z rynku, wykres
-    transakcji w edytorze (`tests/e2e/market.spec.ts`). Dalej wg `.eodhd/PLAN.md`: 1.9.0 poziomy/missed/tydzień,
-    1.10.0 co by było gdyby + zmienność, 1.11.0 trening z odtwarzaniem.
+    transakcji w edytorze (`tests/e2e/market.spec.ts`); 1.9.0: poziomy ICT w planie dnia i na wykresie, zebrana
+    płynność przed wejściem, missed z danych, tydzień z danych. Dalej wg `.eodhd/PLAN.md`: 1.10.0 co by było
+    gdyby + zmienność, 1.11.0 trening z odtwarzaniem.
 
 ## Weryfikacja wydajności (5000 transakcji, `tests/e2e/perf.spec.ts`)
 Linux/Xvfb: start → lista ≈ 1,6–2,0 s (z uruchomieniem Electrona), 54 wiersze w DOM (wirtualizacja), wyszukiwanie ≈ 70 ms

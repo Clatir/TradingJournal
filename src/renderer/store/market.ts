@@ -6,7 +6,8 @@
  */
 import { useEffect } from 'react'
 import { create } from 'zustand'
-import { marketStatsFor, needsMarketStats, tradeMarketKey, tradeMarketWindow, withMarketStats } from '@shared/calc/marketStats'
+import { marketStatsFor, needsMarketStats, sessionDateOf, tradeMarketKey, tradeMarketWindow, withMarketStats } from '@shared/calc/marketStats'
+import { dayLevels, levelSessions, levelsWindow } from '@shared/calc/marketLevels'
 import { marketTicker, type Bar, type MarketBarsResult, type MarketStatus } from '@shared/market'
 import type { Settings, Trade } from '@shared/schema'
 import { api, errorMessage } from '../lib/api'
@@ -75,10 +76,21 @@ export function forgetMarketBars(): void {
 
 export const tradeTicker = (t: Pick<Trade, 'pair'>, settings: Pick<Settings, 'pairs'>) => marketTicker(t.pair, settings.pairs)
 
-/** The trade's market summary from the given M1 bars (pip size, margin from the settings). */
+/** Bars a trade's summary needs: from the previous week (levels, liquidity before the entry) to its end. */
+export function summaryWindow(t: Trade): { fromMs: number; toMs: number } | null {
+  const win = tradeMarketWindow(t)
+  if (!win) return null
+  return { fromMs: Math.min(win.fromMs, levelsWindow(sessionDateOf(t.entryTime)).fromMs), toMs: win.toMs }
+}
+
+/**
+ * The trade's market summary from M1 bars (pip size, margin, sessions from the settings). With bars from the previous
+ * week (`summaryWindow`) the liquidity taken before the entry is included.
+ */
 export function marketSummary(t: Trade, bars: readonly Bar[], settings: Settings, ticker: string) {
   const pip = settings.pairs.find((p) => p.symbol === t.pair)?.pipSize ?? 0.0001
-  return marketStatsFor(t, bars, { ticker, pipSize: pip, marginPips: settings.market.touchMarginPips, now: new Date().toISOString() })
+  const levels = dayLevels(sessionDateOf(t.entryTime), bars, levelSessions(settings.market.asia, settings.killzones))
+  return marketStatsFor(t, bars, { ticker, pipSize: pip, marginPips: settings.market.touchMarginPips, now: new Date().toISOString(), levels: { levels, bars } })
 }
 
 let running = false
@@ -114,7 +126,7 @@ export async function fillMarketStats(manual = false): Promise<{ filled: number;
     for (const [i, t] of todo.entries()) {
       const settings = useJournal.getState().journal?.settings
       const ticker = settings ? tradeTicker(t, settings) : null
-      const win = tradeMarketWindow(t)
+      const win = summaryWindow(t)
       if (!settings || !ticker || !win) continue
       const res = await marketBars(ticker, win.fromMs, win.toMs)
       useMarket.setState({ progress: { done: i + 1, total: todo.length } })
