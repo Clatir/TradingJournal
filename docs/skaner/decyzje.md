@@ -105,8 +105,11 @@ wejścia na H1 (główne) i M15 (doprecyzowane). Odpowiedzi:
    osobny cache H1 (`h1.bin`) odłożony do fazy 2, jeśli silnik będzie go potrzebował.
 10. **Zasobnik / zbieranie w tle** odłożone do pomiaru świeżości REST w sesji (plan sekcja 7: wariant A albo B).
 11. **Syntetyczny DXY zweryfikowany:** wzór ICE na minutówkach EODHD vs `NYICDX.INDX` (1h, 122 pomiary 21.09–9.10):
-    mediana różnicy 0,003%, maks. 0,13%, kierunek zmian godzinowych zgodny 94/105. EURX – brak wzorca w EODHD,
-    porównanie z TradingView do zrobienia przez użytkownika (nie blokuje).
+    mediana różnicy 0,003%, maks. 0,13%, kierunek zmian godzinowych zgodny 94/105.
+    **Syntetyczny EURX zweryfikowany** z eksportem użytkownika `PEPPERSTONE:EURX` (H1, 300 świec 22.09–9.10):
+    stosunek stały 9,7544 (odch. 0,056%), po przeskalowaniu mediana różnicy 0,034% (maks. 0,13%), kierunek zmian
+    godzinowych 252/258 (przy ruchach ≥ 0,5 pkt 75/75), korelacja 0,985. W fazie 3 EURX pokazywany w skali
+    użytkownika: wynik wzoru ICE × 9,7544 (parametr `synthetic.eurxScale`, edytowalny).
 12. Wykres fazy 1: lightweight-charts nie pokazuje pustego czasu, więc luka = znacznik „luka X h” na pierwszej świecy
     po niej, świece zachodzące na lukę przyciemnione.
 13. Zależność deweloperska `ws` (serwer WebSocket w testach, `tests/helpers/fakeEodhd.ts`); aplikacja używa

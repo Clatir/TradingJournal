@@ -17,7 +17,7 @@ exe z testami E2E na Windows). Pomiary live zaplanowane automatycznie: nd 11.10 
 | 4 | Klienci EODHD (WebSocket, REST z limiterem), backfill, klucz API (safeStorage) | ✅ |
 | 5 | Usługa skanera w main + IPC + preload | ✅ |
 | 6 | UI: zakładka Skaner (Ctrl+0, pasek stanu, surowy wykres), Ustawienia → Skaner | ✅ |
-| 7 | E2E z lokalnym serwerem EODHD ✅, weryfikacja DXY ✅ (EURX czeka na odczyt z TradingView), skrypt pomiarów `scripts/eodhd-live-check.mjs` ✅, **pomiary po otwarciu rynku** (nd 17:00 NY = 23:00 PL) ⏳ | ⏳ |
+| 7 | E2E z lokalnym serwerem EODHD ✅, weryfikacja DXY ✅ i EURX ✅ (Pepperstone = wzór ICE × 9,7544), skrypt pomiarów `scripts/eodhd-live-check.mjs` ✅, **pomiary po otwarciu rynku** (nd 17:00 NY = 23:00 PL) ⏳ | ⏳ |
 
 ## Ukończone
 

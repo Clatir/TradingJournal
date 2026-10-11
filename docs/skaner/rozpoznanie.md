@@ -199,8 +199,9 @@ Wniosek: DXY i EURX tylko syntetycznie z par (wszystkie składniki dostępne liv
 **Weryfikacja stałych (faza 1, 11.10.2026):** syntetyczny DXY ze wzoru ICE na minutówkach EODHD vs indeks ICE
 `NYICDX.INDX` (świece 1h, 122 pomiary 21.09–9.10.2026, cena na koniec godziny): mediana różnicy **0,003%**,
 maks. 0,13%, kierunek zmian godzinowych zgodny w 94 na 105 (pozostałe to ruchy poniżej szumu). Dla EURX EODHD nie
-ma wzorca (`EXY.INDX` to inny indeks); wartości syntetyczne o 17:00 NY do porównania z TradingView:
-5.10 – 108,346; 6.10 – 108,567; 7.10 – 108,152; 8.10 – 108,178; 9.10 – 108,120. Dla obligacji:
+ma wzorca (`EXY.INDX` to inny indeks). Porównanie z eksportem użytkownika `PEPPERSTONE:EURX` (H1, 300 świec):
+ten sam indeks w skali × 9,7544 (stała z odch. 0,056%), po przeskalowaniu mediana różnicy 0,034%, kierunek zmian
+godzinowych 252/258, korelacja 0,985. Dla obligacji:
 bias D możliwy z danych dziennych (FGBLZ26, TYX/US30Y), H4 nie – ręczne ustawienie zgodnie z sekcją 7.4.
 
 ### 3.5 Świeżość REST intraday – odroczone
